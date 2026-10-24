@@ -18,6 +18,11 @@ interface ChatEvent {
   message?: ChatMessage
 }
 
+const routeNames: [string, string][] = [
+  ['/', 'Dashboard'], ['/garden', 'Garden'], ['/sensors', 'Sensors'], ['/devices', 'Devices'], ['/automation', 'Automation'], ['/safety', 'Safety'],
+  ['/assistant', 'Whole garden'], ['/approvals', 'Approvals'], ['/notifications', 'Notifications'], ['/settings', 'Settings'], ['/mcp', 'MCP tools'],
+]
+
 const suggestions = ['How is the garden doing?', 'Is anything too dry?', 'Water the tomatoes every morning', 'Show me the tomato bed camera']
 
 function ToolChip({ m }: { m: ChatMessage }) {
@@ -104,7 +109,7 @@ export function ChatView({ conversationId, onConversationCreated, compact }: { c
     if (e.proposal.conversationId === convId) setProposals((p) => ({ ...p, [e.proposal.id]: e.proposal }))
   })
 
-  const visible = useMemo(() => localMessages.filter((m) => !(m.role === 'assistant' && !m.content && !(m.toolCalls?.length))), [localMessages])
+  const visible = useMemo(() => localMessages.filter((m) => !(m.role === 'assistant' && !m.content && !m.error)), [localMessages])
 
   useEffect(() => {
     viewport.current?.scrollTo({ top: viewport.current.scrollHeight, behavior: 'smooth' })
@@ -135,7 +140,7 @@ export function ChatView({ conversationId, onConversationCreated, compact }: { c
     }
   }
 
-  const contextLabel = page.label ?? (page.route === '/' ? 'Dashboard' : page.route)
+  const contextLabel = page.label ?? routeNames.find(([prefix]) => page.route === prefix || (prefix !== '/' && page.route.startsWith(prefix)))?.[1] ?? page.route
 
   return (
     <Stack gap={0} h="100%" style={{ minHeight: 0 }}>

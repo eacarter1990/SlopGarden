@@ -144,7 +144,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <AppShell.Main>{children}</AppShell.Main>
 
       <AppShell.Aside p={0}>
-        <ChatDrawer onClose={chat.close} />
+        {chatOpen && !onAssistantPage && <ChatDrawer onClose={chat.close} />}
       </AppShell.Aside>
     </AppShell>
   )
