@@ -70,11 +70,23 @@ public sealed class CameraDefinition
     public string Image { get; set; } = "tomato-bed.jpg";
 }
 
-/// <summary>While <see cref="ActuatorId"/> is on, <see cref="SensorId"/> changes by <see cref="RatePerMinute"/>
-/// (scaled by the actuator level) per simulated minute.</summary>
+/// <summary>
+/// Links an actuator to a sensor. <c>rate</c> (default): while <see cref="ActuatorId"/> is on, <see cref="SensorId"/> changes by
+/// <see cref="RatePerMinute"/> (scaled by the actuator level) per simulated minute. <c>while_on</c>: while the actuator is on,
+/// the sensor reads <see cref="Value"/> (scaled by the level, plus the sensor's noise) instead of its model, e.g. a flow meter.
+/// A stalled actuator (fault injection) is still on, but its couplings are inactive.
+/// </summary>
 public sealed class CouplingDefinition
 {
     public string ActuatorId { get; set; } = "";
     public string SensorId { get; set; } = "";
+    public string Mode { get; set; } = CouplingModes.Rate;
     public double RatePerMinute { get; set; }
+    public double? Value { get; set; }
+}
+
+public static class CouplingModes
+{
+    public const string Rate = "rate";
+    public const string WhileOn = "while_on";
 }

@@ -29,6 +29,20 @@ public static class DefaultScenario
                 decimals: 0, offsetDecaySec: 10),
             Sensor("water-tank-level", "Water tank level", Metrics.WaterLevelPct, 0.05,
                 new() { Type = SignalModelTypes.Constant, Value = 86, Floor = 0, Ceiling = 100 }),
+
+            // Hydroponic NFT rack: EC and pH drift up as plants take up water, the reservoir evaporates slowly.
+            Sensor("hydro-ec", "NFT reservoir EC", Metrics.EcMsCm, 0.01,
+                new() { Type = SignalModelTypes.Drying, Start = 1.6, RatePerHour = -0.02, Floor = 0, Ceiling = 6 }),
+            Sensor("hydro-ph", "NFT reservoir pH", Metrics.Ph, 0.02,
+                new() { Type = SignalModelTypes.Drying, Start = 6.0, RatePerHour = -0.03, Floor = 2, Ceiling = 12 }),
+            Sensor("hydro-water-temperature", "NFT reservoir water temperature", Metrics.WaterTemperatureC, 0.03,
+                new() { Type = SignalModelTypes.Sine, Min = 18, Max = 23, PeriodSec = Day, Phase = 10 * 3600 }),
+            Sensor("hydro-reservoir-level", "NFT reservoir level", Metrics.WaterLevelPct, 0.05,
+                new() { Type = SignalModelTypes.Drying, Start = 80, RatePerHour = 0.4, Floor = 0, Ceiling = 100 }, decimals: 1),
+            Sensor("hydro-flow", "NFT channel flow", Metrics.FlowLitersPerMin, 0.03,
+                new() { Type = SignalModelTypes.Constant, Value = 0, Floor = 0 }, decimals: 1),
+            Sensor("hydro-dissolved-oxygen", "NFT reservoir dissolved oxygen", Metrics.DissolvedOxygenMgL, 0.03,
+                new() { Type = SignalModelTypes.Drying, Start = 7.5, RatePerHour = 0.6, Floor = 2.5, Ceiling = 7.6 }),
         ],
         Actuators =
         [
@@ -39,11 +53,18 @@ public static class DefaultScenario
             new() { Id = "grow-light", Name = "Grow light", Kind = ActuatorKinds.Light },
             new() { Id = "heater", Name = "Greenhouse heater", Kind = ActuatorKinds.Heater },
             new() { Id = "fertilizer-doser", Name = "Fertilizer doser", Kind = ActuatorKinds.FertilizerDoser },
+            new() { Id = "nft-pump", Name = "NFT circulation pump", Kind = ActuatorKinds.Pump },
+            new() { Id = "air-pump", Name = "Reservoir air pump", Kind = ActuatorKinds.Pump },
+            new() { Id = "doser-nutrient-a", Name = "Nutrient A doser", Kind = ActuatorKinds.FertilizerDoser },
+            new() { Id = "doser-nutrient-b", Name = "Nutrient B doser", Kind = ActuatorKinds.FertilizerDoser },
+            new() { Id = "doser-ph-down", Name = "pH down doser", Kind = ActuatorKinds.FertilizerDoser },
+            new() { Id = "doser-ph-up", Name = "pH up doser", Kind = ActuatorKinds.FertilizerDoser },
         ],
         Cameras =
         [
             new() { Id = "tomato-cam", Name = "Tomato bed cam", Image = "tomato-bed.jpg" },
             new() { Id = "lettuce-cam", Name = "Lettuce bed cam", Image = "lettuce-bed.jpg" },
+            new() { Id = "hydro-cam", Name = "NFT rack cam", Image = "nft-rack.jpg" },
         ],
         Couplings =
         [
@@ -56,6 +77,12 @@ public static class DefaultScenario
             Couple("main-pump", "water-tank-level", -0.8),
             Couple("grow-light", "greenhouse-light", 60_000),
             Couple("heater", "greenhouse-air-temperature", 0.25),
+            WhileOn("nft-pump", "hydro-flow", 3.2),
+            Couple("air-pump", "hydro-dissolved-oxygen", 0.04),
+            Couple("doser-nutrient-a", "hydro-ec", 2.0),
+            Couple("doser-nutrient-b", "hydro-ec", 2.0),
+            Couple("doser-ph-down", "hydro-ph", -1.5),
+            Couple("doser-ph-up", "hydro-ph", 1.5),
         ],
     };
 
@@ -73,4 +100,7 @@ public static class DefaultScenario
 
     private static CouplingDefinition Couple(string actuatorId, string sensorId, double ratePerMinute) =>
         new() { ActuatorId = actuatorId, SensorId = sensorId, RatePerMinute = ratePerMinute };
+
+    private static CouplingDefinition WhileOn(string actuatorId, string sensorId, double value) =>
+        new() { ActuatorId = actuatorId, SensorId = sensorId, Mode = CouplingModes.WhileOn, Value = value };
 }

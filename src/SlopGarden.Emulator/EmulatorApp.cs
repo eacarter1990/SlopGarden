@@ -6,6 +6,7 @@ namespace SlopGarden.Emulator;
 
 public sealed record OverrideRequest(double Value, double? DurationSec);
 public sealed record ActuatorStateRequest(bool On, double? Level, string? Source);
+public sealed record ActuatorFaultRequest(bool Stalled);
 public sealed record TimeScaleRequest(double Factor);
 
 public static class EmulatorApp
@@ -79,6 +80,8 @@ public static class EmulatorApp
         actuators.MapGet("/{id}", (string id, GardenSimulator sim) => Try(() => sim.GetActuator(id)));
         actuators.MapPut("/{id}/state", (string id, ActuatorStateRequest req, GardenSimulator sim) =>
             Try(() => sim.SetActuatorState(id, req.On, req.Level, req.Source)));
+        actuators.MapPut("/{id}/fault", (string id, ActuatorFaultRequest req, GardenSimulator sim) =>
+            Try(() => sim.SetActuatorFault(id, req.Stalled)));
 
         var cameras = app.MapGroup("/api/cameras").WithTags("Cameras");
         cameras.MapGet("/", (GardenSimulator sim) => sim.ListCameras());

@@ -158,25 +158,38 @@ function createActuatorCard(a) {
   card.innerHTML = `
     <div class="top">
       <div class="icon"><svg viewBox="0 0 24 24">${ICONS[a.kind] ?? ICONS.other}</svg></div>
-      <div><h3></h3><div class="kind"></div></div>
+      <div class="title"><h3></h3><div class="kind"></div></div>
+      <span class="chip stall-badge hidden">STALLED</span>
     </div>
     <div class="bottom">
       <span class="state"></span>
-      <label class="switch"><input type="checkbox"><span></span></label>
+      <div class="controls">
+        <button class="small ghost stall-toggle" title="Simulate a dead pump or clog: the actuator still reports on, but has no effect on its sensors"></button>
+        <label class="switch"><input type="checkbox"><span></span></label>
+      </div>
     </div>`;
   $("input", card).addEventListener("change", e =>
     guard(api(`/api/actuators/${encodeURIComponent(a.id)}/state`, { method: "PUT", body: JSON.stringify({ on: e.target.checked, source: "emulator-ui" }) })));
+  $(".stall-toggle", card).addEventListener("click", () =>
+    guard(api(`/api/actuators/${encodeURIComponent(a.id)}/fault`, { method: "PUT", body: JSON.stringify({ stalled: !card._actuator.stalled }) })));
   return card;
 }
 
 function updateActuatorCard(card, a) {
+  card._actuator = a;
   $("h3", card).textContent = a.name;
   $(".kind", card).textContent = a.kind.replace("_", " ");
   card.classList.toggle("on", a.on);
+  card.classList.toggle("stalled", a.stalled);
   $("input", card).checked = a.on;
+  $(".stall-badge", card).classList.toggle("hidden", !a.stalled);
+  const toggle = $(".stall-toggle", card);
+  toggle.textContent = a.stalled ? "Unstall" : "Stall";
+  toggle.classList.toggle("danger", a.stalled);
   const since = new Date(a.since);
   const level = a.on && a.level != null && a.level < 1 ? ` · ${Math.round(a.level * 100)}%` : "";
-  $(".state", card).textContent = `${a.on ? "ON" : "Off"}${level} · since ${since.toLocaleTimeString()}`;
+  const fault = a.stalled ? (a.on ? " · no effect" : " · will not work") : "";
+  $(".state", card).textContent = `${a.on ? "ON" : "Off"}${level}${fault} · since ${since.toLocaleTimeString()}`;
 }
 
 function createCameraCard(c) {
