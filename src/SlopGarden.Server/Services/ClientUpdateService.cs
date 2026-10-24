@@ -20,6 +20,8 @@ public sealed class ClientUpdateService(
     IOptions<ServerOptions> options,
     DeviceConnections connections,
     IHubContext<DeviceHub> hub,
+    ReleaseCatalog releases,
+    ServerImageUpdater serverUpdater,
     ILogger<ClientUpdateService> log) : BackgroundService
 {
     public const string SettingKey = "client_release";
@@ -51,7 +53,7 @@ public sealed class ClientUpdateService(
         using var scope = scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SlopDbContext>();
         var notifications = scope.ServiceProvider.GetRequiredService<NotificationService>();
-        var release = await ReadAsync(db, ct);
+        var release = await ResolveAsync(db, ct);
         var device = await db.Devices.FirstOrDefaultAsync(d => d.Id == deviceId, ct) ?? throw AppException.NotFound("Device");
         if (string.IsNullOrWhiteSpace(release.Version) || string.IsNullOrWhiteSpace(release.Image))
             throw AppException.Bad("Set the client version and container image before updating a device.");
@@ -103,7 +105,8 @@ public sealed class ClientUpdateService(
         using var scope = scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SlopDbContext>();
         var notifications = scope.ServiceProvider.GetRequiredService<NotificationService>();
-        var release = await ReadAsync(db, ct);
+        var release = await ResolveAsync(db, ct);
+        await MaybeUpdateServerAsync(db, release, ct);
         if (string.IsNullOrWhiteSpace(release.Version)) return;
         var devices = await db.Devices.Where(d => d.Status == DeviceStatuses.Approved).ToListAsync(ct);
         foreach (var device in devices)
@@ -130,5 +133,51 @@ public sealed class ClientUpdateService(
             }
         }
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>The selected release: latest, or the version an Admin pinned. Both images come from that release.</summary>
+    public async Task<ClientReleaseInfo> ResolveAsync(SlopDbContext db, CancellationToken ct)
+    {
+        var published = await releases.ListAsync(ct);
+        var track = await ReleaseCatalog.ReadTrackAsync(db, releases.Owner, ct);
+        var chosen = ReleaseImages.Choose(published, track.Mode, track.Version, releases.Owner);
+        if (chosen is null) return await ReadAsync(db, ct);
+        await releases.RememberAsync(db, chosen, ct);
+        return new ClientReleaseInfo(chosen.Version, chosen.ClientImage);
+    }
+
+    public async Task UpdateServerAsync(CancellationToken ct)
+    {
+        using var scope = scopes.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SlopDbContext>();
+        var release = await ResolveAsync(db, ct);
+        if (string.IsNullOrWhiteSpace(release.Version))
+            throw AppException.Bad("No release is available yet.");
+        var serverImage = ReleaseImages.Server(releases.Owner, release.Version);
+        await serverUpdater.ApplyAsync(serverImage, release.Image, ct);
+    }
+
+    private async Task MaybeUpdateServerAsync(SlopDbContext db, ClientReleaseInfo release, CancellationToken ct)
+    {
+        var track = await db.ServerSettings.FirstOrDefaultAsync(s => s.Key == ReleaseImages.TrackKey, ct);
+        var auto = track?.Value?["serverAutoUpdate"] is JsonValue flag && flag.TryGetValue<bool>(out var on) && on;
+        if (!auto || string.IsNullOrWhiteSpace(release.Version)) return;
+        if (!ClientVersions.IsOutdated(ServerImageUpdater.RunningVersion, release.Version)) return;
+        if (track?.Value?["serverAttempt"]?.ToString() == release.Version) return;
+        if (track?.Value is JsonObject obj) obj["serverAttempt"] = release.Version;
+        await db.SaveChangesAsync(ct);
+        if (!ServerImageUpdater.CanUpdate)
+        {
+            log.LogInformation("Server {Running} can move to {Version} when the Docker socket and SLOPGARDEN_CONTAINER are set", ServerImageUpdater.RunningVersion, release.Version);
+            return;
+        }
+        try
+        {
+            await serverUpdater.ApplyAsync(ReleaseImages.Server(releases.Owner, release.Version), release.Image, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            log.LogWarning(ex, "Server auto-update to {Version} failed", release.Version);
+        }
     }
 }

@@ -80,6 +80,12 @@ builder.Services.AddOpenApi();
 builder.Services.AddHttpClient("ai", c => c.Timeout = TimeSpan.FromMinutes(5));
 builder.Services.AddHttpClient("discord", c => c.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddHttpClient("search");
+builder.Services.AddHttpClient("github", c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(20);
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("SlopGarden");
+    c.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+});
 
 builder.Services.AddSingleton<DeviceConnections>();
 builder.Services.AddSingleton<ConfigPushQueue>();
@@ -124,6 +130,8 @@ builder.Services.AddSingleton<HydroWatchdog>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<HydroWatchdog>());
 builder.Services.AddSingleton<ActivityLog>();
 builder.Services.AddScoped<ReportService>();
+builder.Services.AddSingleton<ReleaseCatalog>();
+builder.Services.AddSingleton<ServerImageUpdater>();
 builder.Services.AddSingleton<ClientUpdateService>();
 builder.Services.AddSingleton<RemoteSetupService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ClientUpdateService>());

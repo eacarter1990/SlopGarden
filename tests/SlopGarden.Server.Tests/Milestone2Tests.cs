@@ -117,7 +117,7 @@ public class Milestone2ApiTests(ServerFixture f) : IClassFixture<ServerFixture>
     {
         var admin = await f.LoginAsync();
         await using var dev = await DeviceHarness.OnboardAsync(f, admin, "hw-update-" + Guid.NewGuid().ToString("N")[..8]);
-        var saved = await admin.PutAsJsonAsync("/api/client-release", new { version = "9.9.9", image = "ghcr.io/example/slopgarden-client:9.9.9" }, HttpExtensions.Json);
+        var saved = await admin.PutAsJsonAsync("/api/releases", new { mode = "pinned", version = "9.9.9", serverAutoUpdate = false }, HttpExtensions.Json);
         saved.EnsureSuccessStatusCode();
         var list = await admin.Op("list_devices");
         var row = list.AsArray().First(d => d!["id"]!.ToString() == dev.DeviceId.ToString())!;

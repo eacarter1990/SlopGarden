@@ -80,16 +80,11 @@ public sealed class Seeder(SlopDbContext db, IOptions<ServerOptions> options, IC
 
     private async Task EnsureDemoClientReleaseAsync(CancellationToken ct)
     {
-        if (await db.ServerSettings.AnyAsync(s => s.Key == "client_release", ct)) return;
-        db.ServerSettings.Add(new ServerSetting
-        {
-            Key = "client_release",
-            Value = new System.Text.Json.Nodes.JsonObject
-            {
-                ["version"] = "0.3.0",
-                ["image"] = "ghcr.io/eacarter1990/slopgarden-client:0.3.0",
-            },
-        });
+        var placeholder = (await db.ServerSettings.Where(s => s.Key == "client_release").ToListAsync(ct))
+            .FirstOrDefault(s => s.Value?["version"]?.ToString() == "0.3.0");
+        if (placeholder is not null) db.ServerSettings.Remove(placeholder);
+        if (!await db.ServerSettings.AnyAsync(s => s.Key == "release_track", ct))
+            db.ServerSettings.Add(new ServerSetting { Key = "release_track", Value = new System.Text.Json.Nodes.JsonObject { ["mode"] = "latest", ["version"] = "", ["serverAutoUpdate"] = false } });
         await db.SaveChangesAsync(ct);
     }
 

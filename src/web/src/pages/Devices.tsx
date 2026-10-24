@@ -1,4 +1,4 @@
-import { Alert, Anchor, Badge, Button, Card, Group, NumberInput, PasswordInput, Stack, Switch, Table, Text, Textarea, TextInput } from '@mantine/core'
+import { Alert, Anchor, Badge, Button, Card, Group, NumberInput, PasswordInput, Select, Stack, Switch, Table, Text, Textarea, TextInput } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconAlertTriangle, IconCheck, IconWifi, IconX } from '@tabler/icons-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -16,10 +16,11 @@ export function DevicesPage() {
   const save = useSave()
   const qc = useQueryClient()
   const { data: devices } = useQuery({ queryKey: ['devices'], queryFn: () => api.op<Device[]>('list_devices'), refetchInterval: 10_000 })
-  const { data: release } = useQuery({ queryKey: ['client-release'], queryFn: () => api.get<{ version: string; image: string }>('/api/client-release') })
+  const { data: releases } = useQuery({
+    queryKey: ['releases'],
+    queryFn: () => api.get<{ mode: string; version: string; serverImage: string; clientImage: string; serverAutoUpdate: boolean; running: string; canUpdateServer: boolean; error?: string | null; releases: { version: string; tag: string }[] }>('/api/releases'),
+  })
   const [address, setAddress] = useState('')
-  const [version, setVersion] = useState('')
-  const [image, setImage] = useState('')
   const [sshHost, setSshHost] = useState('')
   const [sshPort, setSshPort] = useState<number | string>(22)
   const [sshUser, setSshUser] = useState('')
@@ -48,23 +49,47 @@ export function DevicesPage() {
 
       {isAdmin && (
         <Card>
-          <Text fw={650} mb={4}>Client image</Text>
+          <Text fw={650} mb={4}>Release</Text>
           <Text size="xs" c="dimmed" mb="xs">
-            Published version {release?.version || '—'}{release?.image ? ` · ${release.image}` : ''}. A device running an older image shows an update here.
-            Turning on auto-update installs that image. It does not change safety limits or AI approvals.
+            Updates install the server and client images from a GitHub release. Latest follows the newest release. Pick a version to stay on that one.
+            This server is running {releases?.running || '—'}. Auto-update does not change safety limits or AI approvals.
           </Text>
           <Group align="flex-end">
-            <TextInput label="Version" placeholder="0.2.3" value={version} onChange={(e) => setVersion(e.currentTarget.value)} />
-            <TextInput label="Image" placeholder="ghcr.io/owner/slopgarden-client:0.2.3" value={image} onChange={(e) => setImage(e.currentTarget.value)} style={{ flex: 1 }} />
-            <Button disabled={!version} onClick={async () => {
+            <Select
+              label="Version"
+              data={[{ value: 'latest', label: 'Latest release' }, ...(releases?.releases ?? []).map((r) => ({ value: r.version, label: r.tag }))]}
+              value={releases?.mode === 'pinned' ? releases.version : 'latest'}
+              onChange={async (value) => {
+                if (!value) return
+                try {
+                  await api.put('/api/releases', { mode: value === 'latest' ? 'latest' : 'pinned', version: value === 'latest' ? '' : value, serverAutoUpdate: releases?.serverAutoUpdate ?? false })
+                  qc.invalidateQueries({ queryKey: ['releases'] })
+                  qc.invalidateQueries({ queryKey: ['devices'] })
+                } catch (e) { notifications.show({ color: 'red', message: (e as Error).message }) }
+              }}
+              allowDeselect={false}
+              w={240}
+            />
+            <Switch
+              label="Auto-update server"
+              checked={!!releases?.serverAutoUpdate}
+              onChange={async (e) => {
+                try {
+                  await api.put('/api/releases', { mode: releases?.mode ?? 'latest', version: releases?.mode === 'pinned' ? releases.version : '', serverAutoUpdate: e.currentTarget.checked })
+                  qc.invalidateQueries({ queryKey: ['releases'] })
+                } catch (err) { notifications.show({ color: 'red', message: (err as Error).message }) }
+              }}
+            />
+            <Button variant="light" disabled={!releases?.version} onClick={async () => {
               try {
-                await api.put('/api/client-release', { version, image })
-                notifications.show({ color: 'green', message: 'Client release saved' })
-                qc.invalidateQueries({ queryKey: ['client-release'] })
-                qc.invalidateQueries({ queryKey: ['devices'] })
+                const r = await api.post<{ message: string }>('/api/server/update')
+                notifications.show({ color: 'green', message: r.message })
               } catch (e) { notifications.show({ color: 'red', message: (e as Error).message }) }
-            }}>Save release</Button>
+            }}>Update server</Button>
           </Group>
+          <Text size="xs" c="dimmed" mt="xs">{releases?.serverImage || 'Server image appears when a release is selected.'}</Text>
+          <Text size="xs" c="dimmed">{releases?.clientImage}</Text>
+          {releases?.error && <Text size="xs" c="orange" mt={4}>{releases.error}</Text>}
         </Card>
       )}
 
@@ -101,7 +126,7 @@ export function DevicesPage() {
               if (!probe) return
               setSshBusy(true)
               try {
-                const r = await api.post<{ log: string }>(`/api/devices/remote-setup/${probe.sessionId}/install`, { fingerprint: probe.fingerprint, name: sshName, image: release?.image || null })
+                const r = await api.post<{ log: string }>(`/api/devices/remote-setup/${probe.sessionId}/install`, { fingerprint: probe.fingerprint, name: sshName, image: releases?.clientImage || null })
                 setSshLog(r.log)
                 setProbe(null)
                 setTimeout(() => qc.invalidateQueries({ queryKey: ['devices'] }), 4000)
@@ -184,7 +209,7 @@ export function DevicesPage() {
                     {d.updateError && <Text size="xs" c="red">{d.updateError}</Text>}
                     {isAdmin && d.status === 'approved' && (
                       <Group gap="xs">
-                        <Button size="xs" variant="light" disabled={!d.updateAvailable && !release?.version} onClick={async () => {
+                        <Button size="xs" variant="light" disabled={!d.updateAvailable && !releases?.version} onClick={async () => {
                           try {
                             const r = await api.post<{ message: string }>(`/api/devices/${d.id}/update`)
                             notifications.show({ color: 'green', message: r.message })

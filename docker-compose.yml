@@ -21,9 +21,11 @@ services:
       context: .
       dockerfile: docker/Dockerfile.server
     image: slopgarden-server:local
+    container_name: slopgarden-server
     ports:
       - "5080:5080"
     environment:
+      SLOPGARDEN_CONTAINER: slopgarden-server
       SlopGarden__Database__Host: db
       SlopGarden__Database__Port: "5432"
       SlopGarden__Database__Database: slopgarden
@@ -35,6 +37,7 @@ services:
       SlopGarden__PublicUrl: ${SLOPGARDEN_PUBLIC_URL:-}
     volumes:
       - serverdata:/data
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       db:
         condition: service_healthy

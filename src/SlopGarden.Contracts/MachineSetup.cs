@@ -60,9 +60,11 @@ public static class MachineSetup
                 restart: unless-stopped
               server:
                 image: ghcr.io/eacarter1990/slopgarden-server:latest
+                container_name: slopgarden-server
                 ports:
                   - "5080:5080"
                 environment:
+                  SLOPGARDEN_CONTAINER: slopgarden-server
                   SlopGarden__Database__Host: db
                   SlopGarden__Database__Password: "{{password}}"
                   SlopGarden__DataDirectory: /data
@@ -70,6 +72,7 @@ public static class MachineSetup
                   SlopGarden__PublicUrl: "{{url}}"
                 volumes:
                   - serverdata:/data
+                  - /var/run/docker.sock:/var/run/docker.sock
                 depends_on:
                   db:
                     condition: service_healthy

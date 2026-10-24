@@ -115,14 +115,53 @@ public static class MilestoneEndpoints
 
     private static void MapUpdates(WebApplication app)
     {
-        app.MapGet("/api/client-release", async (SlopDbContext db, CancellationToken ct) =>
-            Results.Ok(await ClientUpdateService.ReadAsync(db, ct))).RequireAuthorization(Policies.ReadOnly).WithTags("Devices");
-
-        app.MapPut("/api/client-release", async (ClientReleaseInfo body, SlopDbContext db, HttpContext http, CancellationToken ct) =>
+        app.MapGet("/api/releases", async (SlopDbContext db, ReleaseCatalog catalog, ClientUpdateService updates, CancellationToken ct) =>
         {
-            if (string.IsNullOrWhiteSpace(body.Version)) return Results.BadRequest(new { error = "Version is required" });
-            await ClientUpdateService.SaveAsync(db, body.Version, body.Image, http.Actor().UserId, ct);
-            return Results.Ok(await ClientUpdateService.ReadAsync(db, ct));
+            var published = await catalog.ListAsync(ct);
+            var track = await ReleaseCatalog.ReadTrackAsync(db, catalog.Owner, ct);
+            var chosen = ReleaseImages.Choose(published, track.Mode, track.Version, catalog.Owner);
+            if (chosen is not null) await catalog.RememberAsync(db, chosen, ct);
+            return Results.Ok(new
+            {
+                mode = track.Mode,
+                version = chosen?.Version ?? "",
+                serverImage = chosen?.ServerImage ?? "",
+                clientImage = chosen?.ClientImage ?? "",
+                serverAutoUpdate = track.ServerAutoUpdate,
+                running = ServerImageUpdater.RunningVersion,
+                canUpdateServer = ServerImageUpdater.CanUpdate,
+                error = catalog.LastError,
+                releases = published.Select(r => new { r.Tag, r.Version, r.ServerImage, r.ClientImage }),
+            });
+        }).RequireAuthorization(Policies.ReadOnly).WithTags("Devices");
+
+        app.MapPut("/api/releases", async (ReleaseTrackRequest body, SlopDbContext db, ReleaseCatalog catalog, HttpContext http, CancellationToken ct) =>
+        {
+            var mode = body.Mode == "pinned" ? "pinned" : "latest";
+            if (mode == "pinned" && string.IsNullOrWhiteSpace(body.Version))
+                return Results.BadRequest(new { error = "Choose a release version." });
+            var version = ClientVersions.Normalize(body.Version);
+            var row = await db.ServerSettings.FirstOrDefaultAsync(s => s.Key == ReleaseImages.TrackKey, ct);
+            var value = new System.Text.Json.Nodes.JsonObject { ["mode"] = mode, ["version"] = version, ["serverAutoUpdate"] = body.ServerAutoUpdate };
+            if (row is null) db.ServerSettings.Add(new ServerSetting { Key = ReleaseImages.TrackKey, Value = value, UpdatedBy = http.Actor().UserId });
+            else { row.Value = value; row.UpdatedAt = DateTimeOffset.UtcNow; row.UpdatedBy = http.Actor().UserId; }
+            var chosen = ReleaseImages.Choose(await catalog.ListAsync(ct), mode, version, catalog.Owner);
+            await db.SaveChangesAsync(ct);
+            if (chosen is not null) await catalog.RememberAsync(db, chosen, ct);
+            return Results.Ok(new { mode, version = chosen?.Version ?? version, serverImage = chosen?.ServerImage, clientImage = chosen?.ClientImage, serverAutoUpdate = body.ServerAutoUpdate });
+        }).RequireAuthorization(Policies.Admin).WithTags("Devices");
+
+        app.MapPost("/api/server/update", async (ClientUpdateService updates, CancellationToken ct) =>
+        {
+            try
+            {
+                await updates.UpdateServerAsync(ct);
+                return Results.Ok(new { started = true, message = "Server update started" });
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or AppException)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
         }).RequireAuthorization(Policies.Admin).WithTags("Devices");
 
         app.MapPost("/api/devices/{id:guid}/update", async (Guid id, ClientUpdateService updates, CancellationToken ct) =>
@@ -145,3 +184,4 @@ public static class MilestoneEndpoints
 public sealed record ReportRequest(string? Kind);
 public sealed record ReportScheduleRequest(string Cadence, bool Enabled);
 public sealed record AutoUpdateRequest(bool Enabled);
+public sealed record ReleaseTrackRequest(string? Mode, string? Version, bool ServerAutoUpdate);

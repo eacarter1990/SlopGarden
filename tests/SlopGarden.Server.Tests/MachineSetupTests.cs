@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using SlopGarden.Contracts;
+using SlopGarden.Server.Services;
 
 namespace SlopGarden.Server.Tests;
 
@@ -41,6 +42,28 @@ public class MachineSetupTests
         var fp = MachineSetup.FingerprintSha256([1, 2, 3, 4]);
         Assert.StartsWith("SHA256:", fp);
         Assert.DoesNotContain("=", fp);
+    }
+
+    [Fact]
+    public void A_release_selects_both_images_and_latest_is_the_newest()
+    {
+        var json = """
+            [
+              {"tag_name":"v0.2.1","draft":false},
+              {"tag_name":"v0.2.10","draft":false},
+              {"tag_name":"v0.2.3","draft":true},
+              {"tag_name":"v0.2.2","draft":false}
+            ]
+            """;
+        var releases = ReleaseImages.Parse(json, "Eacarter1990");
+        Assert.Equal("0.2.10", releases[0].Version);
+        Assert.Equal("ghcr.io/eacarter1990/slopgarden-server:0.2.10", releases[0].ServerImage);
+        Assert.Equal("ghcr.io/eacarter1990/slopgarden-client:0.2.10", releases[0].ClientImage);
+        Assert.DoesNotContain(releases, r => r.Version == "0.2.3");
+        Assert.Equal("0.2.10", ReleaseImages.Choose(releases, "latest", null, "eacarter1990")!.Version);
+        var pinned = ReleaseImages.Choose(releases, "pinned", "v0.2.1", "eacarter1990")!;
+        Assert.Equal("ghcr.io/eacarter1990/slopgarden-client:0.2.1", pinned.ClientImage);
+        Assert.Equal("ghcr.io/eacarter1990/slopgarden-server:0.2.1", pinned.ServerImage);
     }
 
     [Fact]

@@ -7,17 +7,20 @@ COPY src/web/ ./
 RUN npm run build
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+ARG VERSION=0.2.0
 WORKDIR /src
 COPY . .
 COPY --from=web /src/src/SlopGarden.Server/wwwroot src/SlopGarden.Server/wwwroot
-RUN dotnet publish src/SlopGarden.Server/SlopGarden.Server.csproj -c Release -o /out -p:SkipWebBuild=true
+RUN dotnet publish src/SlopGarden.Server/SlopGarden.Server.csproj -c Release -o /out -p:SkipWebBuild=true -p:Version=$VERSION -p:InformationalVersion=$VERSION
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
+ARG VERSION=0.2.0
 WORKDIR /app
 COPY --from=build /out .
 ENV ASPNETCORE_URLS=http://+:5080 \
     SlopGarden__DataDirectory=/data \
-    SlopGarden__SeedDemo=false
+    SlopGarden__SeedDemo=false \
+    SLOPGARDEN_RELEASE=$VERSION
 VOLUME /data
 EXPOSE 5080
 ENTRYPOINT ["dotnet", "SlopGarden.Server.dll"]

@@ -69,7 +69,7 @@ Published images (linux/amd64 and linux/arm64) are on GHCR after a merge to `mai
 
 ### Updates
 
-**Devices** shows when a client image is older than the version you publish (**Client image** on that page: version and image reference, for example `ghcr.io/eacarter1990/slopgarden-client:0.2.3`). **Update** sends it to that device. **Auto** installs later images without another click.
+**Devices** follows GitHub releases. **Latest release** uses the newest one. Choose a version to pin the server and the clients to that release's images (`ghcr.io/<owner>/slopgarden-server` and `slopgarden-client` at the same tag). **Update server** and each device's **Update** install that choice. **Auto-update server** and each device's **Auto** install a newer release on their own. The server container needs the Docker socket mounted and `SLOPGARDEN_CONTAINER` set to its name, which Compose does.
 
 Auto-update is only the client image. It does not approve a device, accept an AI proposal, or change a safety limit. Safety limits still run on the device.
 
