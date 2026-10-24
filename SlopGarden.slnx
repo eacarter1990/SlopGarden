@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SlopGarden.Client/SlopGarden.Client.csproj" />
+    <Project Path="src/SlopGarden.Contracts/SlopGarden.Contracts.csproj" />
+    <Project Path="src/SlopGarden.Emulator/SlopGarden.Emulator.csproj" />
+    <Project Path="src/SlopGarden.Plugins.Abstractions/SlopGarden.Plugins.Abstractions.csproj" />
+    <Project Path="src/SlopGarden.Plugins.Emulator/SlopGarden.Plugins.Emulator.csproj" />
+    <Project Path="src/SlopGarden.Plugins.Hardware/SlopGarden.Plugins.Hardware.csproj" />
+    <Project Path="src/SlopGarden.Server/SlopGarden.Server.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SlopGarden.Client.Tests/SlopGarden.Client.Tests.csproj" />
+    <Project Path="tests/SlopGarden.Server.Tests/SlopGarden.Server.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/SlopGarden.DevLlm/SlopGarden.DevLlm.csproj" />
+  </Folder>
+</Solution>

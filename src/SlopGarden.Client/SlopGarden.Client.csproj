@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-SlopGarden.Client-98fa276a-361e-4bbb-99de-bb07d12d7277</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.13" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SlopGarden.Plugins.Abstractions\SlopGarden.Plugins.Abstractions.csproj" />
+    <ProjectReference Include="..\SlopGarden.Contracts\SlopGarden.Contracts.csproj" />
+    <ProjectReference Include="..\SlopGarden.Plugins.Emulator\SlopGarden.Plugins.Emulator.csproj" />
+    <ProjectReference Include="..\SlopGarden.Plugins.Hardware\SlopGarden.Plugins.Hardware.csproj" />
+  </ItemGroup>
+</Project>
