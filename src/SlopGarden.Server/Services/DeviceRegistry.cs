@@ -182,6 +182,7 @@ public sealed class DeviceRegistry(
             row.Publisher = info.Publisher;
             row.SignatureKeyId = info.SignatureKeyId;
             row.Description = info.Description;
+            row.Components = System.Text.Json.JsonSerializer.SerializeToNode(info.Components ?? [], SlopJson.Options)!.AsArray();
             row.CatalogEntryId = catalog.FirstOrDefault(c => c.PluginId == info.PluginId && c.Version == info.Version && c.Sha256 == info.Sha256)?.Id;
             row.ReportedAt = DateTimeOffset.UtcNow;
         }

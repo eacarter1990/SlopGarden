@@ -748,6 +748,7 @@ namespace SlopGarden.Server.Data.Migrations
                     publisher = table.Column<string>(type: "text", nullable: true),
                     signature_key_id = table.Column<string>(type: "text", nullable: true),
                     description = table.Column<string>(type: "text", nullable: true),
+                    components = table.Column<string>(type: "jsonb", nullable: false),
                     catalog_entry_id = table.Column<Guid>(type: "uuid", nullable: true),
                     reported_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
                 },

@@ -135,6 +135,7 @@ public class SlopDbContext(DbContextOptions<SlopDbContext> options) : DbContext(
         b.Entity<DevicePlugin>(e =>
         {
             e.HasIndex(x => new { x.DeviceId, x.PluginId }).IsUnique();
+            e.Json(x => x.Components);
             e.HasOne<Device>().WithMany().HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.Cascade);
         });
         b.Entity<DiscoveredHardware>(e =>

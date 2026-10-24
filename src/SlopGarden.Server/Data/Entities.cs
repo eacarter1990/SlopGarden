@@ -291,6 +291,7 @@ public class DevicePlugin
     public string? Publisher { get; set; }
     public string? SignatureKeyId { get; set; }
     public string? Description { get; set; }
+    public JsonArray Components { get; set; } = [];
     public Guid? CatalogEntryId { get; set; }
     public DateTimeOffset ReportedAt { get; set; } = DateTimeOffset.UtcNow;
 }

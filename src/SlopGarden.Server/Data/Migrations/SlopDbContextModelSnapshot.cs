@@ -1324,6 +1324,11 @@ namespace SlopGarden.Server.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("catalog_entry_id");
 
+                    b.Property<string>("Components")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("components");
+
                     b.Property<string>("Description")
                         .HasColumnType("text")
                         .HasColumnName("description");

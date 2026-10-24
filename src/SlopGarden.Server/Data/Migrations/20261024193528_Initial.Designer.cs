@@ -13,7 +13,7 @@ using SlopGarden.Server.Data;
 namespace SlopGarden.Server.Data.Migrations
 {
     [DbContext(typeof(SlopDbContext))]
-    [Migration("20261024193348_Initial")]
+    [Migration("20261024193528_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -1326,6 +1326,11 @@ namespace SlopGarden.Server.Data.Migrations
                     b.Property<Guid?>("CatalogEntryId")
                         .HasColumnType("uuid")
                         .HasColumnName("catalog_entry_id");
+
+                    b.Property<string>("Components")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("components");
 
                     b.Property<string>("Description")
                         .HasColumnType("text")
