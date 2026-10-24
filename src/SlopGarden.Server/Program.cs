@@ -18,8 +18,10 @@ var builder = WebApplication.CreateBuilder(args);
 var dataDir = ServerOptions.ResolveDataDirectory(builder.Configuration);
 Directory.CreateDirectory(dataDir);
 var overridesPath = ServerOptions.OverridesFile(dataDir);
-builder.Configuration.AddJsonFile(overridesPath, optional: true, reloadOnChange: false);
+// Environment supplies the bootstrap connection (Compose). The overrides file — written by the first-run
+// wizard and by Settings → Server & database — wins, so a saved remote database is actually used.
 builder.Configuration.AddEnvironmentVariables();
+builder.Configuration.AddJsonFile(overridesPath, optional: true, reloadOnChange: false);
 builder.Configuration.AddCommandLine(args);
 
 builder.Services.Configure<ServerOptions>(builder.Configuration.GetSection(ServerOptions.Section));
@@ -78,6 +80,12 @@ builder.Services.AddOpenApi();
 builder.Services.AddHttpClient("ai", c => c.Timeout = TimeSpan.FromMinutes(5));
 builder.Services.AddHttpClient("discord", c => c.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddHttpClient("search");
+builder.Services.AddHttpClient("github", c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(20);
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("SlopGarden");
+    c.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+});
 
 builder.Services.AddSingleton<DeviceConnections>();
 builder.Services.AddSingleton<ConfigPushQueue>();
@@ -120,6 +128,15 @@ builder.Services.AddHostedService<ServerScheduler>();
 builder.Services.AddHostedService<HousekeepingService>();
 builder.Services.AddSingleton<HydroWatchdog>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<HydroWatchdog>());
+builder.Services.AddSingleton<ActivityLog>();
+builder.Services.AddScoped<ReportService>();
+builder.Services.AddSingleton<ReleaseCatalog>();
+builder.Services.AddSingleton<ServerImageUpdater>();
+builder.Services.AddSingleton<ClientUpdateService>();
+builder.Services.AddSingleton<RemoteSetupService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ClientUpdateService>());
+builder.Services.AddHostedService<MdnsDiscoveryService>();
+builder.Logging.AddProvider(new FileLogProvider(Path.Combine(dataDir, "logs", "server.log")));
 
 var app = builder.Build();
 
@@ -151,6 +168,8 @@ app.MapGet("/api/health", () => Results.Ok(new { status = "ok", time = DateTimeO
 app.MapGet("/api/timezones", () => TimeZones.Options).RequireAuthorization(Policies.ReadOnly).WithTags("Garden");
 CoreEndpoints.Map(app);
 AdminEndpoints.Map(app);
+MilestoneEndpoints.Map(app);
+RemoteSetupEndpoints.Map(app);
 McpEndpoint.Map(app);
 app.MapHub<LiveHub>("/hubs/live");
 app.MapHub<DeviceHub>("/hubs/device");

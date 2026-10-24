@@ -119,6 +119,28 @@ body {
   40% { transform: scale(1); opacity: 1; }
 }
 
+@media (max-width: 47.99em) {
+  .mantine-Card-root:has(table) {
+    overflow-x: auto;
+  }
+
+  .mantine-Table-table {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .mantine-Table-table th,
+  .mantine-Table-table td {
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  .mantine-Table-table .mantine-Select-root,
+  .mantine-Table-table .mantine-TextInput-root {
+    min-width: 9rem;
+  }
+}
+
 .sg-camera {
   background: var(--mantine-color-dark-7);
   aspect-ratio: 16 / 9;

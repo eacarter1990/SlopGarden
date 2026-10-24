@@ -1,0 +1,9 @@
+.git
+**/.git
+**/bin
+**/obj
+**/node_modules
+**/.vs
+artifacts
+*.bundle
+**/wwwroot

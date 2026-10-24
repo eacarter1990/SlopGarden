@@ -1,4 +1,4 @@
-import { ActionIcon, AppShell, Badge, Burger, Group, Indicator, Menu, NavLink, ScrollArea, Text, Tooltip, useMantineColorScheme } from '@mantine/core'
+import { ActionIcon, AppShell, Badge, Burger, Group, Indicator, Menu, NavLink, ScrollArea, Select, Text, Tooltip, useMantineColorScheme } from '@mantine/core'
 import { useDisclosure, useMediaQuery } from '@mantine/hooks'
 import {
   IconApi,
@@ -10,11 +10,14 @@ import {
   IconLogout,
   IconMessageChatbot,
   IconMoon,
+  IconUser,
   IconPlant2,
   IconSettings,
   IconShieldCheck,
   IconSun,
   IconChecklist,
+  IconNotes,
+  IconReport,
 } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
@@ -23,6 +26,7 @@ import { api } from '../api/client'
 import { useLive } from '../api/live'
 import type { GardenOverview } from '../api/types'
 import { roleLabel, useAuth } from '../auth'
+import { GardenProvider, useGarden } from '../garden'
 import { ChatDrawer } from './ChatDrawer'
 import { EmergencyStopButton } from './EmergencyStopButton'
 
@@ -31,6 +35,8 @@ const nav = [
   { to: '/garden', label: 'Garden', icon: IconPlant2 },
   { to: '/sensors', label: 'Sensors & readings', icon: IconGauge },
   { to: '/devices', label: 'Devices', icon: IconCpu },
+  { to: '/reports', label: 'Reports', icon: IconReport },
+  { to: '/logs', label: 'Logs', icon: IconNotes },
   { to: '/automation', label: 'Automation', icon: IconCalendarTime },
   { to: '/safety', label: 'Safety', icon: IconShieldCheck },
   { to: '/assistant', label: 'Assistant', icon: IconMessageChatbot },
@@ -40,16 +46,26 @@ const nav = [
   { to: '/settings', label: 'Settings', icon: IconSettings },
 ]
 
-export function useOverview(gardenId?: string) {
+export function useOverview() {
+  const { gardenId } = useGarden()
   return useQuery({
-    queryKey: ['overview', gardenId ?? 'default'],
+    queryKey: ['overview', gardenId || 'default'],
     queryFn: () => api.op<GardenOverview>('get_garden_overview', gardenId ? { gardenId } : {}),
     refetchInterval: 30_000,
   })
 }
 
 export function Layout({ children }: { children: ReactNode }) {
+  return (
+    <GardenProvider>
+      <LayoutShell>{children}</LayoutShell>
+    </GardenProvider>
+  )
+}
+
+function LayoutShell({ children }: { children: ReactNode }) {
   const [opened, { toggle, close }] = useDisclosure()
+  const { gardens, gardenId, select } = useGarden()
   const [chatOpen, chat] = useDisclosure(false)
   const location = useLocation()
   const { user, logout } = useAuth()
@@ -68,20 +84,33 @@ export function Layout({ children }: { children: ReactNode }) {
 
   return (
     <AppShell
-      header={{ height: 60 }}
+      header={{ height: { base: 104, sm: 60 } }}
       navbar={{ width: 240, breakpoint: 'sm', collapsed: { mobile: !opened } }}
       aside={{ width: wide ? 460 : 400, breakpoint: 'md', collapsed: { desktop: !chatOpen || onAssistantPage, mobile: !chatOpen || onAssistantPage } }}
       padding="lg"
     >
       <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6 }} className="sg-header">
+        <Group h={{ base: 'auto', sm: '100%' }} px={{ base: 'xs', sm: 'md' }} justify="space-between" wrap="nowrap" gap="xs" style={{ minWidth: 0 }}>
+          <Group gap="xs" wrap="nowrap" style={{ minWidth: 0, flex: '1 1 auto' }}>
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
-            <img src="/favicon.svg" width={30} height={30} alt="" />
-            <Text fw={750} size="lg">SlopGarden</Text>
-            {overview && <Text c="dimmed" size="sm" visibleFrom="md">· {overview.garden.name}</Text>}
+            <img src="/favicon.svg" width={30} height={30} alt="" style={{ flex: '0 0 auto' }} />
+            <Text fw={750} size="lg" visibleFrom="sm">SlopGarden</Text>
+            {gardens.length > 0 && (
+              <Select
+                aria-label="Garden"
+                data={gardens.map((g) => ({ value: g.id, label: g.name }))}
+                value={gardenId || null}
+                onChange={(v) => v && select(v)}
+                allowDeselect={false}
+                searchable
+                size="sm"
+                visibleFrom="sm"
+                w={220}
+              />
+            )}
           </Group>
-          <Group gap="xs" wrap="nowrap">
+          <Group gap={4} wrap="nowrap" style={{ flex: '0 0 auto' }}>
             <Tooltip label={connected ? 'Live updates connected' : 'Reconnecting…'}>
               <span className="sg-dot" style={{ background: connected ? 'var(--mantine-color-green-6)' : 'var(--mantine-color-red-6)' }} />
             </Tooltip>
@@ -105,8 +134,9 @@ export function Layout({ children }: { children: ReactNode }) {
             </ActionIcon>
             <Menu position="bottom-end" withArrow>
               <Menu.Target>
-                <Badge variant="light" size="lg" style={{ cursor: 'pointer', textTransform: 'none' }}>
-                  {user?.displayName} · {user ? roleLabel[user.role] : ''}
+                <Badge variant="light" size="lg" style={{ cursor: 'pointer', textTransform: 'none' }} aria-label="Account">
+                  <IconUser size={14} />
+                  <Text span visibleFrom="sm" ml={6}>{user?.displayName} · {user ? roleLabel[user.role] : ''}</Text>
                 </Badge>
               </Menu.Target>
               <Menu.Dropdown>
@@ -118,6 +148,21 @@ export function Layout({ children }: { children: ReactNode }) {
             </Menu>
           </Group>
         </Group>
+        {gardens.length > 0 && (
+          <Select
+            aria-label="Garden"
+            data={gardens.map((g) => ({ value: g.id, label: g.name }))}
+            value={gardenId || null}
+            onChange={(v) => v && select(v)}
+            allowDeselect={false}
+            searchable
+            size="sm"
+            hiddenFrom="sm"
+            mx="xs"
+            comboboxProps={{ width: 'target', position: 'bottom' }}
+          />
+        )}
+        </div>
       </AppShell.Header>
 
       <AppShell.Navbar p="sm">
@@ -137,7 +182,7 @@ export function Layout({ children }: { children: ReactNode }) {
           ))}
         </AppShell.Section>
         <AppShell.Section>
-          <Text size="xs" c="dimmed" ta="center">Local network · v0.1 · Milestone 1</Text>
+          <Text size="xs" c="dimmed" ta="center">Local network · v0.2</Text>
         </AppShell.Section>
       </AppShell.Navbar>
 

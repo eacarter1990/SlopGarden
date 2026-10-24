@@ -64,9 +64,9 @@ function SensorRow({ s, targetLabel }: { s: Sensor; targetLabel: string }) {
   const [open, setOpen] = useState(false)
   return (
     <Card>
-      <Group justify="space-between" wrap="nowrap">
-        <div>
-          <Group gap={6}>
+      <Group justify="space-between" wrap="nowrap" align="flex-start" gap="xs">
+        <div style={{ minWidth: 0, flex: '1 1 auto' }}>
+          <Group gap={6} wrap="wrap">
             <Text fw={650}>{s.name}</Text>
             <Badge size="xs" variant="light" color={s.status === 'ok' ? 'green' : 'red'}>{s.status}</Badge>
             {!s.enabled && <Badge size="xs" color="gray">disabled</Badge>}
@@ -74,7 +74,7 @@ function SensorRow({ s, targetLabel }: { s: Sensor; targetLabel: string }) {
           <Text size="xs" c="dimmed">{s.pluginId} on {s.deviceName} · every {s.readIntervalSec}s · targets {targetLabel}</Text>
           {s.lastError && <Text size="xs" c="red">{s.lastError}</Text>}
         </div>
-        <Group gap={6} wrap="nowrap">
+        <Group gap={6} wrap="wrap" justify="flex-end" style={{ flex: '0 0 auto' }}>
           {s.channels.map((c) => <ReadingPill key={c.id} r={{ sensorId: s.id, sensorName: s.name, channelId: c.id, metric: c.metric, unit: c.unit, value: c.lastValue, at: c.lastValueAt, alertLow: c.alertLow, alertHigh: c.alertHigh }} />)}
           <Button size="xs" variant="subtle" onClick={() => setOpen((o) => !o)}>{open ? 'Hide' : 'Details'}</Button>
         </Group>

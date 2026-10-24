@@ -94,6 +94,9 @@ public class EnvironmentTests
         Assert.All(TimeZones.Options, z => Assert.False(string.IsNullOrWhiteSpace(z.Label)));
         Assert.True(TimeZones.IsKnown("America/New_York"));
         Assert.False(TimeZones.IsKnown("Not/AZone"));
+        Assert.Equal("EC", Metrics.Label(Metrics.EcMsCm));
+        Assert.Equal("pH", Metrics.Label(Metrics.Ph));
+        Assert.Equal("custom metric", Metrics.Label("custom_metric"));
     }
 
     [Theory]

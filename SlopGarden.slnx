@@ -17,5 +17,6 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/SlopGarden.DevLlm/SlopGarden.DevLlm.csproj" />
+    <Project Path="tools/SlopGarden.Setup/SlopGarden.Setup.csproj" />
   </Folder>
 </Solution>

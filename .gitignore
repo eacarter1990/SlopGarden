@@ -489,3 +489,6 @@ artifacts/
 *.db-wal
 *.db-shm
 HELPER_DONE.md
+setup-app/node_modules/
+setup-app/dist/
+setup-app/helper/

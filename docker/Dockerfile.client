@@ -1,0 +1,21 @@
+# Client image. linux/amd64 and linux/arm64. USB webcams need ffmpeg plus /dev/videoN from the host.
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+ARG VERSION=0.2.0
+WORKDIR /src
+COPY . .
+ARG TARGETARCH
+RUN case "$TARGETARCH" in \
+      arm64) RID=linux-arm64 ;; \
+      *) RID=linux-x64 ;; \
+    esac && \
+    dotnet publish src/SlopGarden.Client/SlopGarden.Client.csproj -c Release -r "$RID" -o /out --self-contained false -p:Version=$VERSION -p:InformationalVersion=$VERSION
+
+FROM mcr.microsoft.com/dotnet/runtime:10.0
+ARG VERSION=0.2.0
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --from=build /out .
+ENV SLOPGARDEN_Client__DataDirectory=/data \
+    SLOPGARDEN_RELEASE=$VERSION
+VOLUME /data
+ENTRYPOINT ["./slopgarden-client"]

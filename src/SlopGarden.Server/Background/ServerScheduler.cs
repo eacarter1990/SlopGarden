@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Cronos;
 using Microsoft.EntityFrameworkCore;
 using SlopGarden.Contracts;
@@ -93,8 +94,13 @@ public sealed class ServerScheduler(IServiceScopeFactory scopes, AgentService ag
                 }
                 break;
             }
-            case ScheduleKinds.AiReview:
             case ScheduleKinds.Report:
+            {
+                var cadence = s.Payload["cadence"] is JsonValue cadenceValue && cadenceValue.TryGetValue<string>(out var parsed) ? parsed : ReportCadence.Daily;
+                await sp.GetRequiredService<ReportService>().GenerateAsync(s.GardenId, cadence, s.Id, ct);
+                break;
+            }
+            case ScheduleKinds.AiReview:
             {
                 var owner = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == s.CreatedById, ct)
                     ?? await db.Users.AsNoTracking().Where(u => u.Role == Roles.Admin && !u.IsDisabled).OrderBy(u => u.CreatedAt).FirstAsync(ct);

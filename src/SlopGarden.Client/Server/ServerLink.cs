@@ -19,6 +19,7 @@ public static class DiscoveredVia
 {
     public const string Broadcast = "broadcast";
     public const string ManualIp = "manual_ip";
+    public const string Mdns = "mdns";
     public const string Configured = "configured";
 }
 

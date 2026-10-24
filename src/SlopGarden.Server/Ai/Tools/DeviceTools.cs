@@ -271,7 +271,8 @@ public static class DeviceTools
                 var trust = await ctx.Db.DevicePlugins.AsNoTracking().GroupBy(p => p.DeviceId)
                     .Select(g => new { g.Key, u = g.Count(p => p.Trust == PluginTrust.Unsigned), inv = g.Count(p => p.Trust == PluginTrust.Invalid) })
                     .ToDictionaryAsync(x => x.Key, ctx.Ct);
-                return list.Select(d => DeviceDto.From(d, trust.GetValueOrDefault(d.Id)?.u ?? 0, trust.GetValueOrDefault(d.Id)?.inv ?? 0)).ToList();
+                var latest = (await ClientUpdateService.ReadAsync(ctx.Db, ctx.Ct)).Version;
+                return list.Select(d => DeviceDto.From(d, trust.GetValueOrDefault(d.Id)?.u ?? 0, trust.GetValueOrDefault(d.Id)?.inv ?? 0, latest)).ToList();
             });
 
         r.Read<DeviceIdInput, DeviceDetail>("get_device", Category, "One device with its installed plugins (and their signature trust), discovered hardware, components and recent events.",
@@ -285,7 +286,8 @@ public static class DeviceTools
                 var actuators = await db.Actuators.AsNoTracking().Where(a => a.DeviceId == d.Id).OrderBy(a => a.Name).ToListAsync(ctx.Ct);
                 var cameras = await db.Cameras.AsNoTracking().Where(c => c.DeviceId == d.Id).OrderBy(c => c.Name).ToListAsync(ctx.Ct);
                 var events = await db.DeviceEvents.AsNoTracking().Where(e => e.DeviceId == d.Id).OrderByDescending(e => e.Time).Take(30).ToListAsync(ctx.Ct);
-                return new DeviceDetail(DeviceDto.From(d, plugins.Count(p => p.Trust == PluginTrust.Unsigned), plugins.Count(p => p.Trust == PluginTrust.Invalid)),
+                var latest = (await ClientUpdateService.ReadAsync(db, ctx.Ct)).Version;
+                return new DeviceDetail(DeviceDto.From(d, plugins.Count(p => p.Trust == PluginTrust.Unsigned), plugins.Count(p => p.Trust == PluginTrust.Invalid), latest),
                     plugins, discovered, sensors.Select(SensorDto.From).ToList(), actuators.Select(ActuatorDto.From).ToList(), cameras.Select(CameraDto.From).ToList(), events);
             });
 

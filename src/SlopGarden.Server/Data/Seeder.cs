@@ -19,11 +19,73 @@ public sealed class Seeder(SlopDbContext db, IOptions<ServerOptions> options, IC
         if (!await db.NotificationChannels.AnyAsync(ct))
             db.NotificationChannels.Add(new NotificationChannel { Kind = "browser", Name = "Browser notifications", MinSeverity = Severities.Warning });
         await db.SaveChangesAsync(ct);
+        await EnsureUsbCameraCatalogAsync(ct);
         if (options.Value.SeedDemo)
         {
             await SeedDemoAsync(ct);
             await SeedHydroDemoAsync(ct);
+            await SeedSecondGardenAsync(ct);
+            await EnsureDemoClientReleaseAsync(ct);
         }
+    }
+
+    private async Task EnsureUsbCameraCatalogAsync(CancellationToken ct)
+    {
+        if (await db.HardwareCatalog.AnyAsync(h => h.PluginId == "v4l2-camera", ct)) return;
+        db.HardwareCatalog.Add(new HardwareCatalogEntry
+        {
+            Kind = "camera", Manufacturer = "Generic", Model = "USB webcam (V4L2)", Protocol = "v4l2", Metrics = [], PluginId = "v4l2-camera",
+            Recommended = true, TestedStatus = "community", Notes = "USB UVC webcam on /dev/videoN. The client captures frames with ffmpeg.",
+        });
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>A second garden so the switcher has somewhere to go. Only the explicit demo seed creates it.</summary>
+    private async Task SeedSecondGardenAsync(CancellationToken ct)
+    {
+        if (await db.Gardens.AnyAsync(g => g.Name == "Window Herb Garden", ct)) return;
+        var garden = new Garden
+        {
+            Name = "Window Herb Garden",
+            Description = "A second garden: a kratky jar on the kitchen windowsill.",
+            Environment = "indoor",
+            TimezoneId = "America/New_York",
+            TimezoneSource = "manual",
+            Latitude = 40.71,
+            Longitude = -74.0,
+            LocationLabel = "New York, NY (demo)",
+            LocationSource = "manual",
+            DefaultGrowingMedium = GrowingMedia.Hydroponic,
+            AiContext = "Indoor windowsill. The basil is in a kratky jar; do not look for soil moisture.",
+        };
+        var jar = new Bed
+        {
+            GardenId = garden.Id, Name = "Basil kratky jar", Kind = "container", Environment = "indoor",
+            GrowingMedium = GrowingMedia.Hydroponic, HydroSystem = "kratky", IrrigationType = "hydroponic",
+            SunExposure = "part_sun", LayoutX = 0, LayoutY = 0,
+            AiContext = "Passive kratky. Top up the jar when the level drops; do not run a circulation pump.",
+        };
+        db.Gardens.Add(garden);
+        db.Beds.Add(jar);
+        var basil = await db.PlantProfiles.FirstOrDefaultAsync(p => p.Slug == "basil", ct);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        db.Plants.Add(new Plant
+        {
+            BedId = jar.Id, PlantProfileId = basil?.Id, Name = "Windowsill basil", Variety = "Genovese", Quantity = 1,
+            Stage = "vegetative", StartedFrom = "seed", PlantedAt = today.AddDays(-18), ExpectedHarvestStart = today.AddDays(20),
+        });
+        await db.SaveChangesAsync(ct);
+        log.LogInformation("Seeded second demo garden");
+    }
+
+    private async Task EnsureDemoClientReleaseAsync(CancellationToken ct)
+    {
+        var placeholder = (await db.ServerSettings.Where(s => s.Key == "client_release").ToListAsync(ct))
+            .FirstOrDefault(s => s.Value?["version"]?.ToString() == "0.3.0");
+        if (placeholder is not null) db.ServerSettings.Remove(placeholder);
+        if (!await db.ServerSettings.AnyAsync(s => s.Key == "release_track", ct))
+            db.ServerSettings.Add(new ServerSetting { Key = "release_track", Value = new System.Text.Json.Nodes.JsonObject { ["mode"] = "latest", ["version"] = "", ["serverAutoUpdate"] = false } });
+        await db.SaveChangesAsync(ct);
     }
 
     /// <summary>Hydroponic EC ranges (mS/cm) for the built-in crops.</summary>

@@ -25,7 +25,7 @@ export function ApprovalsPage() {
           </Stack>
         ))}
       </SimpleGrid>
-      {data?.length === 0 && <Text c="dimmed">Nothing here.</Text>}
+      {data?.length === 0 && <Text c="dimmed">{status === 'pending' ? 'No pending approvals.' : status === 'executed' ? 'No applied approvals.' : status === 'rejected' ? 'No rejected approvals.' : 'No approvals yet.'}</Text>}
     </Stack>
   )
 }

@@ -119,8 +119,8 @@ public sealed class OverviewService(SlopDbContext db, EnvironmentService env)
             {
                 var v = readings.FirstOrDefault(x => x.Metric == t.Metric)?.Value;
                 if (v is null) continue;
-                if (t.Min is { } mn && v < mn) alerts.Add($"{t.Metric} {v:0.##} below {mn}");
-                if (t.Max is { } mx && v > mx) alerts.Add($"{t.Metric} {v:0.##} above {mx}");
+                if (t.Min is { } mn && v < mn) alerts.Add($"{Metrics.Label(t.Metric)} {v:0.##} below {mn}");
+                if (t.Max is { } mx && v > mx) alerts.Add($"{Metrics.Label(t.Metric)} {v:0.##} above {mx}");
             }
             foreach (var a in acts.Where(a => a.FlowChannelId != null && a.IsOn))
             {

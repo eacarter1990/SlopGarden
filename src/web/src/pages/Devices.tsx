@@ -1,4 +1,4 @@
-import { Alert, Anchor, Badge, Button, Card, Group, Stack, Table, Text, TextInput } from '@mantine/core'
+import { Alert, Anchor, Badge, Button, Card, Group, NumberInput, PasswordInput, Select, SimpleGrid, Stack, Switch, Table, Text, Textarea, TextInput } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconAlertTriangle, IconCheck, IconWifi, IconX } from '@tabler/icons-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -16,7 +16,20 @@ export function DevicesPage() {
   const save = useSave()
   const qc = useQueryClient()
   const { data: devices } = useQuery({ queryKey: ['devices'], queryFn: () => api.op<Device[]>('list_devices'), refetchInterval: 10_000 })
+  const { data: releases } = useQuery({
+    queryKey: ['releases'],
+    queryFn: () => api.get<{ mode: string; version: string; serverImage: string; clientImage: string; serverAutoUpdate: boolean; running: string; canUpdateServer: boolean; error?: string | null; releases: { version: string; tag: string }[] }>('/api/releases'),
+  })
   const [address, setAddress] = useState('')
+  const [sshHost, setSshHost] = useState('')
+  const [sshPort, setSshPort] = useState<number | string>(22)
+  const [sshUser, setSshUser] = useState('')
+  const [sshPassword, setSshPassword] = useState('')
+  const [sshKey, setSshKey] = useState('')
+  const [sshName, setSshName] = useState('')
+  const [probe, setProbe] = useState<{ sessionId: string; fingerprint: string; dockerInstalled: boolean; serverUrl: string; detail: string } | null>(null)
+  const [sshLog, setSshLog] = useState<string | null>(null)
+  const [sshBusy, setSshBusy] = useState(false)
   const pending = (devices ?? []).filter((d) => d.status === 'pending')
   const others = (devices ?? []).filter((d) => d.status !== 'pending')
 
@@ -32,7 +45,109 @@ export function DevicesPage() {
 
   return (
     <Stack>
-      <PageTitle title="Devices" subtitle="SlopGarden clients on your network. New clients are found automatically (UDP broadcast) or added by IP, and stay pending until an Admin approves them." />
+      <PageTitle title="Devices" subtitle="SlopGarden clients on your network. New clients are found by UDP broadcast, mDNS, or by IP, and stay pending until an Admin approves them." />
+
+      {isAdmin && (
+        <Card>
+          <Text fw={650} mb={4}>Release</Text>
+          <Text size="xs" c="dimmed" mb="xs">
+            Updates install the server and client images from a GitHub release. Latest follows the newest release. Pick a version to stay on that one.
+            This server is running {releases?.running || '—'}. Auto-update does not change safety limits or AI approvals.
+          </Text>
+          <Group align="flex-end">
+            <Select
+              label="Version"
+              data={[{ value: 'latest', label: 'Latest release' }, ...(releases?.releases ?? []).map((r) => ({ value: r.version, label: r.tag }))]}
+              value={releases?.mode === 'pinned' ? releases.version : 'latest'}
+              onChange={async (value) => {
+                if (!value) return
+                try {
+                  await api.put('/api/releases', { mode: value === 'latest' ? 'latest' : 'pinned', version: value === 'latest' ? '' : value, serverAutoUpdate: releases?.serverAutoUpdate ?? false })
+                  qc.invalidateQueries({ queryKey: ['releases'] })
+                  qc.invalidateQueries({ queryKey: ['devices'] })
+                } catch (e) { notifications.show({ color: 'red', message: (e as Error).message }) }
+              }}
+              allowDeselect={false}
+              w={240}
+            />
+            <Switch
+              label="Auto-update server"
+              checked={!!releases?.serverAutoUpdate}
+              onChange={async (e) => {
+                try {
+                  await api.put('/api/releases', { mode: releases?.mode ?? 'latest', version: releases?.mode === 'pinned' ? releases.version : '', serverAutoUpdate: e.currentTarget.checked })
+                  qc.invalidateQueries({ queryKey: ['releases'] })
+                } catch (err) { notifications.show({ color: 'red', message: (err as Error).message }) }
+              }}
+            />
+            <Button variant="light" disabled={!releases?.version} onClick={async () => {
+              try {
+                const r = await api.post<{ message: string }>('/api/server/update')
+                notifications.show({ color: 'green', message: r.message })
+              } catch (e) { notifications.show({ color: 'red', message: (e as Error).message }) }
+            }}>Update server</Button>
+          </Group>
+          {releases?.version ? (
+            <>
+              <Text size="xs" c="dimmed" mt="xs" style={{ overflowWrap: 'anywhere' }}>{releases.serverImage}</Text>
+              <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>{releases.clientImage}</Text>
+            </>
+          ) : (
+            <Text size="xs" c={releases?.error ? 'orange' : 'dimmed'} mt="xs">{releases?.error || 'No GitHub releases published yet.'}</Text>
+          )}
+          {releases?.version && releases.error && <Text size="xs" c="orange" mt={4}>{releases.error}</Text>}
+        </Card>
+      )}
+
+      {isAdmin && (
+        <Card>
+          <Text fw={650} mb={4}>Set up a machine by SSH</Text>
+          <Text size="xs" c="dimmed" mb="xs">
+            Installs only the client on that machine and points it at this server. You choose a display name, then confirm the host key. The login is forgotten after the install, and the device stays pending until you approve it. The AI cannot see this login.
+          </Text>
+          <TextInput label="Display name" placeholder="Greenhouse Pi" value={sshName} onChange={(e) => setSshName(e.currentTarget.value)} maw={360} />
+          <SimpleGrid cols={{ base: 1, sm: 3 }} mt="xs">
+            <TextInput label="Host" placeholder="192.168.1.50" value={sshHost} onChange={(e) => setSshHost(e.currentTarget.value)} />
+            <NumberInput label="Port" value={sshPort} onChange={setSshPort} min={1} max={65535} />
+            <TextInput label="Username" placeholder="pi" value={sshUser} onChange={(e) => setSshUser(e.currentTarget.value)} />
+          </SimpleGrid>
+          <PasswordInput label="Password" mt="xs" value={sshPassword} onChange={(e) => setSshPassword(e.currentTarget.value)} />
+          <Textarea label="Private key" placeholder="Optional. Paste a PEM key instead of a password." minRows={2} mt="xs" value={sshKey} onChange={(e) => setSshKey(e.currentTarget.value)} />
+          <Group mt="sm">
+            <Button loading={sshBusy} disabled={!sshHost || !sshUser || (!sshPassword && !sshKey)} onClick={async () => {
+              setSshBusy(true)
+              setProbe(null)
+              setSshLog(null)
+              try {
+                const r = await api.post<{ sessionId: string; fingerprint: string; dockerInstalled: boolean; serverUrl: string; detail: string }>('/api/devices/remote-setup/probe', {
+                  host: sshHost, port: Number(sshPort) || 22, username: sshUser, password: sshPassword || null, privateKey: sshKey || null,
+                })
+                setProbe(r)
+                setSshPassword('')
+                setSshKey('')
+              } catch (e) { notifications.show({ color: 'red', message: (e as Error).message }) }
+              finally { setSshBusy(false) }
+            }}>Check host</Button>
+            <Button variant="light" disabled={!probe?.dockerInstalled || !sshName.trim() || sshBusy} onClick={async () => {
+              if (!probe) return
+              setSshBusy(true)
+              try {
+                const r = await api.post<{ log: string }>(`/api/devices/remote-setup/${probe.sessionId}/install`, { fingerprint: probe.fingerprint, name: sshName, image: releases?.clientImage || null })
+                setSshLog(r.log)
+                setProbe(null)
+                setTimeout(() => qc.invalidateQueries({ queryKey: ['devices'] }), 4000)
+              } catch (e) { notifications.show({ color: 'red', message: (e as Error).message }) }
+              finally { setSshBusy(false) }
+            }}>Install client</Button>
+          </Group>
+          {probe && (
+            <Alert mt="sm" color={probe.dockerInstalled ? 'green' : 'orange'} title={probe.fingerprint}>
+              {probe.detail} This client will be named {sshName || '…'} and will register with {probe.serverUrl}. Confirm this host key, then install.
+            </Alert>
+          )}
+          {sshLog && <Alert mt="sm" color="green" title="Installed">{sshLog} Approve the device when it appears below.</Alert>}
+        </Card>
+      )}
 
       {isAdmin && (
         <Card>
@@ -77,7 +192,7 @@ export function DevicesPage() {
       <Card>
         <Table highlightOnHover>
           <Table.Thead>
-            <Table.Tr><Table.Th>Device</Table.Th><Table.Th>Status</Table.Th><Table.Th>Platform</Table.Th><Table.Th>Config</Table.Th><Table.Th>Plugins</Table.Th><Table.Th>Last seen</Table.Th></Table.Tr>
+            <Table.Tr><Table.Th>Device</Table.Th><Table.Th>Status</Table.Th><Table.Th>Platform</Table.Th><Table.Th>Config</Table.Th><Table.Th>Update</Table.Th><Table.Th>Last seen</Table.Th></Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {others.map((d) => (
@@ -94,7 +209,35 @@ export function DevicesPage() {
                   <Badge variant="light" color={d.appliedConfigVersion === d.desiredConfigVersion ? 'green' : 'yellow'}>v{d.appliedConfigVersion ?? '–'} / v{d.desiredConfigVersion}</Badge>
                   {d.configErrors.length > 0 && <Text size="xs" c="red">{d.configErrors.length} error(s)</Text>}
                 </Table.Td>
-                <Table.Td>{d.unsignedPlugins + d.invalidPlugins > 0 ? <Badge color="orange" variant="light">{d.unsignedPlugins} unsigned</Badge> : <Badge color="gray" variant="light">trusted</Badge>}</Table.Td>
+                <Table.Td>
+                  <Stack gap={4}>
+                    {d.updateAvailable ? <Badge color="yellow">update available</Badge> : <Badge color="gray" variant="light">{d.updateStatus || 'current'}</Badge>}
+                    {d.updateError && <Text size="xs" c="red">{d.updateError}</Text>}
+                    {isAdmin && d.status === 'approved' && (
+                      <Group gap="xs">
+                        <Button size="xs" variant="light" disabled={!d.updateAvailable && !releases?.version} onClick={async () => {
+                          try {
+                            const r = await api.post<{ message: string }>(`/api/devices/${d.id}/update`)
+                            notifications.show({ color: 'green', message: r.message })
+                            qc.invalidateQueries({ queryKey: ['devices'] })
+                          } catch (e) { notifications.show({ color: 'red', message: (e as Error).message }) }
+                        }}>Update</Button>
+                        <Switch
+                          size="xs"
+                          label="Auto"
+                          aria-label={`Auto-update ${d.name}`}
+                          checked={!!d.autoUpdate}
+                          onChange={async (e) => {
+                            try {
+                              await api.put(`/api/devices/${d.id}/auto-update`, { enabled: e.currentTarget.checked })
+                              qc.invalidateQueries({ queryKey: ['devices'] })
+                            } catch (err) { notifications.show({ color: 'red', message: (err as Error).message }) }
+                          }}
+                        />
+                      </Group>
+                    )}
+                  </Stack>
+                </Table.Td>
                 <Table.Td>{ago(d.lastSeenAt)}{d.bufferedReadings > 0 && <Text size="xs" c="dimmed">{d.bufferedReadings} buffered</Text>}</Table.Td>
               </Table.Tr>
             ))}

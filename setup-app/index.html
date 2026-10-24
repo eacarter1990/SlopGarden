@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SlopGarden Setup</title>
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; font: 16px/1.45 system-ui, sans-serif; background: linear-gradient(135deg, #1b4332, #2d6a4f); min-height: 100vh; color: #1b1b1b; }
+  main { max-width: 480px; margin: 28px auto; background: #fff; border-radius: 16px; padding: 28px; box-shadow: 0 16px 40px rgba(0,0,0,.2); }
+  h1 { margin: 0 0 4px; font-size: 1.6rem; }
+  p.lead { color: #526; margin-top: 0; }
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  button, .choice { font: inherit; border-radius: 12px; border: 1px solid #c8d5cc; background: #f6faf7; padding: 16px; text-align: left; cursor: pointer; }
+  button:focus-visible, .choice:focus-visible, input:focus-visible { outline: 2px solid #1b4332; outline-offset: 2px; }
+  @media (max-width: 520px) {
+    .choices { grid-template-columns: 1fr; }
+    main { margin: 12px; padding: 20px; }
+  }
+  button.primary { background: #2d6a4f; color: white; border: 0; width: 100%; margin-top: 12px; }
+  button.primary:disabled { opacity: .6; }
+  label { display: block; font-size: .85rem; margin: 12px 0 4px; font-weight: 650; }
+  input { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #c8d5cc; font: inherit; }
+  .error { background: #fde8e8; color: #8a1f1f; padding: 10px 12px; border-radius: 8px; }
+  .ok { background: #e7f6ec; padding: 10px 12px; border-radius: 8px; }
+  pre { white-space: pre-wrap; background: #f4f4f4; padding: 10px; border-radius: 8px; font-size: .8rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>SlopGarden setup</h1>
+  <p class="lead" id="lead">What is this machine?</p>
+  <div id="app"></div>
+</main>
+<script src="renderer.js"></script>
+</body>
+</html>

@@ -38,12 +38,13 @@ public sealed record DeviceDto(
     string Os, string Architecture, string ClientVersion, Guid? GardenId, DateTimeOffset? ApprovedAt, string? ReportedTimezoneId,
     double? ReportedLatitude, double? ReportedLongitude, string? ReportedLocationLabel, int DesiredConfigVersion, int? AppliedConfigVersion,
     JsonArray ConfigErrors, DateTimeOffset? LastSeenAt, bool IsOnline, int BufferedReadings, DateTimeOffset CreatedAt,
-    int UnsignedPlugins, int InvalidPlugins)
+    int UnsignedPlugins, int InvalidPlugins, bool AutoUpdate, string? UpdateStatus, string? UpdateError, bool UpdateAvailable, string? LatestClientVersion)
 {
-    public static DeviceDto From(Device d, int unsigned = 0, int invalid = 0) => new(d.Id, d.Name, d.HardwareId, d.Hostname, d.Status, d.DiscoveredVia,
+    public static DeviceDto From(Device d, int unsigned = 0, int invalid = 0, string? latestVersion = null) => new(d.Id, d.Name, d.HardwareId, d.Hostname, d.Status, d.DiscoveredVia,
         d.IpAddress, d.LocalEndpoint, d.Os, d.Architecture, d.ClientVersion, d.GardenId, d.ApprovedAt, d.ReportedTimezoneId, d.ReportedLatitude,
         d.ReportedLongitude, d.ReportedLocationLabel, d.DesiredConfigVersion, d.AppliedConfigVersion, d.ConfigErrors, d.LastSeenAt, d.IsOnline,
-        d.BufferedReadings, d.CreatedAt, unsigned, invalid);
+        d.BufferedReadings, d.CreatedAt, unsigned, invalid, d.AutoUpdate, d.UpdateStatus, d.UpdateError,
+        ClientVersions.IsOutdated(d.ClientVersion, latestVersion), latestVersion);
 }
 
 public sealed record ChannelDto(
@@ -81,6 +82,11 @@ public sealed record CameraDto(
 {
     public static CameraDto From(Camera c) => new(c.Id, c.DeviceId, c.Device?.Name, c.Name, c.PluginId, c.Settings, c.CaptureWidth, c.CaptureHeight,
         c.FrameIntervalSec, c.Enabled, c.TargetType, c.GardenId, c.BedId, c.PlantId, c.LastFrameAt, c.Status, $"/api/cameras/{c.Id}/snapshot", c.ReservoirId);
+
+    /// <summary>Garden, bed, or plant — the camera's target.</summary>
+    public string Role => TargetType is CameraRoles.Bed or CameraRoles.Plant ? TargetType : CameraRoles.Garden;
+
+    public string StreamUrl => SnapshotUrl.Replace("/snapshot", "/stream", StringComparison.Ordinal);
 }
 
 public sealed record UserDto(Guid Id, string Username, string DisplayName, string? Email, string Role, bool IsDisabled, DateTimeOffset CreatedAt, DateTimeOffset? LastLoginAt)

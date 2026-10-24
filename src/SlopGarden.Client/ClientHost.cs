@@ -2,12 +2,14 @@ using Microsoft.Extensions.Options;
 using SlopGarden.Client.Actuators;
 using SlopGarden.Client.Cameras;
 using SlopGarden.Client.Identity;
+using SlopGarden.Client.Logging;
 using SlopGarden.Client.Plugins;
 using SlopGarden.Client.Runtime;
 using SlopGarden.Client.Scheduling;
 using SlopGarden.Client.Sensors;
 using SlopGarden.Client.Server;
 using SlopGarden.Client.Storage;
+using SlopGarden.Client.Updates;
 
 namespace SlopGarden.Client;
 
@@ -79,10 +81,16 @@ public static class ClientHost
         services.AddSingleton<DeviceRuntime>();
         services.AddSingleton<HardwareDiscoveryRunner>();
         services.AddSingleton<ServerDiscovery>();
+        services.AddSingleton<MdnsAgent>();
         services.AddSingleton<RegistrationClient>();
+        services.AddSingleton<ContainerUpdater>();
         services.AddSingleton<DeviceConnection>();
         services.AddSingleton<OutboxUploader>();
         services.AddSingleton<LocalApiServer>();
+        services.AddSingleton<ClientLogFile>();
+        services.AddSingleton<ILoggerProvider, ClientFileLogProvider>();
+        services.AddHostedService<ClientLogShipper>();
+        services.AddHostedService(sp => sp.GetRequiredService<MdnsAgent>());
 
         // Start order matters: cached config (and failsafe states) first; stop runs in reverse, so actuators
         // are switched to their failsafe state after the connection and uploader have stopped.

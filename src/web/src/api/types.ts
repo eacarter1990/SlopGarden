@@ -376,6 +376,11 @@ export interface Device {
   os: string
   architecture: string
   clientVersion: string
+  autoUpdate?: boolean
+  updateStatus?: string | null
+  updateError?: string | null
+  updateAvailable?: boolean
+  latestClientVersion?: string | null
   gardenId?: string | null
   approvedAt?: string | null
   reportedTimezoneId?: string | null

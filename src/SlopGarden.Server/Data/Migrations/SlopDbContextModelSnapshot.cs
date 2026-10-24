@@ -1097,6 +1097,11 @@ namespace SlopGarden.Server.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("file_path");
 
+                    b.Property<string>("Image")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("image");
+
                     b.Property<string>("Notes")
                         .IsRequired()
                         .HasColumnType("text")
@@ -1154,6 +1159,10 @@ namespace SlopGarden.Server.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("architecture");
+
+                    b.Property<bool>("AutoUpdate")
+                        .HasColumnType("boolean")
+                        .HasColumnName("auto_update");
 
                     b.Property<int>("BufferedReadings")
                         .HasColumnType("integer")
@@ -1225,6 +1234,10 @@ namespace SlopGarden.Server.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("name");
 
+                    b.Property<string>("NotifiedUpdateVersion")
+                        .HasColumnType("text")
+                        .HasColumnName("notified_update_version");
+
                     b.Property<string>("Os")
                         .IsRequired()
                         .HasColumnType("text")
@@ -1263,6 +1276,14 @@ namespace SlopGarden.Server.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("status");
+
+                    b.Property<string>("UpdateError")
+                        .HasColumnType("text")
+                        .HasColumnName("update_error");
+
+                    b.Property<string>("UpdateStatus")
+                        .HasColumnType("text")
+                        .HasColumnName("update_status");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -1714,6 +1735,72 @@ namespace SlopGarden.Server.Data.Migrations
                         .HasName("pk_gardens");
 
                     b.ToTable("gardens", (string)null);
+                });
+
+            modelBuilder.Entity("SlopGarden.Server.Data.GrowthReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("body");
+
+                    b.Property<string>("Conditions")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("conditions");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("GardenId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("garden_id");
+
+                    b.Property<string>("ImageIds")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("image_ids");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("kind");
+
+                    b.Property<DateTimeOffset>("PeriodEnd")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("period_end");
+
+                    b.Property<DateTimeOffset>("PeriodStart")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("period_start");
+
+                    b.Property<string>("Predictions")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("predictions");
+
+                    b.Property<Guid?>("ScheduleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("schedule_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("title");
+
+                    b.HasKey("Id")
+                        .HasName("pk_growth_reports");
+
+                    b.HasIndex("GardenId", "CreatedAt")
+                        .HasDatabaseName("ix_growth_reports_garden_id_created_at");
+
+                    b.ToTable("growth_reports", (string)null);
                 });
 
             modelBuilder.Entity("SlopGarden.Server.Data.HardwareCatalogEntry", b =>
@@ -3389,6 +3476,16 @@ namespace SlopGarden.Server.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_discovered_hardware_devices_device_id");
+                });
+
+            modelBuilder.Entity("SlopGarden.Server.Data.GrowthReport", b =>
+                {
+                    b.HasOne("SlopGarden.Server.Data.Garden", null)
+                        .WithMany()
+                        .HasForeignKey("GardenId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_growth_reports_gardens_garden_id");
                 });
 
             modelBuilder.Entity("SlopGarden.Server.Data.JournalEntry", b =>

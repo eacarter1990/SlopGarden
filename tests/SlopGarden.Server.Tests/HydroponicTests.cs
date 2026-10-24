@@ -211,12 +211,12 @@ public class HydroponicTests(ServerFixture f) : IClassFixture<ServerFixture>
         var ec = status["targets"]!.AsArray().Single(t => t!["metric"]!.ToString() == Metrics.EcMsCm)!;
         Assert.Equal(0.8, ec["min"]!.GetValue<double>());
         Assert.Equal("profile", ec["source"]!.ToString());
-        Assert.Contains(status["alerts"]!.AsArray(), a => a!.ToString().Contains("ph 7.1 above 6.5"));
+        Assert.Contains(status["alerts"]!.AsArray(), a => a!.ToString().Contains("pH 7.1 above 6.5"));
         Assert.Contains(status["alerts"]!.AsArray(), a => a!.ToString().Contains("should run continuously"));
 
         await admin.Op("set_care_target", new { scopeType = "reservoir", reservoirId = rig.ReservoirId, metric = Metrics.Ph, minValue = 5.8, maxValue = 7.2 });
         status = await admin.Op("get_reservoir", new { reservoirId = rig.ReservoirId });
-        Assert.DoesNotContain(status["alerts"]!.AsArray(), a => a!.ToString().StartsWith("ph"));
+        Assert.DoesNotContain(status["alerts"]!.AsArray(), a => a!.ToString().StartsWith("pH"));
 
         await admin.Op("log_reservoir_event", new { reservoirId = rig.ReservoirId, kind = "top_up", liters = 4 });
         await admin.Op("log_reservoir_event", new { reservoirId = rig.ReservoirId, kind = "top_up", liters = 2.5 });

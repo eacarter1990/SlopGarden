@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>SlopGarden contributors</Authors>
     <Company>SlopGarden</Company>
     <Product>SlopGarden</Product>

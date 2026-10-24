@@ -46,6 +46,7 @@ public sealed class ClientPaths
     public string IdentityFile => Path.Combine(DataDirectory, "identity.json");
     public string ConfigFile => Path.Combine(DataDirectory, "config.json");
     public string DatabaseFile => Path.Combine(DataDirectory, "outbox.db");
+    public string LogFile => Path.Combine(DataDirectory, "client.log");
 
     public static ClientPaths Resolve(ClientOptions options)
     {

@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: slopgarden
+          POSTGRES_PASSWORD: slopgarden
+          POSTGRES_DB: slopgarden
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U slopgarden -d slopgarden"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Test
+        run: dotnet test -p:SkipWebBuild=true --nologo

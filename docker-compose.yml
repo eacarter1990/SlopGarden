@@ -1,0 +1,69 @@
+# One command: docker compose up -d --build
+# Opens http://localhost:5080. The first visit creates the Admin. SeedDemo stays off.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: slopgarden
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-slopgarden}
+      POSTGRES_DB: slopgarden
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U slopgarden -d slopgarden"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.server
+    image: slopgarden-server:local
+    container_name: slopgarden-server
+    ports:
+      - "5080:5080"
+    environment:
+      SLOPGARDEN_CONTAINER: slopgarden-server
+      SlopGarden__Database__Host: db
+      SlopGarden__Database__Port: "5432"
+      SlopGarden__Database__Database: slopgarden
+      SlopGarden__Database__Username: slopgarden
+      SlopGarden__Database__Password: ${POSTGRES_PASSWORD:-slopgarden}
+      SlopGarden__DataDirectory: /data
+      SlopGarden__SeedDemo: "false"
+      # Set this to the URL a Pi on your LAN should use, for example http://192.168.1.20:5080
+      SlopGarden__PublicUrl: ${SLOPGARDEN_PUBLIC_URL:-}
+    volumes:
+      - serverdata:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Optional. `docker compose --profile client up -d` starts a client container on the same network.
+  # It registers as pending until an Admin approves it. Updates need the socket mount below.
+  client:
+    profiles: ["client"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.client
+    image: slopgarden-client:local
+    container_name: slopgarden-client
+    environment:
+      SLOPGARDEN_Client__ServerUrl: http://server:5080
+      SLOPGARDEN_Client__DataDirectory: /data
+      SLOPGARDEN_CONTAINER: slopgarden-client
+    volumes:
+      - clientdata:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  serverdata:
+  clientdata:
