@@ -371,4 +371,121 @@ public sealed class SafetyGuardTests
     {
         Assert.Equal(tripped, new SafetyInterlock("x", Guid.NewGuid(), op, threshold, "x").IsTripped(value));
     }
+
+    private static ActuatorConfig Doser(string name, string role, Guid? reservoir = null, double? maxHourlyMl = null, int? reservoirWait = null, Guid? requires = null) =>
+        Configs.Actuator(flow: 60, kind: ActuatorKinds.FertilizerDoser,
+            safety: new ActuatorSafety(null, null, null, null, [], maxHourlyMl, reservoirWait, requires))
+        with { Name = name, Role = role, ReservoirId = reservoir };
+
+    private static ActuatorPeers Peers(Func<Guid, bool> isOn, params ActuatorConfig[] actuators) => new(actuators, isOn);
+
+    [Fact]
+    public void Hourly_amount_limit_counts_the_last_60_minutes_including_the_request()
+    {
+        var a = Doser("Nutrient A", ActuatorRoles.DoseNutrientA, maxHourlyMl: 20);
+        RecordRun(a.Id, Noon.AddHours(-2), 30, ml: 30);
+        RecordRun(a.Id, Noon.AddMinutes(-40), 10, ml: 10);
+
+        Assert.True(Evaluate(a, Dose(10)).Allowed);
+        var rejected = Evaluate(a, Dose(15));
+        Assert.False(rejected.Allowed);
+        Assert.Contains("hourly amount limit", rejected.Reason);
+        Assert.Contains("10 of 20 ml left", rejected.Reason);
+        Assert.False(Evaluate(a, Pulse(11)).Allowed);
+    }
+
+    [Fact]
+    public void Hourly_amount_uses_duration_times_flow_for_runs_without_an_amount_and_caps_on()
+    {
+        var a = Doser("pH down", ActuatorRoles.DosePhDown, maxHourlyMl: 20);
+        RecordRun(a.Id, Noon.AddMinutes(-10), 15);
+        var on = Evaluate(a, On());
+        Assert.True(on.Allowed);
+        Assert.Equal(5, on.DurationSec!.Value, 3);
+        Assert.Equal(StopReasons.HourlyLimit, on.StopReason);
+
+        RecordRun(a.Id, Noon.AddMinutes(-5), 5);
+        var reached = Evaluate(a, Dose(1));
+        Assert.False(reached.Allowed);
+        Assert.Contains("hourly amount limit reached", reached.Reason);
+    }
+
+    [Fact]
+    public void Hourly_amount_limit_without_a_flow_rate_fails_closed()
+    {
+        var a = Doser("Additive", ActuatorRoles.DoseAdditive, maxHourlyMl: 20) with { FlowRateMlPerMin = null };
+        Assert.Contains("flowRateMlPerMin", Evaluate(a, Pulse(1)).Reason);
+    }
+
+    [Fact]
+    public void Reservoir_mixing_wait_applies_across_dosers_of_the_same_reservoir()
+    {
+        var reservoir = Guid.NewGuid();
+        var a = Doser("Nutrient A", ActuatorRoles.DoseNutrientA, reservoir, reservoirWait: 300);
+        var b = Doser("Nutrient B", ActuatorRoles.DoseNutrientB, reservoir, reservoirWait: 300);
+        var other = Doser("Other tank", ActuatorRoles.DoseNutrientA, Guid.NewGuid(), reservoirWait: 300);
+        var pump = Configs.Actuator(kind: ActuatorKinds.Pump) with { Role = ActuatorRoles.CirculationPump, ReservoirId = reservoir };
+        var peers = Peers(_ => false, a, b, other, pump);
+        RecordRun(a.Id, Noon.AddSeconds(-110), 10, ml: 10);
+        RecordRun(pump.Id, Noon.AddSeconds(-5), 4);
+
+        var rejected = _guard.Evaluate(b, "UTC", EmergencyStopState.None, Dose(5), false, peers);
+        Assert.False(rejected.Allowed);
+        Assert.Contains("mixing", rejected.Reason);
+        Assert.Contains("'Nutrient A' finished 100s ago", rejected.Reason);
+        Assert.False(_guard.Evaluate(a, "UTC", EmergencyStopState.None, Dose(5), false, peers).Allowed);
+        Assert.True(_guard.Evaluate(other, "UTC", EmergencyStopState.None, Dose(5), false, peers).Allowed);
+
+        _time.Advance(TimeSpan.FromSeconds(200));
+        Assert.True(_guard.Evaluate(b, "UTC", EmergencyStopState.None, Dose(5), false, peers).Allowed);
+
+        var whileDosing = _guard.Evaluate(b, "UTC", EmergencyStopState.None, Dose(5), false, Peers(id => id == a.Id, a, b));
+        Assert.False(whileDosing.Allowed);
+        Assert.Contains("'Nutrient A' is dosing", whileDosing.Reason);
+    }
+
+    [Fact]
+    public void Requires_actuator_on_rejects_while_the_circulation_pump_is_off()
+    {
+        var pump = Configs.Actuator(kind: ActuatorKinds.Pump) with { Name = "NFT pump", Role = ActuatorRoles.CirculationPump };
+        var doser = Doser("pH up", ActuatorRoles.DosePhUp, requires: pump.Id);
+
+        var off = _guard.Evaluate(doser, "UTC", EmergencyStopState.None, Dose(2), false, Peers(_ => false, pump, doser));
+        Assert.False(off.Allowed);
+        Assert.Equal("requires 'NFT pump' to be on, but it is off", off.Reason);
+        Assert.True(_guard.Evaluate(doser, "UTC", EmergencyStopState.None, Dose(2), false, Peers(id => id == pump.Id, pump, doser)).Allowed);
+        Assert.False(Evaluate(doser, Dose(2)).Allowed);
+        Assert.Contains("not configured", _guard.Evaluate(doser, "UTC", EmergencyStopState.None, Dose(2), false, Peers(_ => true, doser)).Reason);
+        Assert.True(Evaluate(doser, new ActuatorRequest(ActuatorActions.Off)).Allowed);
+    }
+
+    [Theory]
+    [InlineData(ActuatorRoles.CirculationPump)]
+    [InlineData(ActuatorRoles.AirPump)]
+    public void Continuous_roles_ignore_per_run_daily_and_interval_limits(string role)
+    {
+        var pump = Configs.Actuator(kind: ActuatorKinds.Pump, flow: 3000, safety: Configs.Safety(maxRun: 60, maxDaily: 100, minBetween: 600, maxDailyMl: 50))
+            with { Role = role };
+        RecordRun(pump.Id, Noon.AddSeconds(-120), 100, ml: 5000);
+
+        var decision = Evaluate(pump, On());
+        Assert.True(decision.Allowed, decision.Reason);
+        Assert.Null(decision.DurationSec);
+        Assert.Equal(StopReasons.Completed, decision.StopReason);
+
+        var irrigation = pump with { Role = ActuatorRoles.Irrigation };
+        Assert.False(Evaluate(irrigation, On()).Allowed);
+    }
+
+    [Fact]
+    public void Continuous_roles_still_obey_interlocks_and_emergency_stop()
+    {
+        var (a, channel) = WithTankInterlock();
+        var pump = a with { Role = ActuatorRoles.CirculationPump };
+        _values.Set(channel, new ChannelValue(10, Noon, ReadingQuality.Good));
+        Assert.False(Evaluate(pump, On()).Allowed);
+        _values.Set(channel, new ChannelValue(60, Noon, ReadingQuality.Good));
+        Assert.True(Evaluate(pump, On()).Allowed);
+        Assert.False(Evaluate(pump, On(), new EmergencyStopState(true, [], "leak")).Allowed);
+    }
 }

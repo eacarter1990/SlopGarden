@@ -4,6 +4,7 @@ using Iot.Device.Ads1115;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using SlopGarden.Client.Tests.TestSupport;
 using SlopGarden.Contracts;
 using SlopGarden.Plugins.Abstractions;
@@ -207,6 +208,59 @@ public sealed class OtherHardwareTests
     {
         Assert.Equal(InputMultiplexer.AIN3, Ads1115Plugin.Multiplexer(3));
         Assert.Throws<ArgumentOutOfRangeException>(() => Ads1115Plugin.Multiplexer(4));
+    }
+
+    [Theory]
+    [InlineData(15, 2, 450, 1.0)]
+    [InlineData(48, 2, 450, 3.2)]
+    [InlineData(0, 2, 450, 0)]
+    [InlineData(75, 1, 450, 10)]
+    [InlineData(10, 0, 450, 0)]
+    [InlineData(10, 2, 0, 0)]
+    public void Flow_meter_converts_pulses_to_liters_per_minute(long pulses, double windowSec, double pulsesPerLiter, double expected)
+    {
+        Assert.Equal(expected, GpioFlowMeterPlugin.LitersPerMinute(pulses, windowSec, pulsesPerLiter), 6);
+    }
+
+    [Fact]
+    public void Flow_meter_default_matches_yf_s201_frequency_formula()
+    {
+        // F[Hz] = 7.5 × Q[L/min]: 7.5 Hz for one second is 1 L/min.
+        Assert.Equal(1.0, GpioFlowMeterPlugin.LitersPerMinute(15, 2, GpioFlowMeterPlugin.DefaultPulsesPerLiter), 6);
+    }
+
+    [Fact]
+    public void Pulse_window_counts_only_recent_pulses()
+    {
+        var time = new FakeTimeProvider();
+        var window = new PulseWindow(TimeSpan.FromSeconds(2), time);
+        time.Advance(TimeSpan.FromSeconds(1));
+        for (var i = 0; i < 10; i++) window.Add();
+        Assert.Equal((10L, 1.0), window.Count());
+
+        time.Advance(TimeSpan.FromSeconds(1.5));
+        for (var i = 0; i < 5; i++) window.Add();
+        var (pulses, seconds) = window.Count();
+        Assert.Equal(15, pulses);
+        Assert.Equal(2, seconds, 6);
+
+        time.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal(5, window.Count().Pulses);
+        time.Advance(TimeSpan.FromSeconds(5));
+        Assert.Equal(0, window.Count().Pulses);
+    }
+
+    [Fact]
+    public void Flow_meter_schema_requires_a_pin_and_reports_flow()
+    {
+        var plugin = new GpioFlowMeterPlugin();
+        var schema = plugin.SettingsSchema;
+        Assert.Equal(["pin"], schema["required"]!.AsArray().Select(n => n!.GetValue<string>()));
+        Assert.Equal(450, schema["properties"]!["pulsesPerLiter"]!["default"]!.GetValue<double>());
+        Assert.True(schema["properties"]!["pullUp"]!["default"]!.GetValue<bool>());
+        Assert.Equal(2, schema["properties"]!["windowSec"]!["default"]!.GetValue<double>());
+        var channel = Assert.Single(plugin.DescribeChannels(new JsonObject()));
+        Assert.Equal(("flow", Metrics.FlowLitersPerMin, "L/min"), (channel.Key, channel.Metric, channel.Unit));
     }
 
     [Fact]
