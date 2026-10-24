@@ -1,0 +1,22 @@
+# This machine is a client. It does not start PostgreSQL or the server.
+#   docker compose -f docker-compose.client.yml up -d
+# Set SLOPGARDEN_SERVER_URL to the server, for example http://192.168.1.20:5080
+services:
+  client:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.client
+    image: slopgarden-client:local
+    container_name: slopgarden-client
+    environment:
+      SLOPGARDEN_Client__ServerUrl: ${SLOPGARDEN_SERVER_URL:?Set SLOPGARDEN_SERVER_URL to the server, for example http://192.168.1.20:5080}
+      SLOPGARDEN_Client__Name: ${SLOPGARDEN_CLIENT_NAME:-SlopGarden client}
+      SLOPGARDEN_Client__DataDirectory: /data
+      SLOPGARDEN_CONTAINER: slopgarden-client
+    volumes:
+      - clientdata:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+volumes:
+  clientdata:

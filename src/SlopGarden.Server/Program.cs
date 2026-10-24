@@ -125,6 +125,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<HydroWatchdog>());
 builder.Services.AddSingleton<ActivityLog>();
 builder.Services.AddScoped<ReportService>();
 builder.Services.AddSingleton<ClientUpdateService>();
+builder.Services.AddSingleton<RemoteSetupService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ClientUpdateService>());
 builder.Services.AddHostedService<MdnsDiscoveryService>();
 builder.Logging.AddProvider(new FileLogProvider(Path.Combine(dataDir, "logs", "server.log")));
@@ -160,6 +161,7 @@ app.MapGet("/api/timezones", () => TimeZones.Options).RequireAuthorization(Polic
 CoreEndpoints.Map(app);
 AdminEndpoints.Map(app);
 MilestoneEndpoints.Map(app);
+RemoteSetupEndpoints.Map(app);
 McpEndpoint.Map(app);
 app.MapHub<LiveHub>("/hubs/live");
 app.MapHub<DeviceHub>("/hubs/device");
