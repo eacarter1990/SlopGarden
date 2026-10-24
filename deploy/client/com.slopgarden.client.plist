@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd daemon for the SlopGarden client on macOS.
+
+  sudo mkdir -p /usr/local/slopgarden-client "/Library/Application Support/SlopGarden/client"
+  sudo cp -R artifacts/client/osx-arm64/* /usr/local/slopgarden-client/
+  sudo cp deploy/client/com.slopgarden.client.plist /Library/LaunchDaemons/
+  sudo launchctl bootstrap system /Library/LaunchDaemons/com.slopgarden.client.plist
+
+  Configuration: /Library/Application Support/SlopGarden/client.json
+  Logs:          /Library/Logs/slopgarden-client.log
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.slopgarden.client</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/slopgarden-client/slopgarden-client</string>
+        <string>run</string>
+        <string>--Client:DataDirectory=/Library/Application Support/SlopGarden/client</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/usr/local/slopgarden-client</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>5</integer>
+    <key>ExitTimeOut</key>
+    <integer>30</integer>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>DOTNET_CLI_TELEMETRY_OPTOUT</key>
+        <string>1</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Library/Logs/slopgarden-client.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Library/Logs/slopgarden-client.log</string>
+</dict>
+</plist>

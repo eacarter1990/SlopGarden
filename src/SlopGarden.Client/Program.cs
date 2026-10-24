@@ -1,3 +1,3 @@
-var builder = Host.CreateApplicationBuilder(args);
-var host = builder.Build();
-host.Run();
+using SlopGarden.Client.Cli;
+
+return await ClientCli.RunAsync(args);

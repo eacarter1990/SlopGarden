@@ -1,0 +1,9 @@
+{
+  "id": "http-json-sensor",
+  "version": "1.0.0",
+  "displayName": "HTTP JSON sensor (sample)",
+  "entryAssembly": "SlopGarden.Plugins.Sample.HttpJson.dll",
+  "publisher": "SlopGarden samples",
+  "description": "Reads a number from any JSON HTTP endpoint. Sample for plugin authors.",
+  "kinds": [ "sensor" ]
+}

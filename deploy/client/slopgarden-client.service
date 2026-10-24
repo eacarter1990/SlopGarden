@@ -1,0 +1,36 @@
+[Unit]
+Description=SlopGarden garden client (sensors, actuators, cameras)
+Documentation=https://github.com/slopgarden/slopgarden/blob/main/docs/client.md
+Wants=network-online.target
+After=network-online.target time-sync.target
+
+[Service]
+Type=notify
+User=slopgarden
+Group=slopgarden
+# GPIO, I2C, SPI, serial (Arduino bridge) and Bluetooth access on Raspberry Pi OS.
+SupplementaryGroups=gpio i2c spi dialout bluetooth
+# /var/lib/slopgarden (identity, cached config, offline buffer) and /etc/slopgarden (client.json).
+StateDirectory=slopgarden
+StateDirectoryMode=0750
+ConfigurationDirectory=slopgarden
+WorkingDirectory=/opt/slopgarden-client
+ExecStart=/opt/slopgarden-client/slopgarden-client run
+Restart=always
+RestartSec=5
+# Leaves time to switch actuators to their failsafe state and flush the outbox.
+TimeoutStopSec=30
+Environment=DOTNET_CLI_TELEMETRY_OPTOUT=1
+Environment=DOTNET_NOLOGO=1
+# The single-file binary self-extracts native libraries (SQLite); the service user has no home directory.
+Environment=DOTNET_BUNDLE_EXTRACT_BASE_DIR=/var/lib/slopgarden/.bundle
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+# Not enabled on purpose: PrivateDevices and ProtectKernelTunables would hide /dev/gpiochip*, /dev/i2c-*
+# and the sysfs 1-Wire/GPIO trees the hardware plugins need.
+
+[Install]
+WantedBy=multi-user.target

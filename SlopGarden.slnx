@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/plugins/SlopGarden.Plugins.Sample.HttpJson/SlopGarden.Plugins.Sample.HttpJson.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/SlopGarden.Client/SlopGarden.Client.csproj" />
     <Project Path="src/SlopGarden.Contracts/SlopGarden.Contracts.csproj" />
