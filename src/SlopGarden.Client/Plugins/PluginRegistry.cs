@@ -338,8 +338,11 @@ public sealed class PluginRegistry
         {
             if (HashCache.TryGetValue(asm, out var h)) return h;
             // Location is empty for assemblies inside a single-file bundle; fall back to the module version id.
-            h = !string.IsNullOrEmpty(asm.Location) && File.Exists(asm.Location)
-                ? PluginSigning.ComputeSha256(asm.Location)
+#pragma warning disable IL3000
+            var location = asm.Location;
+#pragma warning restore IL3000
+            h = !string.IsNullOrEmpty(location) && File.Exists(location)
+                ? PluginSigning.ComputeSha256(location)
                 : asm.ManifestModule.ModuleVersionId.ToString("N");
             HashCache[asm] = h;
             return h;

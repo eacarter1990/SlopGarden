@@ -31,5 +31,6 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="SlopGarden.Client.Tests" />
+    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
   </ItemGroup>
 </Project>
