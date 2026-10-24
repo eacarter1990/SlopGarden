@@ -25,7 +25,17 @@ public sealed record PluginInfo(
     string Trust,
     string? Publisher,
     string? SignatureKeyId,
-    string? Description);
+    string? Description,
+    IReadOnlyList<PluginComponentInfo>? Components = null);
+
+/// <summary>One sensor/actuator/camera component inside a plugin, with the JSON Schema of its settings.</summary>
+public sealed record PluginComponentInfo(
+    string Id,
+    string Kind,
+    string DisplayName,
+    string Description,
+    JsonObject SettingsSchema,
+    IReadOnlyList<string>? ActuatorKinds = null);
 
 public sealed record DeviceRegistrationRequest(
     string HardwareId,
