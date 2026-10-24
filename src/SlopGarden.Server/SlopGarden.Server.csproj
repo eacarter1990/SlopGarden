@@ -18,9 +18,13 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+    <WebDir>$(MSBuildProjectDirectory)/../web</WebDir>
   </PropertyGroup>
+
+  <!-- Builds the React app into wwwroot when it is missing (set SkipWebBuild=true to skip, e.g. in CI without Node). -->
+  <Target Name="BuildWeb" BeforeTargets="Build" Condition="!Exists('$(MSBuildProjectDirectory)/wwwroot/index.html') And '$(SkipWebBuild)' != 'true' And '$(DesignTimeBuild)' != 'true'">
+    <Exec Command="npm ci" WorkingDirectory="$(WebDir)" Condition="!Exists('$(WebDir)/node_modules')" />
+    <Exec Command="npm run build" WorkingDirectory="$(WebDir)" />
+  </Target>
 
 </Project>

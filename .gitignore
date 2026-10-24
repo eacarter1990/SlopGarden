@@ -480,3 +480,12 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# SlopGarden
+src/SlopGarden.Server/wwwroot/
+src/web/node_modules/
+artifacts/
+*.db
+*.db-wal
+*.db-shm
+HELPER_DONE.md
