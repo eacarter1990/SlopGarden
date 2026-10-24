@@ -1,6 +1,3 @@
-var builder = WebApplication.CreateBuilder(args);
-var app = builder.Build();
+using SlopGarden.Emulator;
 
-app.MapGet("/", () => "Hello World!");
-
-app.Run();
+EmulatorApp.Build(args).Run();
