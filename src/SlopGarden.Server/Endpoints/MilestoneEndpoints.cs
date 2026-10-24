@@ -52,8 +52,14 @@ public static class MilestoneEndpoints
                 .Select(ReportService.ToDto));
 
         g.MapGet("/schedules", async (Guid gardenId, SlopDbContext db) =>
-            await db.Schedules.AsNoTracking().Where(s => s.GardenId == gardenId && s.Kind == ScheduleKinds.Report)
-                .Select(s => new { s.Id, s.Name, s.Cron, s.Enabled, cadence = s.Payload["cadence"] }).ToListAsync());
+        {
+            var rows = await db.Schedules.AsNoTracking().Where(s => s.GardenId == gardenId && s.Kind == ScheduleKinds.Report).ToListAsync();
+            return rows.Select(s => new
+            {
+                s.Id, s.Name, s.Cron, s.Enabled,
+                cadence = s.Payload["cadence"] is System.Text.Json.Nodes.JsonValue v && v.TryGetValue<string>(out var c) ? c : null,
+            });
+        });
 
         g.MapPost("/", async (Guid gardenId, ReportRequest req, ReportService reports, CancellationToken ct) =>
         {

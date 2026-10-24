@@ -1,4 +1,4 @@
-import { Alert, Anchor, Badge, Button, Card, Group, Stack, Table, Text, TextInput } from '@mantine/core'
+import { Alert, Anchor, Badge, Button, Card, Group, Stack, Switch, Table, Text, TextInput } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconAlertTriangle, IconCheck, IconWifi, IconX } from '@tabler/icons-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -16,7 +16,10 @@ export function DevicesPage() {
   const save = useSave()
   const qc = useQueryClient()
   const { data: devices } = useQuery({ queryKey: ['devices'], queryFn: () => api.op<Device[]>('list_devices'), refetchInterval: 10_000 })
+  const { data: release } = useQuery({ queryKey: ['client-release'], queryFn: () => api.get<{ version: string; image: string }>('/api/client-release') })
   const [address, setAddress] = useState('')
+  const [version, setVersion] = useState('')
+  const [image, setImage] = useState('')
   const pending = (devices ?? []).filter((d) => d.status === 'pending')
   const others = (devices ?? []).filter((d) => d.status !== 'pending')
 
@@ -32,7 +35,29 @@ export function DevicesPage() {
 
   return (
     <Stack>
-      <PageTitle title="Devices" subtitle="SlopGarden clients on your network. New clients are found automatically (UDP broadcast) or added by IP, and stay pending until an Admin approves them." />
+      <PageTitle title="Devices" subtitle="SlopGarden clients on your network. New clients are found by UDP broadcast, mDNS, or by IP, and stay pending until an Admin approves them." />
+
+      {isAdmin && (
+        <Card>
+          <Text fw={650} mb={4}>Client image</Text>
+          <Text size="xs" c="dimmed" mb="xs">
+            Published version {release?.version || '—'}{release?.image ? ` · ${release.image}` : ''}. A device running an older image shows an update here.
+            Turning on auto-update installs that image. It does not change safety limits or AI approvals.
+          </Text>
+          <Group align="flex-end">
+            <TextInput label="Version" placeholder="0.2.3" value={version} onChange={(e) => setVersion(e.currentTarget.value)} />
+            <TextInput label="Image" placeholder="ghcr.io/owner/slopgarden-client:0.2.3" value={image} onChange={(e) => setImage(e.currentTarget.value)} style={{ flex: 1 }} />
+            <Button disabled={!version} onClick={async () => {
+              try {
+                await api.put('/api/client-release', { version, image })
+                notifications.show({ color: 'green', message: 'Client release saved' })
+                qc.invalidateQueries({ queryKey: ['client-release'] })
+                qc.invalidateQueries({ queryKey: ['devices'] })
+              } catch (e) { notifications.show({ color: 'red', message: (e as Error).message }) }
+            }}>Save release</Button>
+          </Group>
+        </Card>
+      )}
 
       {isAdmin && (
         <Card>
@@ -77,7 +102,7 @@ export function DevicesPage() {
       <Card>
         <Table highlightOnHover>
           <Table.Thead>
-            <Table.Tr><Table.Th>Device</Table.Th><Table.Th>Status</Table.Th><Table.Th>Platform</Table.Th><Table.Th>Config</Table.Th><Table.Th>Plugins</Table.Th><Table.Th>Last seen</Table.Th></Table.Tr>
+            <Table.Tr><Table.Th>Device</Table.Th><Table.Th>Status</Table.Th><Table.Th>Platform</Table.Th><Table.Th>Config</Table.Th><Table.Th>Update</Table.Th><Table.Th>Last seen</Table.Th></Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {others.map((d) => (
@@ -94,7 +119,35 @@ export function DevicesPage() {
                   <Badge variant="light" color={d.appliedConfigVersion === d.desiredConfigVersion ? 'green' : 'yellow'}>v{d.appliedConfigVersion ?? '–'} / v{d.desiredConfigVersion}</Badge>
                   {d.configErrors.length > 0 && <Text size="xs" c="red">{d.configErrors.length} error(s)</Text>}
                 </Table.Td>
-                <Table.Td>{d.unsignedPlugins + d.invalidPlugins > 0 ? <Badge color="orange" variant="light">{d.unsignedPlugins} unsigned</Badge> : <Badge color="gray" variant="light">trusted</Badge>}</Table.Td>
+                <Table.Td>
+                  <Stack gap={4}>
+                    {d.updateAvailable ? <Badge color="yellow">update available</Badge> : <Badge color="gray" variant="light">{d.updateStatus || 'current'}</Badge>}
+                    {d.updateError && <Text size="xs" c="red">{d.updateError}</Text>}
+                    {isAdmin && d.status === 'approved' && (
+                      <Group gap="xs">
+                        <Button size="xs" variant="light" disabled={!d.updateAvailable && !release?.version} onClick={async () => {
+                          try {
+                            const r = await api.post<{ message: string }>(`/api/devices/${d.id}/update`)
+                            notifications.show({ color: 'green', message: r.message })
+                            qc.invalidateQueries({ queryKey: ['devices'] })
+                          } catch (e) { notifications.show({ color: 'red', message: (e as Error).message }) }
+                        }}>Update</Button>
+                        <Switch
+                          size="xs"
+                          label="Auto"
+                          aria-label={`Auto-update ${d.name}`}
+                          checked={!!d.autoUpdate}
+                          onChange={async (e) => {
+                            try {
+                              await api.put(`/api/devices/${d.id}/auto-update`, { enabled: e.currentTarget.checked })
+                              qc.invalidateQueries({ queryKey: ['devices'] })
+                            } catch (err) { notifications.show({ color: 'red', message: (err as Error).message }) }
+                          }}
+                        />
+                      </Group>
+                    )}
+                  </Stack>
+                </Table.Td>
                 <Table.Td>{ago(d.lastSeenAt)}{d.bufferedReadings > 0 && <Text size="xs" c="dimmed">{d.bufferedReadings} buffered</Text>}</Table.Td>
               </Table.Tr>
             ))}

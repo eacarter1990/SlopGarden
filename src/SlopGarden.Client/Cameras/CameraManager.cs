@@ -216,5 +216,15 @@ public sealed class ServerHttp : IDisposable
             throw new HttpRequestException($"frame upload returned {(int)response.StatusCode} {response.ReasonPhrase}", null, response.StatusCode);
     }
 
+    public async Task UploadLogAsync(Uri server, string token, string text, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(server, "api/device-api/logs"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Content = new StringContent(text, System.Text.Encoding.UTF8, "text/plain");
+        using var response = await _client.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+            throw new HttpRequestException($"log upload returned {(int)response.StatusCode}", null, response.StatusCode);
+    }
+
     public void Dispose() => _client.Dispose();
 }

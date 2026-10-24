@@ -154,7 +154,8 @@ public sealed class LocalApiServer(
             });
             return;
         }
-        if (!sameServer || string.IsNullOrEmpty(current.DeviceToken)) connection.PairManually(server);
+        var via = string.Equals(body?.Via, DiscoveredVia.Mdns, StringComparison.OrdinalIgnoreCase) ? DiscoveredVia.Mdns : DiscoveredVia.ManualIp;
+        if (!sameServer || string.IsNullOrEmpty(current.DeviceToken)) connection.PairManually(server, via);
         await WriteJsonAsync(response, HttpStatusCode.Accepted, Status() with { ServerUrl = server.ToString() });
     }
 

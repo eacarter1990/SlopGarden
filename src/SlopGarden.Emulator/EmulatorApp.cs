@@ -102,6 +102,23 @@ public static class EmulatorApp
             var snap = renderer.Render(camera, custom, width, height, local);
             return TypedResults.File(snap.Data, snap.ContentType);
         });
+        cameras.MapGet("/{id}/stream", async (string id, int? width, int? height, HttpContext http, GardenSimulator sim, SnapshotRenderer renderer, CancellationToken ct) =>
+        {
+            CameraDefinition camera;
+            byte[]? custom;
+            try { (camera, custom) = sim.GetCameraSource(id); }
+            catch (KeyNotFoundException) { http.Response.StatusCode = StatusCodes.Status404NotFound; return; }
+            http.Response.ContentType = SlopGarden.Contracts.Mjpeg.ContentType;
+            http.Response.Headers.CacheControl = "no-store";
+            var local = TimeZoneInfo.ConvertTime(sim.SimulatedTime, TimeZoneInfo.Local);
+            var snap = renderer.Render(camera, custom, width, height, local);
+            while (!ct.IsCancellationRequested)
+            {
+                await SlopGarden.Contracts.Mjpeg.WriteFrameAsync(http.Response.Body, snap.Data, ct);
+                try { await Task.Delay(TimeSpan.FromSeconds(1), ct); }
+                catch (OperationCanceledException) { break; }
+            }
+        });
         cameras.MapPut("/{id}/image", async (string id, HttpRequest request, GardenSimulator sim, SnapshotRenderer renderer) =>
         {
             using var ms = new MemoryStream();

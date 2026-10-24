@@ -1,78 +1,98 @@
 # SlopGarden
 
-Open-source, AI-run garden automation. A self-hosted server on your LAN talks to SlopGarden clients
-(typically Raspberry Pis with sensors and relays), and an AI agent — any OpenAI-compatible model you
-bring — sets up and operates the garden with you, asking for approval before it changes anything.
+SlopGarden is a self-hosted garden automation server for your own LAN. A web app, a PostgreSQL database, and a small client on each Raspberry Pi (or any Linux machine) with your sensors, relays, and cameras. An AI assistant can propose changes; you approve them. Nothing here is exposed to the internet, and there is no TLS terminator in this release.
 
-> Milestone 1: web app, server, Pi client, plugin frameworks, AI chat with approvals + MCP server,
-> and a sensor emulator for testing without hardware.
+## Install
 
-## What's in the box
-
-| Path | What |
-|---|---|
-| `src/SlopGarden.Server` | ASP.NET Core server: REST API, SignalR hubs, AI agent, MCP server (`/mcp`), safety engine, notifications, LAN discovery. Serves the web app. |
-| `src/web` | React + TypeScript + Mantine web app |
-| `src/SlopGarden.Client` | Client worker service (systemd / Windows service / console). Runs plugins, enforces safety limits locally, buffers offline. |
-| `src/SlopGarden.Plugins.Abstractions` | Plugin SDK: sensor, actuator, camera and hardware-discovery interfaces |
-| `src/SlopGarden.Plugins.Hardware` | GPIO digital input, relay, ADS1115, DS18B20, BME280, Arduino serial ADC |
-| `src/SlopGarden.Plugins.Emulator` | Plugins that talk to the sensor emulator |
-| `src/SlopGarden.Emulator` | Virtual garden: signal models, REST API to change any signal, physics coupling, static-image camera, control page |
-| `src/SlopGarden.Contracts` | Device protocol, desired-config document, plugin signing |
-| `tools/SlopGarden.DevLlm` | Scripted, offline OpenAI-compatible "model" for demos and tests |
-| `samples/plugins` | Example external plugin (`http-json-sensor`) |
-| `deploy/client` | systemd unit, Pi install script, Windows service and launchd files |
-| `tests/` | xUnit tests for server and client |
-
-## Quick start (desktop + emulator)
-
-Requirements: .NET 10 SDK, Node 20+, PostgreSQL 14+.
+You need Docker with Compose, on a machine that can reach the Pis on your LAN.
 
 ```bash
-# 1. Database (any reachable PostgreSQL; defaults below)
-sudo -u postgres psql -c "CREATE USER slopgarden WITH PASSWORD 'slopgarden' CREATEDB;" -c "CREATE DATABASE slopgarden OWNER slopgarden;"
-
-# 2. Everything at once: scripted demo model, emulator, server (with demo garden) and an emulated client
-scripts/run-demo.sh            # then open http://localhost:5080  (admin / slopgarden)
+git clone https://github.com/eacarter1990/SlopGarden.git
+cd SlopGarden
+docker compose up -d --build
 ```
 
-Or run the pieces yourself:
+Open <http://localhost:5080>.
+
+1. **First run.** The page asks for the Admin username and password (at least 8 characters). That is the only account created. There is no demo user and no demo password.
+2. **Database.** Compose starts PostgreSQL next to the server and the server applies the latest schema on startup. To use a database you already run, open **Use a different PostgreSQL database** on that first page, enter the host, port, database, username, and password, and save. The server restarts onto that database, then you create the Admin. You can also set `POSTGRES_PASSWORD` before `docker compose up` if you only want a different password for the bundled database.
+3. **Approve a client.** Start a client (below). It shows up under **Devices** as pending. An Admin clicks **Approve**. Until then it cannot read or change the garden.
+4. **OpenAI key.** **Settings → AI models.** Add a provider, base URL `https://api.openai.com/v1`, and paste the API key. The key is stored encrypted. The same form is where LM Studio, Ollama, and other OpenAI-compatible servers go. Leave the key empty for a local server that does not need one.
+5. **Discord.** **Settings → Notification channels.** Add a Discord webhook URL. Browser notifications are already on.
+6. **Search.** **Settings → AI models**, in **Web search for the AI**. On `api.openai.com` the assistant uses OpenAI's own web search with the key from step 4. For anything else, pick SearXNG, Tavily, or Brave and enter that provider's key in the same form. Keys are not built into the server.
+
+Logs (server, each client, and one activity log per garden, bed, and plant) are on the `serverdata` volume and under **Logs** in the app.
+
+To point a Pi at this server, set `SLOPGARDEN_PUBLIC_URL` to the address the Pi can reach, for example `http://192.168.1.20:5080`, and run `docker compose up -d` again.
+
+## Client
+
+A client is a container or a published binary. It finds the server by UDP broadcast, by mDNS (`_slopgarden._tcp`), or because you add its IP under **Devices**. It stays pending until you approve it.
+
+### Container
 
 ```bash
-dotnet run --project src/SlopGarden.Server        # http://localhost:5080, first visit creates the Admin
-dotnet run --project src/SlopGarden.Emulator      # http://localhost:5090 (control page)
-dotnet run --project src/SlopGarden.Client        # finds the server by UDP broadcast; approve it under Devices
+docker compose --profile client up -d
 ```
 
-Database connection: `SlopGarden:Database:{Host,Port,Database,Username,Password,SslMode,Extra}` in
-`appsettings.json`, environment variables (`SlopGarden__Database__Host=…`) or **Settings → Server &
-database** in the web app (Admins).
-
-## Raspberry Pi client
+That client uses the Compose network and `http://server:5080`. For a machine on the LAN, run the image yourself and set the server URL:
 
 ```bash
-scripts/publish-client.sh                       # artifacts/client/linux-arm64/
+docker run -d --name slopgarden-client --restart unless-stopped \
+  -e SLOPGARDEN_Client__ServerUrl=http://192.168.1.20:5080 \
+  -e SLOPGARDEN_Client__DataDirectory=/data \
+  -e SLOPGARDEN_CONTAINER=slopgarden-client \
+  -v slopgarden-client:/data \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  --device /dev/video0 \
+  ghcr.io/eacarter1990/slopgarden-client:latest
+```
+
+`--device /dev/video0` is only for a USB webcam. Drop that line if the machine has no camera. Raspberry Pi CSI cameras use the `libcamera` plugin when you configure one; USB webcams use the **USB webcam (V4L2)** plugin and need `ffmpeg`, which the image already includes.
+
+Published images (linux/amd64 and linux/arm64) are on GHCR after a merge to `main`: `ghcr.io/<owner>/slopgarden-server` and `ghcr.io/<owner>/slopgarden-client`.
+
+### Updates
+
+**Devices** shows when a client image is older than the version you publish (**Client image** on that page: version and image reference, for example `ghcr.io/eacarter1990/slopgarden-client:0.2.3`). **Update** sends it to that device. **Auto** installs later images without another click.
+
+Auto-update is only the client image. It does not approve a device, accept an AI proposal, or change a safety limit. Safety limits still run on the device.
+
+A container can update itself only when the Docker socket is mounted and `SLOPGARDEN_CONTAINER` is the container's name, as in the `docker run` above. The server tells the client to pull the image; a short-lived helper container recreates it with the same mounts and restarts it. You do not open a shell on the device. A binary install (systemd on a Pi) is not replaced this way — use the container if you want updates from the device list.
+
+### Binary on a Pi
+
+```bash
+scripts/publish-client.sh
 scp -r artifacts/client/linux-arm64 pi@garden-pi:/tmp/slopgarden-client
 ssh pi@garden-pi 'sudo /tmp/slopgarden-client/install.sh'
 ```
 
-Architecture and data model: [docs/architecture.md](docs/architecture.md). See [docs/client.md](docs/client.md) for configuration, CLI verbs and the plugin authoring/signing guide,
-and [docs/emulator.md](docs/emulator.md) for the emulator API.
+## Cameras
 
-## AI and MCP
+Each device has a list of cameras. A camera's role is **Garden**, **Bed**, or **Plant**, and it is attached to that garden, bed, or plant. The dashboard plays a live MJPEG stream through the server. A dense grid asks for a small width; a single plant asks for a large one.
 
-Add any OpenAI-compatible endpoint (OpenAI, LM Studio, Ollama, OpenRouter…) under **Settings → AI**
-and pick a model per job. Every operation in the app is a tool in one registry, used by the web UI, the
-built-in assistant and the MCP server at `/mcp` (Streamable HTTP, personal access tokens with
-`read` / `propose` / `write` scopes). The **MCP tools** page documents each tool's signature and output.
+## Growth reports
 
-## Tests
+**Reports** generates a report now, or on a daily, weekly, or monthly schedule (07:00 in the garden's time zone). A report includes current conditions, harvest predictions, and the latest camera frames. If an AI model is configured for the Reports job (or for chat), it writes the narrative. Otherwise the server stores a structured report on its own.
+
+## What the AI cannot do
+
+The assistant cannot approve or revoke devices, manage users or personal access tokens, see or edit API keys, or change the database connection. Hydroponic dosing stays an approval: there is no "always allow" for a dose and no automatic dosing controller.
+
+## Develop without Docker
+
+.NET 10 SDK, Node 22, and PostgreSQL 16. Create the role and database `slopgarden` / `slopgarden`, then:
 
 ```bash
-dotnet test                                     # needs PostgreSQL reachable as slopgarden/slopgarden (or SLOPGARDEN_TEST_PG)
+dotnet run --project src/SlopGarden.Server
+dotnet test
 ```
+
+The first visit still creates the Admin. `scripts/run-demo.sh` is a local demo with a seeded garden and a scripted model. It sets `SlopGarden__SeedDemo=true` and is not part of the install above.
+
+Architecture notes live in [docs/architecture.md](docs/architecture.md). You do not need them to install.
 
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE). "SlopGarden" and the signed plugin catalog are intended to
-be protected by trademark, not by the license.
+Apache License 2.0. See [LICENSE](LICENSE).

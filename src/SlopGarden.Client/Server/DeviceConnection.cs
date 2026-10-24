@@ -8,6 +8,7 @@ using SlopGarden.Client.Infrastructure;
 using SlopGarden.Client.Plugins;
 using SlopGarden.Client.Runtime;
 using SlopGarden.Client.Storage;
+using SlopGarden.Client.Updates;
 using SlopGarden.Contracts;
 
 namespace SlopGarden.Client.Server;
@@ -24,6 +25,7 @@ public sealed class DeviceConnection(
     ActuatorController actuators,
     CameraManager cameras,
     HardwareDiscoveryRunner hardware,
+    ContainerUpdater updates,
     Outbox outbox,
     TimeProvider time,
     ILogger<DeviceConnection> logger) : BackgroundService
@@ -36,9 +38,9 @@ public sealed class DeviceConnection(
     private CancellationTokenSource? _session;
 
     /// <summary>Points the client at a server given by the user/server ("add device by IP") and restarts registration.</summary>
-    public void PairManually(Uri serverUrl)
+    public void PairManually(Uri serverUrl, string via = DiscoveredVia.ManualIp)
     {
-        identity.Update(i => i with { ServerUrl = serverUrl.ToString(), DiscoveredVia = DiscoveredVia.ManualIp, DeviceId = null, DeviceToken = null });
+        identity.Update(i => i with { ServerUrl = serverUrl.ToString(), DiscoveredVia = via, DeviceId = null, DeviceToken = null });
         logger.LogInformation("Pairing with {ServerUrl} (manual)", serverUrl);
         lock (_sessionGate) _session?.Cancel();
     }
@@ -98,9 +100,9 @@ public sealed class DeviceConnection(
         if (ServerUrls.TryNormalize(current.ServerUrl) is { } known) return (known, current.DiscoveredVia ?? DiscoveredVia.Broadcast);
 
         link.State = ClientStates.Discovering;
-        var found = await discovery.DiscoverAsync(ct);
-        identity.Update(i => i with { ServerUrl = found.ToString(), DiscoveredVia = DiscoveredVia.Broadcast, DeviceId = null, DeviceToken = null });
-        return (found, DiscoveredVia.Broadcast);
+        var (found, via) = await discovery.DiscoverAsync(ct);
+        identity.Update(i => i with { ServerUrl = found.ToString(), DiscoveredVia = via, DeviceId = null, DeviceToken = null });
+        return (found, via);
     }
 
     private static bool SameServer(string? a, Uri b) => ServerUrls.TryNormalize(a) is { } ua && Uri.Compare(ua, b, UriComponents.HttpRequestUrl, UriFormat.SafeUnescaped, StringComparison.OrdinalIgnoreCase) == 0;
@@ -260,6 +262,11 @@ public sealed class DeviceConnection(
         hub.On(DeviceHubMethods.RequestDiscovery, () =>
         {
             _ = Guard(DeviceHubMethods.RequestDiscovery, () => hardware.RunAndReportAsync(ct));
+            return Task.CompletedTask;
+        });
+        hub.On<ApplyUpdateCommand>(DeviceHubMethods.ApplyUpdate, command =>
+        {
+            _ = Guard(DeviceHubMethods.ApplyUpdate, () => updates.ApplyAsync(command, ct));
             return Task.CompletedTask;
         });
     }

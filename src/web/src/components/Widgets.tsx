@@ -7,21 +7,24 @@ import { useLiveEvent } from '../api/live'
 import type { Bed, CareRange, JsonSchema, LatestReading, Plant, ReservoirStatus } from '../api/types'
 import { ago, fmtValue, metricLabel, readingTone, toneColor } from '../format'
 
-/** Camera "feed": the latest frame, refreshed whenever the device uploads a new one, at the resolution this view needs. */
+/** Live MJPEG feed. Width is the pixel budget for this view: small in a dashboard grid, large on a single plant. */
 export function CameraImage({ cameraId, width = 480, alt, style }: { cameraId: string; width?: number; alt?: string; style?: React.CSSProperties }) {
+  const [mode, setMode] = useState<'stream' | 'snapshot'>('stream')
   const [tick, setTick] = useState(() => Date.now())
   const [failed, setFailed] = useState(false)
+  const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1
+  const pixels = Math.round(width * dpr)
   useLiveEvent('cameraFrame', (e: { cameraId: string }) => {
-    if (e.cameraId === cameraId) {
+    if (e.cameraId === cameraId && mode === 'snapshot') {
       setFailed(false)
       setTick(Date.now())
     }
   })
   useEffect(() => {
+    if (mode !== 'snapshot') return
     const t = window.setInterval(() => setTick(Date.now()), 30_000)
     return () => window.clearInterval(t)
-  }, [])
-  const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1
+  }, [mode])
   if (failed)
     return (
       <Box className="sg-camera" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', ...style }}>
@@ -31,7 +34,8 @@ export function CameraImage({ cameraId, width = 480, alt, style }: { cameraId: s
         </Stack>
       </Box>
     )
-  return <img className="sg-camera" style={style} src={`/api/cameras/${cameraId}/snapshot?width=${Math.round(width * dpr)}&t=${tick}`} alt={alt ?? 'camera'} onError={() => setFailed(true)} />
+  const src = mode === 'stream' ? `/api/cameras/${cameraId}/stream?width=${pixels}` : `/api/cameras/${cameraId}/snapshot?width=${pixels}&t=${tick}`
+  return <img className="sg-camera" style={style} src={src} alt={alt ?? 'camera'} onError={() => (mode === 'stream' ? setMode('snapshot') : setFailed(true))} />
 }
 
 export function ReadingPill({ r, target }: { r: LatestReading; target?: CareRange }) {

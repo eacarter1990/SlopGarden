@@ -14,8 +14,10 @@ import { DevicesPage } from './pages/Devices'
 import { GardenPage } from './pages/Garden'
 import { LoginPage } from './pages/Login'
 import { McpDocsPage } from './pages/McpDocs'
+import { LogsPage } from './pages/Logs'
 import { NotificationsPage } from './pages/Notifications'
 import { PlantPage } from './pages/PlantDetail'
+import { ReportsPage } from './pages/Reports'
 import { ReservoirPage } from './pages/ReservoirDetail'
 import { SafetyPage } from './pages/Safety'
 import { SensorsPage } from './pages/Sensors'
@@ -45,6 +47,8 @@ export default function App() {
             <Route path="/sensors" element={<SensorsPage />} />
             <Route path="/devices" element={<DevicesPage />} />
             <Route path="/devices/:id" element={<DeviceDetailPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/logs" element={<LogsPage />} />
             <Route path="/automation" element={<AutomationPage />} />
             <Route path="/safety" element={<SafetyPage />} />
             <Route path="/assistant" element={<AssistantPage />} />

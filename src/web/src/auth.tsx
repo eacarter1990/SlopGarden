@@ -6,6 +6,7 @@ import type { Role, User } from './api/types'
 interface AuthStatus {
   needsSetup: boolean
   user: User | null
+  database?: { host: string; port: number; database: string; username: string; sslMode: string }
 }
 
 interface AuthContextValue {

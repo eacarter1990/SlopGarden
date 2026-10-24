@@ -12,11 +12,30 @@ namespace SlopGarden.Client.Server;
 
 /// <summary>Finds the server on the LAN: broadcasts a <see cref="DiscoveryProbe"/> on UDP 47474 every 10 s and
 /// waits for a unicast <see cref="DiscoveryAnnouncement"/>.</summary>
-public sealed class ServerDiscovery(IOptions<ClientOptions> options, IIdentityStore identity, ILogger<ServerDiscovery> logger)
+public sealed class ServerDiscovery(IOptions<ClientOptions> options, IIdentityStore identity, MdnsAgent mdns, ILogger<ServerDiscovery> logger)
 {
     public static readonly TimeSpan ProbeInterval = TimeSpan.FromSeconds(10);
 
-    public async Task<Uri> DiscoverAsync(CancellationToken ct)
+    /// <summary>UDP broadcast and mDNS run together. The first one to find a server wins.</summary>
+    public async Task<(Uri Server, string Via)> DiscoverAsync(CancellationToken ct)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var udp = DiscoverUdpAsync(linked.Token);
+        var mdnsTask = mdns.WaitForServerAsync(linked.Token);
+        var winner = await Task.WhenAny(udp, mdnsTask);
+        if (!winner.IsCompletedSuccessfully)
+        {
+            var other = ReferenceEquals(winner, udp) ? mdnsTask : udp;
+            winner = other;
+            await winner;
+        }
+        await linked.CancelAsync();
+        return ReferenceEquals(winner, mdnsTask)
+            ? (winner.Result, DiscoveredVia.Mdns)
+            : (winner.Result, DiscoveredVia.Broadcast);
+    }
+
+    private async Task<Uri> DiscoverUdpAsync(CancellationToken ct)
     {
         using var udp = new UdpClient(new IPEndPoint(IPAddress.Any, 0)) { EnableBroadcast = true };
         var port = options.Value.DiscoveryPort;

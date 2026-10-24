@@ -7,6 +7,7 @@ using SlopGarden.Client.Infrastructure;
 using SlopGarden.Client.Plugins;
 using SlopGarden.Client.Runtime;
 using SlopGarden.Client.Server;
+using SlopGarden.Client.Updates;
 using SlopGarden.Contracts;
 
 namespace SlopGarden.Client.Cli;
@@ -29,6 +30,7 @@ public static class ClientCli
           sign-plugin --key <file> --dir <plugin folder>
                                             Sign an external plugin (writes plugin.sig.json)
           version                           Print the client version
+          update-helper <name> <image>     Recreate a container (run by the updater, not by hand)
 
         Any configuration key can be given as --Client:Key=value, e.g. --Client:DataDirectory=/tmp/c2
         """;
@@ -54,6 +56,7 @@ public static class ClientCli
                 case "version" or "--version":
                     Console.WriteLine(ClientInfo.Version);
                     return 0;
+                case "update-helper": return await UpdateHelper.RunAsync(rest);
                 case "help" or "--help" or "-h":
                     Console.WriteLine(Usage);
                     return 0;

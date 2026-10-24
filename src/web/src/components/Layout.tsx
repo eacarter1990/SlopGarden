@@ -1,4 +1,4 @@
-import { ActionIcon, AppShell, Badge, Burger, Group, Indicator, Menu, NavLink, ScrollArea, Text, Tooltip, useMantineColorScheme } from '@mantine/core'
+import { ActionIcon, AppShell, Badge, Burger, Group, Indicator, Menu, NavLink, ScrollArea, Select, Text, Tooltip, useMantineColorScheme } from '@mantine/core'
 import { useDisclosure, useMediaQuery } from '@mantine/hooks'
 import {
   IconApi,
@@ -15,6 +15,8 @@ import {
   IconShieldCheck,
   IconSun,
   IconChecklist,
+  IconNotes,
+  IconReport,
 } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
@@ -23,6 +25,7 @@ import { api } from '../api/client'
 import { useLive } from '../api/live'
 import type { GardenOverview } from '../api/types'
 import { roleLabel, useAuth } from '../auth'
+import { GardenProvider, useGarden } from '../garden'
 import { ChatDrawer } from './ChatDrawer'
 import { EmergencyStopButton } from './EmergencyStopButton'
 
@@ -31,6 +34,8 @@ const nav = [
   { to: '/garden', label: 'Garden', icon: IconPlant2 },
   { to: '/sensors', label: 'Sensors & readings', icon: IconGauge },
   { to: '/devices', label: 'Devices', icon: IconCpu },
+  { to: '/reports', label: 'Reports', icon: IconReport },
+  { to: '/logs', label: 'Logs', icon: IconNotes },
   { to: '/automation', label: 'Automation', icon: IconCalendarTime },
   { to: '/safety', label: 'Safety', icon: IconShieldCheck },
   { to: '/assistant', label: 'Assistant', icon: IconMessageChatbot },
@@ -40,16 +45,26 @@ const nav = [
   { to: '/settings', label: 'Settings', icon: IconSettings },
 ]
 
-export function useOverview(gardenId?: string) {
+export function useOverview() {
+  const { gardenId } = useGarden()
   return useQuery({
-    queryKey: ['overview', gardenId ?? 'default'],
+    queryKey: ['overview', gardenId || 'default'],
     queryFn: () => api.op<GardenOverview>('get_garden_overview', gardenId ? { gardenId } : {}),
     refetchInterval: 30_000,
   })
 }
 
 export function Layout({ children }: { children: ReactNode }) {
+  return (
+    <GardenProvider>
+      <LayoutShell>{children}</LayoutShell>
+    </GardenProvider>
+  )
+}
+
+function LayoutShell({ children }: { children: ReactNode }) {
   const [opened, { toggle, close }] = useDisclosure()
+  const { gardens, gardenId, select } = useGarden()
   const [chatOpen, chat] = useDisclosure(false)
   const location = useLocation()
   const { user, logout } = useAuth()
@@ -79,7 +94,18 @@ export function Layout({ children }: { children: ReactNode }) {
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
             <img src="/favicon.svg" width={30} height={30} alt="" />
             <Text fw={750} size="lg">SlopGarden</Text>
-            {overview && <Text c="dimmed" size="sm" visibleFrom="md">· {overview.garden.name}</Text>}
+            {gardens.length > 0 && (
+              <Select
+                aria-label="Garden"
+                data={gardens.map((g) => ({ value: g.id, label: g.name }))}
+                value={gardenId || null}
+                onChange={(v) => v && select(v)}
+                allowDeselect={false}
+                searchable
+                size="sm"
+                w={220}
+              />
+            )}
           </Group>
           <Group gap="xs" wrap="nowrap">
             <Tooltip label={connected ? 'Live updates connected' : 'Reconnecting…'}>
@@ -137,7 +163,7 @@ export function Layout({ children }: { children: ReactNode }) {
           ))}
         </AppShell.Section>
         <AppShell.Section>
-          <Text size="xs" c="dimmed" ta="center">Local network · v0.1 · Milestone 1</Text>
+          <Text size="xs" c="dimmed" ta="center">Local network · v0.2</Text>
         </AppShell.Section>
       </AppShell.Navbar>
 
