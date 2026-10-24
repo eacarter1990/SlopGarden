@@ -131,7 +131,7 @@ def main():
         adopted[emu_id] = (r["kind"], r["componentId"])
         if extra and r["kind"] == "actuator":
             api.op("update_actuator", actuatorId=r["componentId"], **extra)
-        print(f"  + {r['kind']:<8} {r['name']}  ->  {plant or bed or 'garden'}")
+        print(f"  + {r['kind']:<8} {r['name']}  ->  {plant or bed or (RESERVOIR if target_type == 'reservoir' else 'garden')}")
 
     sensors = api.op("list_sensors", deviceId=device_id)
     channel = {s["settings"].get("sensorId"): s["channels"][0]["id"] for s in sensors if s["channels"]}
