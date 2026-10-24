@@ -56,7 +56,7 @@ scp -r artifacts/client/linux-arm64 pi@garden-pi:/tmp/slopgarden-client
 ssh pi@garden-pi 'sudo /tmp/slopgarden-client/install.sh'
 ```
 
-See [docs/client.md](docs/client.md) for configuration, CLI verbs and the plugin authoring/signing guide,
+Architecture and data model: [docs/architecture.md](docs/architecture.md). See [docs/client.md](docs/client.md) for configuration, CLI verbs and the plugin authoring/signing guide,
 and [docs/emulator.md](docs/emulator.md) for the emulator API.
 
 ## AI and MCP
