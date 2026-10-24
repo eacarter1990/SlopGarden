@@ -12,13 +12,20 @@ cd SlopGarden
 docker compose up -d --build
 ```
 
-Or download the setup app and run it on the machine. It asks whether this machine is the server or a client, and starts only that:
+Or download **SlopGarden Setup** from the GitHub release for your machine and open it. It is a desktop app, not a page in your browser. Each release on `main` includes:
 
-```bash
-dotnet run --project tools/SlopGarden.Setup
-```
+| Machine | File |
+|---|---|
+| Windows 64-bit | `SlopGardenSetup-*-win-x64.zip` |
+| Windows ARM | `SlopGardenSetup-*-win-arm64.zip` |
+| macOS Intel | `SlopGardenSetup-*-mac-x64.zip` |
+| macOS Apple silicon | `SlopGardenSetup-*-mac-arm64.zip` |
+| Linux 64-bit | `SlopGardenSetup-*-linux-x64.tar.gz` |
+| Linux ARM64, including a Raspberry Pi | `SlopGardenSetup-*-linux-arm64.tar.gz` |
 
-It listens on http://127.0.0.1:5077. Server setup starts PostgreSQL and the web app. Client setup asks for a display name and looks for the server on the LAN (mDNS and UDP). It asks you to type an address only if that search finds nothing. From the server, **Devices → Set up a machine by SSH** asks for the display name and uses this server's own address. A client-only machine can also use `docker compose -f docker-compose.client.yml up -d`.
+The macOS builds are not notarized. The first time, right-click the app and choose Open.
+
+The app asks whether this machine is the server or a client and starts only that. Server setup starts PostgreSQL and the web app. Client setup asks for a display name and looks for the server on the LAN (mDNS and UDP). It asks you to type an address only if that search finds nothing. From an existing server, **Devices → Set up a machine by SSH** asks for the display name and uses that server's own address. A client-only machine can also use `docker compose -f docker-compose.client.yml up -d`.
 
 Open <http://localhost:5080>.
 
@@ -95,7 +102,10 @@ The assistant cannot approve or revoke devices, manage users or personal access 
 ```bash
 dotnet run --project src/SlopGarden.Server
 dotnet test
+cd setup-app && npm install && npm start
 ```
+
+`npm start` opens the setup window and uses the .NET helper from source. The downloadable apps are produced by the release workflow.
 
 The first visit still creates the Admin. `scripts/run-demo.sh` is a local demo with a seeded garden and a scripted model. It sets `SlopGarden__SeedDemo=true` and is not part of the install above.
 

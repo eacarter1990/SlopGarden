@@ -1,72 +1,67 @@
-using System.Diagnostics;
+using System.Text.Json;
 using SlopGarden.Contracts;
 using SlopGarden.Setup;
 
-// Local setup wizard. It binds to loopback only and asks whether this machine is the server or a client.
-var builder = WebApplication.CreateBuilder(args);
-var port = MachineSetup.SetupWizardPort;
-builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
-var app = builder.Build();
-
-app.MapGet("/", () => Results.Content(WizardPage.Html, "text/html"));
-app.MapGet("/api/status", () => Results.Ok(new { docker = Docker.Available(), port }));
-app.MapGet("/api/discover", async (CancellationToken ct) =>
+// JSON helper used by the SlopGarden Setup desktop app. People download that app; this process stays behind it.
+var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+var command = args.FirstOrDefault()?.ToLowerInvariant() ?? "help";
+try
 {
-    var url = await LanServerSearch.FindAsync(LanServerSearch.DefaultTimeout, ct);
-    return Results.Ok(new { found = url is not null, serverUrl = url });
-});
-
-app.MapPost("/api/server", async (ServerChoice body, CancellationToken ct) =>
+    object result = command switch
+    {
+        "docker" => new { docker = Docker.Available() },
+        "discover" => await DiscoverAsync(),
+        "server" => await ServerAsync(args),
+        "client" => await ClientAsync(args),
+        _ => throw new ArgumentException("Commands: docker, discover, server, client"),
+    };
+    Console.WriteLine(JsonSerializer.Serialize(result, json));
+}
+catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException)
 {
-    try
-    {
-        var compose = MachineSetup.ServerCompose(body.PostgresPassword ?? "", body.PublicUrl);
-        var dir = DirectoryFor(body.Directory);
-        var file = Path.Combine(dir, "docker-compose.yml");
-        if (body.DryRun) return Results.Ok(new { directory = dir, file, compose, started = false });
-        Docker.Require();
-        await File.WriteAllTextAsync(file, compose, ct);
-        var log = await Docker.ComposeUpAsync(dir, ct);
-        return Results.Ok(new { directory = dir, url = "http://127.0.0.1:5080", log, started = true });
-    }
-    catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException)
-    {
-        return Results.BadRequest(new { error = ex.Message });
-    }
-});
+    Console.WriteLine(JsonSerializer.Serialize(new { error = ex.Message }, json));
+    Environment.ExitCode = 1;
+}
 
-app.MapPost("/api/client", async (ClientChoice body, CancellationToken ct) =>
+static async Task<object> DiscoverAsync()
 {
-    try
-    {
-        var serverUrl = body.ServerUrl;
-        if (string.IsNullOrWhiteSpace(serverUrl))
-            serverUrl = await LanServerSearch.FindAsync(LanServerSearch.DefaultTimeout, ct);
-        if (string.IsNullOrWhiteSpace(serverUrl))
-            return Results.BadRequest(new { error = "No SlopGarden server was found on this network. Enter its address." });
-        var compose = MachineSetup.ClientCompose(serverUrl, body.Name, body.Image);
-        var dir = DirectoryFor(body.Directory);
-        var file = Path.Combine(dir, "docker-compose.yml");
-        if (body.DryRun) return Results.Ok(new { directory = dir, file, compose, started = false });
-        Docker.Require();
-        await File.WriteAllTextAsync(file, compose, ct);
-        var log = await Docker.ComposeUpAsync(dir, ct);
-        return Results.Ok(new { directory = dir, log, started = true, pending = true });
-    }
-    catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException)
-    {
-        return Results.BadRequest(new { error = ex.Message });
-    }
-});
+    var url = await LanServerSearch.FindAsync(LanServerSearch.DefaultTimeout, CancellationToken.None);
+    return new { found = url is not null, serverUrl = url };
+}
 
-app.Lifetime.ApplicationStarted.Register(() =>
+static async Task<object> ServerAsync(string[] args)
 {
-    var url = $"http://127.0.0.1:{port}";
-    Console.WriteLine($"SlopGarden setup is at {url}");
-    if (!args.Contains("--no-browser")) OpenBrowser(url);
-});
+    var compose = MachineSetup.ServerCompose(Arg(args, "--password") ?? "", Arg(args, "--public-url"));
+    var dir = DirectoryFor(Arg(args, "--directory"));
+    var file = Path.Combine(dir, "docker-compose.yml");
+    Docker.Require();
+    await File.WriteAllTextAsync(file, compose);
+    var log = await Docker.ComposeUpAsync(dir, CancellationToken.None);
+    return new { directory = dir, url = "http://127.0.0.1:5080", log, started = true };
+}
 
-app.Run();
+static async Task<object> ClientAsync(string[] args)
+{
+    var serverUrl = Arg(args, "--server-url");
+    if (string.IsNullOrWhiteSpace(serverUrl))
+        serverUrl = await LanServerSearch.FindAsync(LanServerSearch.DefaultTimeout, CancellationToken.None);
+    if (string.IsNullOrWhiteSpace(serverUrl))
+        throw new InvalidOperationException("No SlopGarden server was found on this network. Enter its address.");
+    var name = Arg(args, "--name") ?? throw new ArgumentException("A display name is required.");
+    var compose = MachineSetup.ClientCompose(serverUrl, name, null);
+    var dir = DirectoryFor(Arg(args, "--directory"));
+    var file = Path.Combine(dir, "docker-compose.yml");
+    Docker.Require();
+    await File.WriteAllTextAsync(file, compose);
+    var log = await Docker.ComposeUpAsync(dir, CancellationToken.None);
+    return new { directory = dir, serverUrl, log, started = true, pending = true };
+}
+
+static string? Arg(string[] args, string name)
+{
+    var i = Array.IndexOf(args, name);
+    return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
+}
 
 static string DirectoryFor(string? requested)
 {
@@ -76,174 +71,3 @@ static string DirectoryFor(string? requested)
     Directory.CreateDirectory(dir);
     return Path.GetFullPath(dir);
 }
-
-static void OpenBrowser(string url)
-{
-    try
-    {
-        if (OperatingSystem.IsWindows()) Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-        else Process.Start(OperatingSystem.IsMacOS() ? "open" : "xdg-open", url);
-    }
-    catch (Exception)
-    {
-        // The URL is already printed. A machine without a browser still works.
-    }
-}
-
-sealed record ServerChoice(string? Directory, string? PublicUrl, string? PostgresPassword, bool DryRun);
-sealed record ClientChoice(string Name, string ServerUrl, string? Image, string? Directory, bool DryRun);
-
-static class Docker
-{
-    public static bool Available()
-    {
-        try
-        {
-            using var proc = Process.Start(new ProcessStartInfo("docker", "version") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false });
-            return proc is not null && proc.WaitForExit(4000) && proc.ExitCode == 0;
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
-        {
-            return false;
-        }
-    }
-
-    public static void Require()
-    {
-        if (!Available()) throw new InvalidOperationException("Docker is not installed or not running. Install Docker, then run slopgarden-setup again.");
-    }
-
-    public static async Task<string> ComposeUpAsync(string directory, CancellationToken ct)
-    {
-        var start = new ProcessStartInfo("docker", "compose up -d")
-        {
-            WorkingDirectory = directory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-        };
-        using var proc = Process.Start(start) ?? throw new InvalidOperationException("Could not start docker compose.");
-        var stdout = await proc.StandardOutput.ReadToEndAsync(ct);
-        var stderr = await proc.StandardError.ReadToEndAsync(ct);
-        await proc.WaitForExitAsync(ct);
-        var log = (stdout + "\n" + stderr).Trim();
-        if (proc.ExitCode != 0) throw new InvalidOperationException(log.Length > 0 ? log : "docker compose up failed.");
-        return log;
-    }
-}
-
-static class WizardPage
-{
-    public const string Html = """
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SlopGarden setup</title>
-<style>
-  :root { color-scheme: light; }
-  body { margin: 0; font: 16px/1.45 system-ui, sans-serif; background: linear-gradient(135deg, #1b4332, #2d6a4f); min-height: 100vh; color: #1b1b1b; }
-  main { max-width: 520px; margin: 48px auto; background: #fff; border-radius: 16px; padding: 28px; box-shadow: 0 16px 40px rgba(0,0,0,.2); }
-  h1 { margin: 0 0 4px; font-size: 1.6rem; }
-  p.lead { color: #526; margin-top: 0; }
-  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  button, .choice { font: inherit; border-radius: 12px; border: 1px solid #c8d5cc; background: #f6faf7; padding: 16px; text-align: left; cursor: pointer; }
-  button.primary { background: #2d6a4f; color: white; border: 0; width: 100%; margin-top: 12px; }
-  button.primary:disabled { opacity: .6; }
-  label { display: block; font-size: .85rem; margin: 12px 0 4px; font-weight: 650; }
-  input { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #c8d5cc; font: inherit; }
-  .error { background: #fde8e8; color: #8a1f1f; padding: 10px 12px; border-radius: 8px; }
-  .ok { background: #e7f6ec; padding: 10px 12px; border-radius: 8px; }
-  pre { white-space: pre-wrap; background: #f4f4f4; padding: 10px; border-radius: 8px; font-size: .8rem; }
-  a { color: #1b4332; }
-</style>
-</head>
-<body>
-<main>
-  <h1>SlopGarden setup</h1>
-  <p class="lead" id="lead">What is this machine?</p>
-  <div id="app"></div>
-</main>
-<script>
-const app = document.getElementById('app')
-const lead = document.getElementById('lead')
-const home = () => {
-  lead.textContent = 'What is this machine?'
-  app.innerHTML = `
-    <div class="choices">
-      <button class="choice" id="server"><b>Server</b><br><span>The one garden server on this LAN. Starts PostgreSQL and the web app.</span></button>
-      <button class="choice" id="client"><b>Client</b><br><span>A Pi or computer with sensors and relays. Does not run the server.</span></button>
-    </div>`
-  document.getElementById('server').onclick = serverForm
-  document.getElementById('client').onclick = clientForm
-}
-function serverForm() {
-  lead.textContent = 'This machine will be the server.'
-  app.innerHTML = `
-    <label>Install folder</label><input id="dir" placeholder="~/slopgarden" />
-    <label>Address other machines will use</label><input id="url" placeholder="http://192.168.1.20:5080" />
-    <label>PostgreSQL password</label><input id="pw" type="password" value="" placeholder="generated if empty" />
-    <p>After it starts, open the web app and create the Admin account. No demo user is created.</p>
-    <button class="primary" id="go">Start the server</button>
-    <p><a href="#" id="back">Back</a></p>
-    <div id="out"></div>`
-  document.getElementById('back').onclick = (e) => { e.preventDefault(); home() }
-  document.getElementById('go').onclick = async () => {
-    const out = document.getElementById('out')
-    out.innerHTML = 'Starting…'
-    const res = await fetch('/api/server', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-      directory: document.getElementById('dir').value,
-      publicUrl: document.getElementById('url').value,
-      postgresPassword: document.getElementById('pw').value
-    })})
-    const body = await res.json()
-    out.innerHTML = res.ok
-      ? `<div class="ok">Server is starting. Create the Admin at <a href="http://127.0.0.1:5080">http://127.0.0.1:5080</a>.<pre>${body.log || ''}</pre></div>`
-      : `<div class="error">${body.error}</div>`
-  }
-}
-async function clientForm() {
-  lead.textContent = 'This machine will be a client.'
-  app.innerHTML = `<p>Looking for a SlopGarden server on this network…</p>`
-  let found = null
-  try {
-    const res = await fetch('/api/discover')
-    found = await res.json()
-  } catch { found = { found: false } }
-  const detected = found && found.found ? found.serverUrl : ''
-  lead.textContent = detected ? 'Server found on this network.' : 'No server answered automatically.'
-  app.innerHTML = `
-    <label>Display name</label><input id="name" placeholder="Greenhouse Pi" />
-    <label>Install folder</label><input id="dir" placeholder="~/slopgarden" />
-    ${detected
-      ? `<p>Using <b>${detected}</b>. This machine will not run the server. It stays pending until an Admin approves it.</p>`
-      : `<label>Server address</label><input id="url" placeholder="http://192.168.1.20:5080" />
-         <p>mDNS and UDP did not find a server. Enter its address. This machine will not run the server, and it stays pending until an Admin approves it.</p>`}
-    <button class="primary" id="go">Start the client</button>
-    <p><a href="#" id="back">Back</a></p>
-    <div id="out"></div>`
-  document.getElementById('back').onclick = (e) => { e.preventDefault(); home() }
-  document.getElementById('go').onclick = async () => {
-    const out = document.getElementById('out')
-    const typed = document.getElementById('url')
-    out.innerHTML = 'Starting…'
-    const res = await fetch('/api/client', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-      name: document.getElementById('name').value,
-      serverUrl: detected || (typed ? typed.value : ''),
-      directory: document.getElementById('dir').value
-    })})
-    const body = await res.json()
-    out.innerHTML = res.ok
-      ? `<div class="ok">Client started. Approve “${document.getElementById('name').value}” on the server under Devices.<pre>${body.log || ''}</pre></div>`
-      : `<div class="error">${body.error}</div>`
-  }
-}
-home()
-</script>
-</body>
-</html>
-""";
-}
-
-public partial class Program;

@@ -1,0 +1,29 @@
+{
+  "name": "slopgarden-setup",
+  "version": "0.2.0",
+  "private": true,
+  "description": "SlopGarden desktop setup. Chooses server or client for this machine.",
+  "main": "main.js",
+  "author": "SlopGarden contributors",
+  "license": "Apache-2.0",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^35.7.5",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "garden.slop.setup",
+    "productName": "SlopGardenSetup",
+    "executableName": "slopgarden-setup",
+    "directories": { "output": "dist" },
+    "artifactName": "SlopGardenSetup-${version}-${os}-${arch}.${ext}",
+    "files": ["main.js", "preload.js", "index.html", "renderer.js"],
+    "extraResources": [{ "from": "helper", "to": "helper" }],
+    "linux": { "target": ["tar.gz"], "category": "Utility" },
+    "win": { "target": ["zip"] },
+    "mac": { "target": ["zip"], "identity": null }
+  }
+}
