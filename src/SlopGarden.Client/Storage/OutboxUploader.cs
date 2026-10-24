@@ -11,24 +11,31 @@ public sealed class OutboxUploader(Outbox outbox, IServerLink link, DeviceRuntim
     public const int ReadingBatchSize = 1000;
     private const int MessageBatchSize = 200;
 
-    private DateTimeOffset _nextReadings = DateTimeOffset.MinValue;
+    private DateTimeOffset _lastReadingsFlush = DateTimeOffset.MinValue;
+
+    private TimeSpan ReadingInterval => TimeSpan.FromSeconds(Math.Clamp(runtime.Settings.ReadingBatchSeconds, 1, 3600));
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var failures = 0;
         while (!stoppingToken.IsCancellationRequested)
         {
-            var interval = TimeSpan.FromSeconds(Math.Clamp(runtime.Settings.ReadingBatchSeconds, 1, 3600));
             try
             {
-                var wait = failures > 0 ? TimeSpan.FromSeconds(Math.Min(30, 2 * failures)) : interval;
+                var untilReadings = _lastReadingsFlush == DateTimeOffset.MinValue
+                    ? TimeSpan.Zero
+                    : _lastReadingsFlush + ReadingInterval - DateTimeOffset.UtcNow;
+                // While offline only a (re)connect, which signals MessagesAvailable, makes flushing possible.
+                var wait = failures > 0 ? TimeSpan.FromSeconds(Math.Min(30, 2 * failures))
+                    : !link.IsConnected ? ReadingInterval
+                    : TimeSpan.FromMilliseconds(Math.Clamp(untilReadings.TotalMilliseconds, 50, ReadingInterval.TotalMilliseconds));
                 await outbox.MessagesAvailable.WaitAsync(wait, stoppingToken);
                 if (!link.IsConnected) continue;
                 await FlushMessagesAsync(stoppingToken);
-                if (DateTimeOffset.UtcNow >= _nextReadings)
+                if (DateTimeOffset.UtcNow >= _lastReadingsFlush + ReadingInterval)
                 {
                     await FlushReadingsAsync(stoppingToken);
-                    _nextReadings = DateTimeOffset.UtcNow + interval;
+                    _lastReadingsFlush = DateTimeOffset.UtcNow;
                 }
                 failures = 0;
             }
