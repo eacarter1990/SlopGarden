@@ -18,7 +18,7 @@ Or download the setup app and run it on the machine. It asks whether this machin
 dotnet run --project tools/SlopGarden.Setup
 ```
 
-It listens on http://127.0.0.1:5077. Server setup starts PostgreSQL and the web app. Client setup starts only the client and leaves the server address blank, so the client finds the server on the LAN (mDNS and UDP). Type an address only if discovery cannot see it. A client-only machine can also use `docker compose -f docker-compose.client.yml up -d`.
+It listens on http://127.0.0.1:5077. Server setup starts PostgreSQL and the web app. Client setup asks for a display name and looks for the server on the LAN (mDNS and UDP). It asks you to type an address only if that search finds nothing. From the server, **Devices → Set up a machine by SSH** asks for the display name and uses this server's own address. A client-only machine can also use `docker compose -f docker-compose.client.yml up -d`.
 
 Open <http://localhost:5080>.
 

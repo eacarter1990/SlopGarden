@@ -72,17 +72,15 @@ export function DevicesPage() {
         <Card>
           <Text fw={650} mb={4}>Set up a machine by SSH</Text>
           <Text size="xs" c="dimmed" mb="xs">
-            Installs only the client on that machine. You confirm the host key first. The login is forgotten after the install, and the device stays pending until you approve it. The AI cannot see this login.
+            Installs only the client on that machine and points it at this server. You choose a display name, then confirm the host key. The login is forgotten after the install, and the device stays pending until you approve it. The AI cannot see this login.
           </Text>
-          <Group align="flex-end" grow>
+          <TextInput label="Display name" placeholder="Greenhouse Pi" value={sshName} onChange={(e) => setSshName(e.currentTarget.value)} maw={360} />
+          <Group align="flex-end" grow mt="xs">
             <TextInput label="Host" placeholder="192.168.1.50" value={sshHost} onChange={(e) => setSshHost(e.currentTarget.value)} />
             <NumberInput label="Port" value={sshPort} onChange={setSshPort} min={1} max={65535} maw={120} />
             <TextInput label="Username" placeholder="pi" value={sshUser} onChange={(e) => setSshUser(e.currentTarget.value)} />
           </Group>
-          <Group align="flex-end" grow mt="xs">
-            <PasswordInput label="Password" value={sshPassword} onChange={(e) => setSshPassword(e.currentTarget.value)} />
-            <TextInput label="Client name" placeholder="Greenhouse Pi" value={sshName} onChange={(e) => setSshName(e.currentTarget.value)} />
-          </Group>
+          <PasswordInput label="Password" mt="xs" value={sshPassword} onChange={(e) => setSshPassword(e.currentTarget.value)} />
           <Textarea label="Private key" placeholder="Optional. Paste a PEM key instead of a password." minRows={2} mt="xs" value={sshKey} onChange={(e) => setSshKey(e.currentTarget.value)} />
           <Group mt="sm">
             <Button loading={sshBusy} disabled={!sshHost || !sshUser || (!sshPassword && !sshKey)} onClick={async () => {
@@ -99,7 +97,7 @@ export function DevicesPage() {
               } catch (e) { notifications.show({ color: 'red', message: (e as Error).message }) }
               finally { setSshBusy(false) }
             }}>Check host</Button>
-            <Button variant="light" disabled={!probe?.dockerInstalled || !sshName || sshBusy} onClick={async () => {
+            <Button variant="light" disabled={!probe?.dockerInstalled || !sshName.trim() || sshBusy} onClick={async () => {
               if (!probe) return
               setSshBusy(true)
               try {
@@ -113,7 +111,7 @@ export function DevicesPage() {
           </Group>
           {probe && (
             <Alert mt="sm" color={probe.dockerInstalled ? 'green' : 'orange'} title={probe.fingerprint}>
-              {probe.detail} The client finds this server on the LAN (mDNS and UDP). Confirm this host key, then install.
+              {probe.detail} This client will be named {sshName || '…'} and will register with {probe.serverUrl}. Confirm this host key, then install.
             </Alert>
           )}
           {sshLog && <Alert mt="sm" color="green" title="Installed">{sshLog} Approve the device when it appears below.</Alert>}

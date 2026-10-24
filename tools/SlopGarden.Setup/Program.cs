@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using SlopGarden.Contracts;
+using SlopGarden.Setup;
 
 // Local setup wizard. It binds to loopback only and asks whether this machine is the server or a client.
 var builder = WebApplication.CreateBuilder(args);
@@ -9,6 +10,11 @@ var app = builder.Build();
 
 app.MapGet("/", () => Results.Content(WizardPage.Html, "text/html"));
 app.MapGet("/api/status", () => Results.Ok(new { docker = Docker.Available(), port }));
+app.MapGet("/api/discover", async (CancellationToken ct) =>
+{
+    var url = await LanServerSearch.FindAsync(LanServerSearch.DefaultTimeout, ct);
+    return Results.Ok(new { found = url is not null, serverUrl = url });
+});
 
 app.MapPost("/api/server", async (ServerChoice body, CancellationToken ct) =>
 {
@@ -33,7 +39,12 @@ app.MapPost("/api/client", async (ClientChoice body, CancellationToken ct) =>
 {
     try
     {
-        var compose = MachineSetup.ClientCompose(body.ServerUrl, body.Name, body.Image);
+        var serverUrl = body.ServerUrl;
+        if (string.IsNullOrWhiteSpace(serverUrl))
+            serverUrl = await LanServerSearch.FindAsync(LanServerSearch.DefaultTimeout, ct);
+        if (string.IsNullOrWhiteSpace(serverUrl))
+            return Results.BadRequest(new { error = "No SlopGarden server was found on this network. Enter its address." });
+        var compose = MachineSetup.ClientCompose(serverUrl, body.Name, body.Image);
         var dir = DirectoryFor(body.Directory);
         var file = Path.Combine(dir, "docker-compose.yml");
         if (body.DryRun) return Results.Ok(new { directory = dir, file, compose, started = false });
@@ -192,28 +203,39 @@ function serverForm() {
       : `<div class="error">${body.error}</div>`
   }
 }
-function clientForm() {
+async function clientForm() {
   lead.textContent = 'This machine will be a client.'
+  app.innerHTML = `<p>Looking for a SlopGarden server on this network…</p>`
+  let found = null
+  try {
+    const res = await fetch('/api/discover')
+    found = await res.json()
+  } catch { found = { found: false } }
+  const detected = found && found.found ? found.serverUrl : ''
+  lead.textContent = detected ? 'Server found on this network.' : 'No server answered automatically.'
   app.innerHTML = `
-    <label>Name</label><input id="name" placeholder="Greenhouse Pi" />
-    <label>Server address</label><input id="url" placeholder="Leave blank — the client finds the server on this network" />
+    <label>Display name</label><input id="name" placeholder="Greenhouse Pi" />
     <label>Install folder</label><input id="dir" placeholder="~/slopgarden" />
-    <p>Leave the address blank and the client finds the server with mDNS and UDP. Type one only if this machine is outside that LAN. It shows up as pending until an Admin approves it. This does not start a server or a database.</p>
+    ${detected
+      ? `<p>Using <b>${detected}</b>. This machine will not run the server. It stays pending until an Admin approves it.</p>`
+      : `<label>Server address</label><input id="url" placeholder="http://192.168.1.20:5080" />
+         <p>mDNS and UDP did not find a server. Enter its address. This machine will not run the server, and it stays pending until an Admin approves it.</p>`}
     <button class="primary" id="go">Start the client</button>
     <p><a href="#" id="back">Back</a></p>
     <div id="out"></div>`
   document.getElementById('back').onclick = (e) => { e.preventDefault(); home() }
   document.getElementById('go').onclick = async () => {
     const out = document.getElementById('out')
+    const typed = document.getElementById('url')
     out.innerHTML = 'Starting…'
     const res = await fetch('/api/client', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
       name: document.getElementById('name').value,
-      serverUrl: document.getElementById('url').value,
+      serverUrl: detected || (typed ? typed.value : ''),
       directory: document.getElementById('dir').value
     })})
     const body = await res.json()
     out.innerHTML = res.ok
-      ? `<div class="ok">Client started. Approve it on the server under Devices.<pre>${body.log || ''}</pre></div>`
+      ? `<div class="ok">Client started. Approve “${document.getElementById('name').value}” on the server under Devices.<pre>${body.log || ''}</pre></div>`
       : `<div class="error">${body.error}</div>`
   }
 }

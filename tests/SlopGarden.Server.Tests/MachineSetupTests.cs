@@ -44,6 +44,18 @@ public class MachineSetupTests
     }
 
     [Fact]
+    public void Discovery_packets_yield_the_server_url()
+    {
+        var udp = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
+            new DiscoveryAnnouncement(Discovery.ServerMessageType, "http://192.168.1.20:5080", "SlopGarden", "0.2.0"), SlopJson.Options);
+        Assert.Equal("http://192.168.1.20:5080", MachineSetup.ServerUrlFromUdp(udp));
+        Assert.Null(MachineSetup.ServerUrlFromUdp("not json"u8.ToArray()));
+
+        var mdns = MdnsCodec.AnnounceServer("slopgarden", 5080, System.Net.IPAddress.Parse("10.0.0.8"), "http://10.0.0.8:5080");
+        Assert.Equal("http://10.0.0.8:5080", MachineSetup.ServerUrlFromMdns(mdns));
+    }
+
+    [Fact]
     public void A_blank_server_address_leaves_discovery_on()
     {
         var script = MachineSetup.ClientDockerScript(null, "Greenhouse Pi", null);

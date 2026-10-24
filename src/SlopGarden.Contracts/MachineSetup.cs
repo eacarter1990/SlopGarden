@@ -144,6 +144,40 @@ public static class MachineSetup
         return value;
     }
 
+    /// <summary>Reads a server URL out of a discovery packet. Used by setup so a typed address is only needed when nothing answers.</summary>
+    public static string? ServerUrlFromUdp(byte[] payload)
+    {
+        try
+        {
+            var announcement = System.Text.Json.JsonSerializer.Deserialize<DiscoveryAnnouncement>(payload, SlopJson.Options);
+            if (announcement is null || announcement.Type != Discovery.ServerMessageType) return null;
+            return NormalizeHttp(announcement.ServerUrl);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
+    public static string? ServerUrlFromMdns(byte[] packet)
+    {
+        if (!MdnsCodec.TryRead(packet, out var message)) return null;
+        foreach (var service in message.Services)
+        {
+            if (string.IsNullOrWhiteSpace(service.Url)) continue;
+            if (!service.ServiceType.Contains("slopgarden-server", StringComparison.OrdinalIgnoreCase)) continue;
+            var url = NormalizeHttp(service.Url);
+            if (url is not null) return url;
+        }
+        return null;
+    }
+
+    private static string? NormalizeHttp(string? value)
+    {
+        if (!Uri.TryCreate(value?.Trim(), UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")) return null;
+        return uri.ToString().TrimEnd('/');
+    }
+
     private static string Quote(string value) => "'" + value.Replace("'", "'\\''") + "'";
 
     private static readonly Regex ImagePattern = new(@"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,200}$", RegexOptions.CultureInvariant);
