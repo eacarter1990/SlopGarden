@@ -95,8 +95,10 @@ export function ReportsPage() {
           <Stack gap="xs">
             {(reports ?? []).map((r) => (
               <Button key={r.id} variant={selected?.id === r.id ? 'light' : 'subtle'} justify="space-between" onClick={() => setOpen(r.id)}>
-                <span>{r.title}</span>
-                <Text span size="xs" c="dimmed">{new Date(r.createdAt).toLocaleString()}</Text>
+                <Group justify="space-between" wrap="nowrap" w="100%">
+                  <Text size="sm" fw={600}>{r.title}</Text>
+                  <Text size="xs" c="dimmed">{new Date(r.createdAt).toLocaleString()}</Text>
+                </Group>
               </Button>
             ))}
             {reports?.length === 0 && <Text c="dimmed" size="sm">No reports yet.</Text>}
