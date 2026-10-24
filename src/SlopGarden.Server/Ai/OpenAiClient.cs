@@ -13,7 +13,7 @@ public sealed record ModelEndpoint(string BaseUrl, string? ApiKey, string Model,
 
 public sealed class AiProviderException(string message) : Exception(message);
 
-/// <summary>Minimal OpenAI-compatible Chat Completions client (OpenAI, LM Studio, Ollama, vLLM, OpenRouter…) with streaming and tool calls.</summary>
+/// <summary>OpenAI-compatible model client with streaming and tool calls: the Responses API for api.openai.com, Chat Completions for everything else (LM Studio, Ollama, vLLM, OpenRouter…).</summary>
 public sealed class OpenAiClient(IHttpClientFactory httpFactory, ILogger<OpenAiClient> log)
 {
     public static string ChatUrl(string baseUrl)
@@ -24,6 +24,8 @@ public sealed class OpenAiClient(IHttpClientFactory httpFactory, ILogger<OpenAiC
 
     public async Task<AssistantTurn> CompleteAsync(ModelEndpoint ep, JsonArray messages, JsonArray? tools, Func<string, Task>? onDelta, CancellationToken ct)
     {
+        if (NativeSearchSupport.IsOfficialOpenAi(ep.BaseUrl)) return await CompleteWithResponsesAsync(ep, messages, tools, onDelta, ct);
+
         var body = new JsonObject
         {
             ["model"] = ep.Model,
@@ -61,6 +63,23 @@ public sealed class OpenAiClient(IHttpClientFactory httpFactory, ILogger<OpenAiC
             return turn;
         }
         return await ParseStreamAsync(res, onDelta, ct);
+    }
+
+    private async Task<AssistantTurn> CompleteWithResponsesAsync(ModelEndpoint ep, JsonArray messages, JsonArray? tools, Func<string, Task>? onDelta, CancellationToken ct)
+    {
+        using var req = ResponsesApi.Request(ep, ResponsesApi.Body(ep, messages, tools, onDelta is not null));
+        using var res = await httpFactory.CreateClient("ai").SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+        if (!res.IsSuccessStatusCode)
+        {
+            var err = await res.Content.ReadAsStringAsync(ct);
+            throw new AiProviderException($"OpenAI returned HTTP {(int)res.StatusCode}: {Truncate(err, 600)}");
+        }
+        if (onDelta is not null && (res.Content.Headers.ContentType?.MediaType ?? "").Contains("event-stream"))
+            return await ResponsesApi.ParseStreamAsync(await res.Content.ReadAsStreamAsync(ct), onDelta, ct);
+
+        var turn = ResponsesApi.ParseFull(JsonNode.Parse(await res.Content.ReadAsStringAsync(ct)) ?? throw new AiProviderException("Empty response from OpenAI"));
+        if (onDelta is not null && turn.Content.Length > 0) await onDelta(turn.Content);
+        return turn;
     }
 
     private static AssistantTurn ParseFull(JsonObject json)
