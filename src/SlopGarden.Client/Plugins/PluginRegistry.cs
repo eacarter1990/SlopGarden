@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Options;
 using SlopGarden.Client.Infrastructure;
 using SlopGarden.Contracts;
@@ -82,6 +83,12 @@ public sealed class PluginRegistry
                 }
             }
         }
+    }
+
+    /// <summary>Adds an in-process component as built-in (used by tests and embedding hosts).</summary>
+    internal void RegisterBuiltin(IPluginComponent component)
+    {
+        lock (_gate) _builtin.Add(component);
     }
 
     /// <summary>Re-evaluates external plugin trust with keys pushed by the server.</summary>
@@ -279,7 +286,7 @@ public sealed class PluginRegistry
             {
                 var asm = c.GetType().Assembly;
                 list.Add(new PluginInfo(c.PluginId, ClientInfo.Version, c.DisplayName, [KindOf(c)], AssemblyHash(asm), PluginTrust.Builtin,
-                    PluginTrust.Builtin, "SlopGarden", null, c.Description));
+                    PluginTrust.Builtin, "SlopGarden", null, c.Description, [ComponentInfo(c)]));
             }
             foreach (var p in _packages)
             {
@@ -294,10 +301,24 @@ public sealed class PluginRegistry
                 foreach (var c in p.Components)
                 {
                     list.Add(new PluginInfo(c.PluginId, p.Manifest.Version, c.DisplayName, [KindOf(c)], p.Sha256, p.Source,
-                        t.Trust, t.Publisher ?? p.Manifest.Publisher, t.KeyId, c.Description));
+                        t.Trust, t.Publisher ?? p.Manifest.Publisher, t.KeyId, c.Description, [ComponentInfo(c)]));
                 }
             }
             return list;
+        }
+    }
+
+    private PluginComponentInfo ComponentInfo(IPluginComponent c)
+    {
+        try
+        {
+            return new PluginComponentInfo(c.PluginId, KindOf(c), c.DisplayName, c.Description, c.SettingsSchema.DeepClone().AsObject(),
+                (c as IActuatorPlugin)?.SupportedKinds.ToList());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Plugin {PluginId} has no usable settings schema", c.PluginId);
+            return new PluginComponentInfo(c.PluginId, KindOf(c), c.DisplayName, c.Description, new JsonObject { ["type"] = "object" });
         }
     }
 
