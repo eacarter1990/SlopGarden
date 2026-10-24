@@ -26,10 +26,11 @@ public static class EventCategories
 /// <summary>Everything the client reports to the server. Durable reports go through the outbox.</summary>
 public interface IDeviceReporter
 {
-    void Event(string severity, string category, string message, Guid? sensorId = null, Guid? actuatorId = null, Guid? cameraId = null);
+    /// <param name="code">Optional machine-readable code, e.g. one of <see cref="SafetyEventCodes"/>.</param>
+    void Event(string severity, string category, string message, Guid? sensorId = null, Guid? actuatorId = null, Guid? cameraId = null, string? code = null);
 
     /// <summary>Reports an event at most once per <paramref name="interval"/> for the given key.</summary>
-    void EventThrottled(string key, TimeSpan interval, string severity, string category, string message, Guid? sensorId = null, Guid? actuatorId = null, Guid? cameraId = null);
+    void EventThrottled(string key, TimeSpan interval, string severity, string category, string message, Guid? sensorId = null, Guid? actuatorId = null, Guid? cameraId = null, string? code = null);
 
     void Ack(Guid commandId, string status, string? reason);
     void Run(ActuatorRunReport run);
@@ -41,15 +42,15 @@ public sealed class DeviceReporter(Outbox outbox, IServerLink link, TimeProvider
 {
     private readonly ConcurrentDictionary<string, DateTimeOffset> _throttle = new();
 
-    public void Event(string severity, string category, string message, Guid? sensorId = null, Guid? actuatorId = null, Guid? cameraId = null) =>
-        Append(DeviceHubMethods.ReportEvent, new DeviceEventReport(time.GetUtcNow(), severity, category, message, sensorId, actuatorId, cameraId));
+    public void Event(string severity, string category, string message, Guid? sensorId = null, Guid? actuatorId = null, Guid? cameraId = null, string? code = null) =>
+        Append(DeviceHubMethods.ReportEvent, new DeviceEventReport(time.GetUtcNow(), severity, category, message, sensorId, actuatorId, cameraId, code));
 
-    public void EventThrottled(string key, TimeSpan interval, string severity, string category, string message, Guid? sensorId = null, Guid? actuatorId = null, Guid? cameraId = null)
+    public void EventThrottled(string key, TimeSpan interval, string severity, string category, string message, Guid? sensorId = null, Guid? actuatorId = null, Guid? cameraId = null, string? code = null)
     {
         var now = time.GetUtcNow();
         if (_throttle.TryGetValue(key, out var last) && now - last < interval) return;
         _throttle[key] = now;
-        Event(severity, category, message, sensorId, actuatorId, cameraId);
+        Event(severity, category, message, sensorId, actuatorId, cameraId, code);
     }
 
     public void Ack(Guid commandId, string status, string? reason) =>

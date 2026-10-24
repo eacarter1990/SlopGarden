@@ -16,6 +16,8 @@ public static class RunSources
     public const string Command = "command";
     public const string Schedule = "schedule";
     public const string Manual = "manual";
+    /// <summary>Started (and re-asserted) by the client for <see cref="ActuatorConfig.ContinuousRun"/> actuators.</summary>
+    public const string Continuous = "continuous";
 }
 
 public sealed record CommandOutcome(string Status, string? Reason);
@@ -24,6 +26,13 @@ public sealed record CommandOutcome(string Status, string? Reason);
 public sealed class ActuatorController : IAsyncDisposable
 {
     private static readonly TimeSpan DeviceTimeout = TimeSpan.FromSeconds(15);
+
+    public static readonly TimeSpan ContinuousReassertInterval = TimeSpan.FromSeconds(30);
+    /// <summary>Flow readings older than this are ignored by the flow watchdog (and count as a silent sensor).</summary>
+    public static readonly TimeSpan FlowReadingMaxAge = TimeSpan.FromSeconds(60);
+    public static readonly TimeSpan FlowEventInterval = TimeSpan.FromMinutes(5);
+    public static readonly TimeSpan SilentFlowSensorEventInterval = TimeSpan.FromHours(1);
+    public static readonly TimeSpan NotRunningEventInterval = TimeSpan.FromMinutes(30);
 
     private readonly ConcurrentDictionary<Guid, Slot> _slots = new();
     private readonly PluginRegistry _registry;
@@ -78,8 +87,11 @@ public sealed class ActuatorController : IAsyncDisposable
                     await existing.Gate.WaitAsync();
                     try
                     {
+                        if (ConfigJson(cfg) != ConfigJson(existing.Config)) existing.OffLatched = false;
                         existing.Config = cfg;
                         if (!cfg.Enabled && existing.On) await StopLockedAsync(existing, StopReasons.Reconfigured, "actuator disabled");
+                        else if (!cfg.ContinuousRun && existing.Run?.Source == RunSources.Continuous)
+                            await StopLockedAsync(existing, StopReasons.Reconfigured, "continuous run disabled");
                     }
                     finally
                     {
@@ -117,6 +129,7 @@ public sealed class ActuatorController : IAsyncDisposable
         }
 
         await SetEmergencyStopAsync(_emergencyStop);
+        foreach (var slot in _slots.Values.Where(s => s.Config.ContinuousRun)) await AssertContinuousAsync(slot);
     }
 
     /// <summary>Executes a server command: expiry check, acks (received → running → completed/rejected/failed).</summary>
@@ -203,6 +216,26 @@ public sealed class ActuatorController : IAsyncDisposable
 
     public bool IsOn(Guid actuatorId) => _slots.TryGetValue(actuatorId, out var s) && s.On;
 
+    /// <summary>Periodic safety work (called about every second by <see cref="ActuatorSupervisor"/>): flow watchdogs,
+    /// stopping actuators whose required actuator went off, and re-asserting continuous runs every
+    /// <see cref="ContinuousReassertInterval"/>. Never throws.</summary>
+    public async Task SuperviseAsync()
+    {
+        foreach (var slot in _slots.Values)
+        {
+            try
+            {
+                await WatchFlowAsync(slot);
+                await EnforceRequiredActuatorAsync(slot);
+                if (slot.Config.ContinuousRun && _time.GetUtcNow() >= slot.NextContinuousAttempt) await AssertContinuousAsync(slot);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Supervising {ActuatorName} failed", slot.Config.Name);
+            }
+        }
+    }
+
     public async Task ShutdownAsync()
     {
         foreach (var slot in _slots.Values) await RemoveAsync(slot, StopReasons.Shutdown);
@@ -215,61 +248,80 @@ public sealed class ActuatorController : IAsyncDisposable
         await ShutdownAsync();
     }
 
+    /// <summary>An explicit request (command, schedule, local). Off latches continuous runs off; a successful start clears
+    /// the off latch and the flow-stall latch.</summary>
     private async Task<CommandOutcome> StartAsync(Slot slot, ActuatorRequest request, string source, Guid? commandId, Guid? scheduleId)
     {
         await slot.Gate.WaitAsync();
         try
         {
-            if (slot.Device is null) return new CommandOutcome(CommandStatuses.Failed, $"actuator not available: {slot.CreateError ?? "not created"}");
-
+            var outcome = await StartLockedAsync(slot, request, source, commandId, scheduleId, null);
             if (request.Action == ActuatorActions.Off)
             {
-                if (slot.On) await StopLockedAsync(slot, StopReasons.OffCommand, "switched off");
-                else await TrySetDeviceAsync(slot, false);
-                if (slot.On || slot.OffFailed) return new CommandOutcome(CommandStatuses.Failed, "could not switch off");
-                if (commandId is { } offId) _reporter.Ack(offId, CommandStatuses.Completed, null);
-                return new CommandOutcome(CommandStatuses.Completed, null);
+                slot.OffLatched = true;
             }
-
-            var decision = _guard.Evaluate(slot.Config, _timeZoneId, _emergencyStop, request, running: slot.On);
-            if (!decision.Allowed) return new CommandOutcome(CommandStatuses.Rejected, decision.Reason);
-
-            try
+            else if (outcome.Status == CommandStatuses.Running)
             {
-                using var timeout = new CancellationTokenSource(DeviceTimeout);
-                await slot.Device.SetStateAsync(true, request.Level, timeout.Token);
+                slot.OffLatched = false;
+                slot.StallRetryAt = null;
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Switching on {ActuatorName} failed", slot.Config.Name);
-                await TrySetDeviceAsync(slot, false);
-                _reporter.Event(EventSeverities.Error, EventCategories.Actuator, $"'{slot.Config.Name}' could not be switched on: {ex.Message}", actuatorId: slot.Config.Id);
-                return new CommandOutcome(CommandStatuses.Failed, ex.Message);
-            }
-
-            var now = _time.GetUtcNow();
-            var flowPerSec = slot.Config.FlowRateMlPerMin is > 0 ? slot.Config.FlowRateMlPerMin / 60 : null;
-            var ackOnEnd = commandId is not null && request.Action is ActuatorActions.Pulse or ActuatorActions.Dose;
-            var run = new ActiveRun(Guid.NewGuid(), commandId, scheduleId, source, now, flowPerSec, decision.StopReason, ackOnEnd);
-            slot.On = true;
-            slot.Level = request.Level;
-            slot.Since = now;
-            slot.Run = run;
-            _logger.LogInformation("{ActuatorName} on ({Source}{Duration}){Note}", slot.Config.Name, source,
-                decision.DurationSec is { } d ? $", {d.ToString("0.#", CultureInfo.InvariantCulture)}s" : "", decision.Note is { } n ? $": {n}" : "");
-            _reporter.ActuatorState(new ActuatorStateReport(slot.Config.Id, true, request.Level, now, commandId, source));
-            if (commandId is { } id)
-            {
-                _reporter.Ack(id, CommandStatuses.Running, decision.Note);
-                if (!ackOnEnd) _reporter.Ack(id, CommandStatuses.Completed, decision.Note);
-            }
-            if (decision.DurationSec is { } duration) StartTimer(slot, run, TimeSpan.FromSeconds(duration));
-            return new CommandOutcome(CommandStatuses.Running, decision.Note);
+            return outcome;
         }
         finally
         {
             slot.Gate.Release();
         }
+    }
+
+    /// <summary>Caller holds the slot gate.</summary>
+    private async Task<CommandOutcome> StartLockedAsync(Slot slot, ActuatorRequest request, string source, Guid? commandId, Guid? scheduleId, string? reason)
+    {
+        if (slot.Device is null) return new CommandOutcome(CommandStatuses.Failed, $"actuator not available: {slot.CreateError ?? "not created"}");
+
+        if (request.Action == ActuatorActions.Off)
+        {
+            if (slot.On) await StopLockedAsync(slot, StopReasons.OffCommand, "switched off");
+            else await TrySetDeviceAsync(slot, false);
+            if (slot.On || slot.OffFailed) return new CommandOutcome(CommandStatuses.Failed, "could not switch off");
+            if (commandId is { } offId) _reporter.Ack(offId, CommandStatuses.Completed, null);
+            return new CommandOutcome(CommandStatuses.Completed, null);
+        }
+
+        var decision = _guard.Evaluate(slot.Config, _timeZoneId, _emergencyStop, request, running: slot.On, Peers());
+        if (!decision.Allowed) return new CommandOutcome(CommandStatuses.Rejected, decision.Reason);
+
+        try
+        {
+            using var timeout = new CancellationTokenSource(DeviceTimeout);
+            await slot.Device.SetStateAsync(true, request.Level, timeout.Token);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Switching on {ActuatorName} failed", slot.Config.Name);
+            await TrySetDeviceAsync(slot, false);
+            _reporter.Event(EventSeverities.Error, EventCategories.Actuator, $"'{slot.Config.Name}' could not be switched on: {ex.Message}", actuatorId: slot.Config.Id);
+            return new CommandOutcome(CommandStatuses.Failed, ex.Message);
+        }
+
+        var now = _time.GetUtcNow();
+        var flowPerSec = slot.Config.FlowRateMlPerMin is > 0 ? slot.Config.FlowRateMlPerMin / 60 : null;
+        var ackOnEnd = commandId is not null && request.Action is ActuatorActions.Pulse or ActuatorActions.Dose;
+        var run = new ActiveRun(Guid.NewGuid(), commandId, scheduleId, source, now, flowPerSec, decision.StopReason, ackOnEnd);
+        slot.On = true;
+        slot.Level = request.Level;
+        slot.Since = now;
+        slot.Run = run;
+        slot.FlowSeen = false;
+        _logger.LogInformation("{ActuatorName} on ({Source}{Duration}){Note}", slot.Config.Name, source,
+            decision.DurationSec is { } d ? $", {d.ToString("0.#", CultureInfo.InvariantCulture)}s" : "", decision.Note is { } n ? $": {n}" : "");
+        _reporter.ActuatorState(new ActuatorStateReport(slot.Config.Id, true, request.Level, now, commandId, reason ?? source));
+        if (commandId is { } id)
+        {
+            _reporter.Ack(id, CommandStatuses.Running, decision.Note);
+            if (!ackOnEnd) _reporter.Ack(id, CommandStatuses.Completed, decision.Note);
+        }
+        if (decision.DurationSec is { } duration) StartTimer(slot, run, TimeSpan.FromSeconds(duration));
+        return new CommandOutcome(CommandStatuses.Running, decision.Note);
     }
 
     private void StartTimer(Slot slot, ActiveRun run, TimeSpan duration)
@@ -323,7 +375,7 @@ public sealed class ActuatorController : IAsyncDisposable
         {
             var status = stopReason switch
             {
-                StopReasons.Completed or StopReasons.MaxRunTime or StopReasons.DailyLimit => CommandStatuses.Completed,
+                StopReasons.Completed or StopReasons.MaxRunTime or StopReasons.DailyLimit or StopReasons.HourlyLimit => CommandStatuses.Completed,
                 StopReasons.Error => CommandStatuses.Failed,
                 _ => CommandStatuses.Cancelled,
             };
@@ -446,7 +498,8 @@ public sealed class ActuatorController : IAsyncDisposable
             if (!slot.On) return;
             await StopLockedAsync(slot, StopReasons.Interlock, reason);
             _logger.LogWarning("Safety: {ActuatorName} switched off: {Reason}", slot.Config.Name, reason);
-            _reporter.Event(EventSeverities.Critical, EventCategories.Safety, $"'{slot.Config.Name}' switched off: {reason}", actuatorId: slot.Config.Id);
+            _reporter.Event(EventSeverities.Critical, EventCategories.Safety, $"'{slot.Config.Name}' switched off: {reason}", actuatorId: slot.Config.Id,
+                code: SafetyEventCodes.InterlockTripped);
         }
         catch (Exception ex)
         {
@@ -457,6 +510,132 @@ public sealed class ActuatorController : IAsyncDisposable
             slot.Gate.Release();
         }
     }
+
+    /// <summary>Switches a <see cref="ActuatorConfig.ContinuousRun"/> actuator on unless it is on, latched off by an explicit off,
+    /// waiting out a flow-stall retry, disabled, emergency-stopped or failed to switch off.</summary>
+    private async Task AssertContinuousAsync(Slot slot)
+    {
+        await slot.Gate.WaitAsync();
+        try
+        {
+            var now = _time.GetUtcNow();
+            slot.NextContinuousAttempt = now + ContinuousReassertInterval;
+            var cfg = slot.Config;
+            if (!cfg.ContinuousRun || slot.On || slot.Device is null || slot.OffFailed || slot.OffLatched || !cfg.Enabled || _emergencyStop.IsStopped(cfg.Id)) return;
+            if (slot.StallRetryAt is { } retryAt && now < retryAt)
+            {
+                slot.NextContinuousAttempt = retryAt;
+                return;
+            }
+            if (slot.StallRetryAt is not null) _logger.LogInformation("Retrying {ActuatorName} after a flow stall", cfg.Name);
+            var outcome = await StartLockedAsync(slot, new ActuatorRequest(ActuatorActions.On), RunSources.Continuous, null, null, "continuous run");
+            if (outcome.Status == CommandStatuses.Rejected)
+            {
+                ReportLimited(slot, SafetyEventCodes.PumpNotRunning, NotRunningEventInterval, EventSeverities.Warning,
+                    $"'{cfg.Name}' should run continuously but cannot be switched on: {outcome.Reason}", SafetyEventCodes.PumpNotRunning);
+            }
+        }
+        finally
+        {
+            slot.Gate.Release();
+        }
+    }
+
+    /// <summary>Evaluates <see cref="FlowWatch"/>: stall while on, unexpected flow while off, silent flow sensor.</summary>
+    private async Task WatchFlowAsync(Slot slot)
+    {
+        if (slot.Config.FlowWatch is null) return;
+        await slot.Gate.WaitAsync();
+        try
+        {
+            if (slot.Config.FlowWatch is not { } watch || slot.Device is null) return;
+            var now = _time.GetUtcNow();
+            var name = slot.Config.Name;
+            var grace = TimeSpan.FromSeconds(Math.Max(0, watch.GraceSec));
+            var reading = _values.Get(watch.ChannelId);
+            if (reading is null || reading.Quality == ReadingQuality.Error || now - reading.Time > FlowReadingMaxAge)
+            {
+                if (slot.On && now - slot.Since > grace * 3)
+                {
+                    ReportLimited(slot, "flow_sensor_silent", SilentFlowSensorEventInterval, EventSeverities.Warning,
+                        $"'{name}' has been on for {Secs(now - slot.Since)} s but its flow sensor sent no reading in the last {Secs(FlowReadingMaxAge)} s; flow cannot be verified", null);
+                }
+                return;
+            }
+            slot.LastEvents.Remove("flow_sensor_silent");
+            // Readings taken during the grace period after switching (spin-up, draining) say nothing about the new state.
+            if (reading.Time < slot.Since + grace) return;
+
+            if (!slot.On)
+            {
+                if (watch.MaxFlowWhenOff is { } maxOff && reading.Value > maxOff)
+                {
+                    ReportLimited(slot, SafetyEventCodes.UnexpectedFlow, FlowEventInterval, EventSeverities.Warning,
+                        $"'{name}' is off but {Num(reading.Value)} L/min is flowing (at most {Num(maxOff)} expected when off): leak, stuck valve or another pump feeding this line",
+                        SafetyEventCodes.UnexpectedFlow);
+                }
+                return;
+            }
+            if (reading.Value >= watch.MinFlowWhenOn)
+            {
+                slot.FlowSeen = true;
+                slot.StallRetryAt = null;
+                return;
+            }
+
+            var what = slot.FlowSeen
+                ? $"flow dropped to {Num(reading.Value)} L/min (minimum {Num(watch.MinFlowWhenOn)}) while running"
+                : $"{(reading.Value < 0.05 ? "no" : "low")} flow ({Num(reading.Value)} L/min) for {Secs(now - slot.Since)} s";
+            var message = $"{name}: {what} — pump stopped, clogged or reservoir empty";
+            if (watch.StopOnStall) message += slot.Config.ContinuousRun ? $"; switched off, retrying in {Math.Max(1, watch.StallRetrySec)} s" : "; switched off";
+            ReportLimited(slot, SafetyEventCodes.FlowStall, FlowEventInterval, EventSeverities.Critical, message, SafetyEventCodes.FlowStall);
+            if (!watch.StopOnStall) return;
+            await StopLockedAsync(slot, StopReasons.FlowStall, message);
+            slot.StallRetryAt = now + TimeSpan.FromSeconds(Math.Max(1, watch.StallRetrySec));
+            slot.NextContinuousAttempt = slot.StallRetryAt.Value;
+        }
+        finally
+        {
+            slot.Gate.Release();
+        }
+    }
+
+    /// <summary>Stops a running actuator whose <c>RequiresActuatorOn</c> actuator is no longer on (e.g. a doser when the circulation pump stops).</summary>
+    private async Task EnforceRequiredActuatorAsync(Slot slot)
+    {
+        if (!slot.On || slot.Config.Safety?.RequiresActuatorOn is not { } requiredId || requiredId == slot.Config.Id || IsOn(requiredId)) return;
+        await slot.Gate.WaitAsync();
+        try
+        {
+            if (!slot.On || SafetyGuard.CheckRequiredActuator(slot.Config, Peers()) is not { } reason) return;
+            await StopLockedAsync(slot, StopReasons.Interlock, reason);
+            _logger.LogWarning("Safety: {ActuatorName} switched off: {Reason}", slot.Config.Name, reason);
+            _reporter.Event(EventSeverities.Critical, EventCategories.Safety, $"'{slot.Config.Name}' switched off: {reason}", actuatorId: slot.Config.Id,
+                code: SafetyEventCodes.PumpNotRunning);
+        }
+        finally
+        {
+            slot.Gate.Release();
+        }
+    }
+
+    /// <summary>Reports a safety event at most once per <paramref name="interval"/> per actuator and key. Caller holds the slot gate.</summary>
+    private void ReportLimited(Slot slot, string key, TimeSpan interval, string severity, string message, string? code)
+    {
+        var now = _time.GetUtcNow();
+        if (slot.LastEvents.TryGetValue(key, out var last) && now - last < interval) return;
+        slot.LastEvents[key] = now;
+        _logger.Log(severity == EventSeverities.Critical ? LogLevel.Error : LogLevel.Warning, "Safety: {Message}", message);
+        _reporter.Event(severity, EventCategories.Safety, message, actuatorId: slot.Config.Id, code: code);
+    }
+
+    private ActuatorPeers Peers() => new(_slots.Values.Select(s => s.Config).ToList(), IsOn);
+
+    private static string Num(double v) => v.ToString("0.0", CultureInfo.InvariantCulture);
+
+    private static string Secs(TimeSpan t) => Math.Round(t.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+
+    private static string ConfigJson(ActuatorConfig cfg) => JsonSerializer.Serialize(cfg, ClientJson.Options);
 
     private static bool SameHardware(ActuatorConfig a, ActuatorConfig b) =>
         a.PluginId == b.PluginId && a.Kind == b.Kind &&
@@ -479,5 +658,13 @@ public sealed class ActuatorController : IAsyncDisposable
         public double? Level { get; set; }
         public DateTimeOffset Since { get; set; } = since;
         public ActiveRun? Run { get; set; }
+        /// <summary>An explicit off keeps a continuous run off until an explicit start or a change of this actuator's config.</summary>
+        public bool OffLatched { get; set; }
+        /// <summary>After a flow stall, continuous re-assertion waits until this time.</summary>
+        public DateTimeOffset? StallRetryAt { get; set; }
+        public DateTimeOffset NextContinuousAttempt { get; set; }
+        /// <summary>The flow watchdog has seen sufficient flow during the current run.</summary>
+        public bool FlowSeen { get; set; }
+        public Dictionary<string, DateTimeOffset> LastEvents { get; } = [];
     }
 }
