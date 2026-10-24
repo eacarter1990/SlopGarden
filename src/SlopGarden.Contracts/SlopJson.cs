@@ -14,6 +14,7 @@ public static class SlopJson
         {
             DefaultIgnoreCondition = JsonIgnoreCondition.Never,
             WriteIndented = false,
+            TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver(),
         };
         o.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
         return o;
