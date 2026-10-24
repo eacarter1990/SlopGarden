@@ -36,7 +36,7 @@ const nav = [
   { to: '/assistant', label: 'Assistant', icon: IconMessageChatbot },
   { to: '/approvals', label: 'Approvals', icon: IconChecklist },
   { to: '/notifications', label: 'Notifications', icon: IconBell },
-  { to: '/mcp', label: 'MCP tools', icon: IconApi },
+  { to: '/mcp-tools', label: 'MCP tools', icon: IconApi },
   { to: '/settings', label: 'Settings', icon: IconSettings },
 ]
 

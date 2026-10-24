@@ -20,7 +20,7 @@ interface ChatEvent {
 
 const routeNames: [string, string][] = [
   ['/', 'Dashboard'], ['/garden', 'Garden'], ['/sensors', 'Sensors'], ['/devices', 'Devices'], ['/automation', 'Automation'], ['/safety', 'Safety'],
-  ['/assistant', 'Whole garden'], ['/approvals', 'Approvals'], ['/notifications', 'Notifications'], ['/settings', 'Settings'], ['/mcp', 'MCP tools'],
+  ['/assistant', 'Whole garden'], ['/approvals', 'Approvals'], ['/notifications', 'Notifications'], ['/settings', 'Settings'], ['/mcp-tools', 'MCP tools'],
 ]
 
 const suggestions = ['How is the garden doing?', 'Is anything too dry?', 'Water the tomatoes every morning', 'Show me the tomato bed camera']

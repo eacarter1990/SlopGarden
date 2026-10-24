@@ -160,7 +160,7 @@ export function PlantPage() {
                 <Group justify="space-between" p="xs"><Text size="sm" fw={600}>{c.name}</Text><Text size="xs" c="dimmed">frame {ago(c.lastFrameAt)} · every {c.frameIntervalSec}s</Text></Group>
               </Card>
             ))}
-            {d.sensors.map((s) => (
+            {[...d.sensors].sort((a, b) => (a.targetType === "plant" ? 0 : 1) - (b.targetType === "plant" ? 0 : 1) || a.name.localeCompare(b.name)).map((s) => (
               <Card key={s.id}>
                 <Group justify="space-between" mb="xs">
                   <Text fw={600}>{s.name} <Text span size="xs" c="dimmed">({s.targetType === 'bed' ? 'whole bed' : 'this plant'})</Text></Text>

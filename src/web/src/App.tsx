@@ -50,7 +50,7 @@ export default function App() {
             <Route path="/approvals" element={<ApprovalsPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/settings/*" element={<SettingsPage />} />
-            <Route path="/mcp" element={<McpDocsPage />} />
+            <Route path="/mcp-tools" element={<McpDocsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Layout>
