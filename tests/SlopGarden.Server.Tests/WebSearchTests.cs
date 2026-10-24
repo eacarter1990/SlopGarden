@@ -14,7 +14,7 @@ public class NativeSearchDetectionTests
     [InlineData("https://api.openai.com/v1", true)]
     [InlineData("https://API.OPENAI.COM/v1/", true)]
     [InlineData(" https://api.openai.com/v1 ", true)]
-    [InlineData("http://api.openai.com/v1", false)]
+    [InlineData("http://api.openai.com/v1", true)]
     [InlineData("https://api.openai.com.evil.example/v1", false)]
     [InlineData("https://proxy.example/api.openai.com/v1", false)]
     [InlineData("https://openrouter.ai/api/v1", false)]
@@ -27,26 +27,13 @@ public class NativeSearchDetectionTests
         Assert.Equal(expected, NativeSearchSupport.IsOfficialOpenAi(url));
 
     [Theory]
-    [InlineData("gpt-4.1-mini", true)]
-    [InlineData("gpt-4.1", true)]
-    [InlineData("gpt-4o", true)]
-    [InlineData("gpt-4o-mini", true)]
-    [InlineData("gpt-4o-2024-08-06", true)]
-    [InlineData("o3", true)]
-    [InlineData("o4-mini", true)]
-    [InlineData("gpt-5", true)]
-    [InlineData("gpt-5-mini", true)]
-    [InlineData("gpt-5.1", true)]
-    [InlineData("GPT-4.1-MINI", true)]
-    [InlineData("gpt-4.1-nano", false)]
-    [InlineData("gpt-3.5-turbo", false)]
-    [InlineData("o1-mini", false)]
-    [InlineData("gpt-4o-search-preview", false)]
-    [InlineData("gpt-5-chat-latest", false)]
-    [InlineData("llama3.1", false)]
-    [InlineData("", false)]
-    public void Model_support_is_detected(string model, bool expected) =>
-        Assert.Equal(expected, NativeSearchSupport.ModelSupportsWebSearch(model));
+    [InlineData("gpt-6-luna")]
+    [InlineData("gpt-4.1-mini")]
+    [InlineData("gpt-4.1-nano")]
+    [InlineData("o3")]
+    [InlineData("some-future-model")]
+    public void Any_model_on_openai_uses_native_search(string model) =>
+        Assert.Equal(SearchModes.OpenAiNative, NativeSearchSupport.Plan(OpenAi(model), new WebSearchSettings()).Mode);
 
     private static ModelEndpoint OpenAi(string model = "gpt-4.1-mini", string? key = "sk-test") => new("https://api.openai.com/v1", key, model, null, null);
     private static readonly WebSearchSettings Searx = new("searxng", "http://searx.local", null, "auto");
@@ -72,12 +59,11 @@ public class NativeSearchDetectionTests
     }
 
     [Fact]
-    public void Missing_key_unsupported_model_and_override_fall_back_to_custom()
+    public void Missing_key_and_override_fall_back_to_custom()
     {
         Assert.Contains("API key", NativeSearchSupport.Plan(OpenAi(key: null), Searx).Reason);
         Assert.Equal(SearchModes.Custom, NativeSearchSupport.Plan(OpenAi(key: null), Searx).Mode);
-        Assert.Contains("does not support", NativeSearchSupport.Plan(OpenAi("gpt-4.1-nano"), Searx).Reason);
-        var overridden = NativeSearchSupport.Plan(OpenAi(), Searx with { Mode = "custom" });
+        var overridden = NativeSearchSupport.Plan(OpenAi("gpt-6-luna"), Searx with { Mode = "custom" });
         Assert.Equal(SearchModes.Custom, overridden.Mode);
         Assert.Contains("Custom provider selected", overridden.Reason);
     }
@@ -142,6 +128,15 @@ public class WebSearchExecutorTests
     }
 
     [Fact]
+    public void Snippet_is_the_cited_sentence_without_markdown()
+    {
+        const string text = "Plant garlic mid-October through November. **Now is a good time to plant.** ([groei.nl](https://groei.nl/x))\n\nMore.";
+        var start = text.IndexOf("([groei", StringComparison.Ordinal);
+        Assert.Equal("Now is a good time to plant.", WebSearchExecutor.Snippet(text, start, start + 30));
+        Assert.Equal("Plant garlic in autumn", WebSearchExecutor.Snippet("Plant garlic in autumn. Cloves need a cold period.", 22, 50));
+    }
+
+    [Fact]
     public async Task Retries_with_the_preview_tool_name_when_web_search_is_unknown()
     {
         var h = new FakeHandler((_, body) => body.Contains("\"web_search_preview\"")
@@ -164,19 +159,17 @@ public class WebSearchExecutorTests
     }
 
     [Fact]
-    public async Task A_model_openai_rejects_is_remembered_and_planned_as_custom()
+    public async Task A_model_error_from_openai_falls_back_for_that_call_but_native_stays_planned()
     {
-        NativeSearchSupport.ForgetRejections();
-        const string model = "gpt-5-nano";
+        const string model = "gpt-6-luna";
         var h = new FakeHandler((req, _) => req.RequestUri!.Host == "api.openai.com"
             ? Json(HttpStatusCode.BadRequest, """{"error":{"message":"Hosted tools are not supported with this model."}}""")
             : Json(HttpStatusCode.OK, SearxOk));
         var r = await Executor(h).ExecuteAsync(NativePlan("searxng", model), null, "q", 5, CancellationToken.None);
         Assert.Equal("searxng", r.Mode);
-        Assert.True(NativeSearchSupport.WasRejected(model));
+        Assert.Contains("OpenAI web search failed", r.FallbackReason);
         var next = NativeSearchSupport.Plan(new ModelEndpoint("https://api.openai.com/v1", "sk", model, null, null), new WebSearchSettings("searxng", "http://searx.local"));
-        Assert.Equal(SearchModes.Custom, next.Mode);
-        NativeSearchSupport.ForgetRejections();
+        Assert.Equal(SearchModes.OpenAiNative, next.Mode);
     }
 
     [Fact]
@@ -223,8 +216,8 @@ public class WebSearchSettingsTests(ServerFixture f) : IClassFixture<ServerFixtu
         Assert.True(native["fallbackAvailable"]!.GetValue<bool>());
         Assert.Equal("custom", (await Status(admin, "reports"))["mode"]!.ToString());
 
-        (await admin.PutAsJsonAsync("/api/settings/ai/assignments/chat", new { providerId, model = "gpt-4.1-nano" })).EnsureSuccessStatusCode();
-        Assert.Equal("custom", (await Status(admin))["mode"]!.ToString());
+        (await admin.PutAsJsonAsync("/api/settings/ai/assignments/chat", new { providerId, model = "gpt-6-luna" })).EnsureSuccessStatusCode();
+        Assert.Equal("openai_native", (await Status(admin))["mode"]!.ToString());
 
         (await admin.PutAsJsonAsync("/api/settings/ai/assignments/chat", new { providerId, model = "gpt-4.1-mini" })).EnsureSuccessStatusCode();
         (await admin.PutAsJsonAsync("/api/settings/ai/web-search", new { provider = "searxng", baseUrl = "http://searx.local", mode = "custom" })).EnsureSuccessStatusCode();

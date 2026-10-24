@@ -1,10 +1,8 @@
-using System.Collections.Concurrent;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using SlopGarden.Server.Data;
 using SlopGarden.Server.Infrastructure;
 
@@ -44,31 +42,13 @@ public sealed record SearchPlan(string Mode, ModelEndpoint? Native, WebSearchSet
     public bool CanFallBack => Custom.HasCustomProvider;
 }
 
-/// <summary>Detects when OpenAI's own web search tool can be used instead of a custom search provider.</summary>
-public static partial class NativeSearchSupport
+/// <summary>Detects when OpenAI's own web search tool can be used instead of a custom search provider:
+/// any model served by api.openai.com, so new OpenAI models work without code changes.</summary>
+public static class NativeSearchSupport
 {
-    private static readonly ConcurrentDictionary<string, DateTimeOffset> RejectedModels = new(StringComparer.OrdinalIgnoreCase);
-    public static readonly TimeSpan RejectionMemory = TimeSpan.FromHours(24);
-
-    /// <summary>Only the official OpenAI API. Azure OpenAI, proxies, OpenRouter and local servers use other APIs or lack the hosted tool.</summary>
     public static bool IsOfficialOpenAi(string? baseUrl) =>
         Uri.TryCreate(baseUrl?.Trim(), UriKind.Absolute, out var uri)
-        && uri.Scheme == Uri.UriSchemeHttps
         && string.Equals(uri.Host, "api.openai.com", StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>Models that accept the Responses API <c>web_search</c> tool (gpt-4.1-nano, gpt-3.5, o1 and the *-search-preview chat models do not).</summary>
-    public static bool ModelSupportsWebSearch(string? model) =>
-        !string.IsNullOrWhiteSpace(model) && SupportedModel().IsMatch(model.Trim().ToLowerInvariant());
-
-    [GeneratedRegex(@"^(gpt-4o|gpt-4o-mini|gpt-4\.1|gpt-4\.1-mini|o3|o3-pro|o4-mini|gpt-5(\.\d+)?(-mini|-nano|-pro)?)(-\d{4}-\d{2}-\d{2})?$")]
-    private static partial Regex SupportedModel();
-
-    public static void MarkRejected(string model) => RejectedModels[model] = DateTimeOffset.UtcNow;
-
-    public static bool WasRejected(string model) =>
-        RejectedModels.TryGetValue(model, out var at) && DateTimeOffset.UtcNow - at < RejectionMemory;
-
-    public static void ForgetRejections() => RejectedModels.Clear();
 
     public static SearchPlan Plan(ModelEndpoint? endpoint, WebSearchSettings settings)
     {
@@ -77,8 +57,6 @@ public static partial class NativeSearchSupport
         else if (endpoint is null) whyNotNative = "No AI model is configured for this job";
         else if (!IsOfficialOpenAi(endpoint.BaseUrl)) whyNotNative = "The model endpoint is not api.openai.com (bring-your-own model)";
         else if (string.IsNullOrWhiteSpace(endpoint.ApiKey)) whyNotNative = "No OpenAI API key is stored for this provider";
-        else if (!ModelSupportsWebSearch(endpoint.Model)) whyNotNative = $"Model '{endpoint.Model}' does not support OpenAI's web search tool";
-        else if (WasRejected(endpoint.Model)) whyNotNative = $"OpenAI recently rejected web search for '{endpoint.Model}'";
 
         if (whyNotNative is null)
             return new SearchPlan(SearchModes.OpenAiNative, endpoint, settings, $"OpenAI built-in web search with {endpoint!.Model}");
@@ -140,7 +118,6 @@ public sealed class WebSearchExecutor(IHttpClientFactory http, ILogger<WebSearch
             var unsupportedTool = (int)res.StatusCode == 400 && text.Contains(toolType, StringComparison.OrdinalIgnoreCase);
             if (!unsupportedTool) break;
         }
-        if (last is not null && last.Message.StartsWith("HTTP 400", StringComparison.Ordinal)) NativeSearchSupport.MarkRejected(ep.Model);
         throw last ?? new AiProviderException("OpenAI web search returned no response");
     }
 
@@ -170,11 +147,13 @@ public sealed class WebSearchExecutor(IHttpClientFactory http, ILogger<WebSearch
         return new WebSearchResponse(SearchModes.OpenAiNative, model, summary.ToString(), results.Take(max).ToList(), null);
     }
 
-    private static string Snippet(string text, int? start, int? end)
+    /// <summary>The sentence the citation is attached to (citations follow the sentence they support).</summary>
+    public static string Snippet(string text, int? start, int? end)
     {
         if (start is not { } s || end is not { } e || s < 0 || e > text.Length || s >= e) return "";
-        var from = Math.Max(0, text.LastIndexOfAny(['.', '\n'], Math.Max(0, s - 1)) + 1);
-        return text[from..s].Trim();
+        var before = text[..s].TrimEnd(' ', '\n', '(', '*', '_');
+        var cut = before.Length > 1 ? before.LastIndexOfAny(['.', '!', '?', '\n'], before.Length - 2) : -1;
+        return before[(cut + 1)..].Replace("**", "").Trim();
     }
 
     private async Task<WebSearchResponse> CustomAsync(WebSearchSettings cfg, string? apiKey, string query, int max, CancellationToken ct)
