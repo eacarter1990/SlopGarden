@@ -16,6 +16,7 @@ import { usePageEntity } from '../pageContext'
 function GardenSettings({ garden }: { garden: Garden }) {
   const { canWrite } = useAuth()
   const save = useSave()
+  const { data: timeZones } = useQuery({ queryKey: ['timezones'], queryFn: () => api.get<{ id: string; label: string }[]>('/api/timezones'), staleTime: Infinity })
   const [g, setG] = useState(garden)
   useEffect(() => setG(garden), [garden])
   const set = (k: keyof Garden) => (v: unknown) => setG((s) => ({ ...s, [k]: v }))
@@ -49,7 +50,15 @@ function GardenSettings({ garden }: { garden: Garden }) {
         <SimpleGrid cols={{ base: 1, sm: 4 }}>
           <NumberInput label="Latitude" decimalScale={4} value={g.latitude ?? ''} onChange={(v) => set('latitude')(v === '' ? null : Number(v))} disabled={!canWrite || g.locationSource !== 'manual'} />
           <NumberInput label="Longitude" decimalScale={4} value={g.longitude ?? ''} onChange={(v) => set('longitude')(v === '' ? null : Number(v))} disabled={!canWrite || g.locationSource !== 'manual'} />
-          <TextInput label="Timezone" value={g.timezoneId} onChange={(e) => set('timezoneId')(e.currentTarget.value)} disabled={!canWrite || g.timezoneSource !== 'manual'} />
+          <Select
+            label="Time zone"
+            searchable
+            nothingFoundMessage="No matching time zone"
+            data={(timeZones ?? [{ id: g.timezoneId, label: g.timezoneId }]).map((z) => ({ value: z.id, label: z.label }))}
+            value={g.timezoneId}
+            onChange={(v) => v && set('timezoneId')(v)}
+            disabled={!canWrite || g.timezoneSource !== 'manual'}
+          />
           <TextInput label="Hardiness zone" value={g.hardinessZone ?? ''} onChange={(e) => set('hardinessZone')(e.currentTarget.value)} disabled={!canWrite} />
         </SimpleGrid>
         <Textarea label="Notes for the AI" description="Context the AI must respect for the whole garden" autosize minRows={2} value={g.aiContext} onChange={(e) => set('aiContext')(e.currentTarget.value)} disabled={!canWrite} />

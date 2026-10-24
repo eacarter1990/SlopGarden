@@ -148,6 +148,7 @@ app.UseAuthorization();
 
 app.MapOpenApi().AllowAnonymous();
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok", time = DateTimeOffset.UtcNow })).AllowAnonymous();
+app.MapGet("/api/timezones", () => TimeZones.Options).RequireAuthorization(Policies.ReadOnly).WithTags("Garden");
 CoreEndpoints.Map(app);
 AdminEndpoints.Map(app);
 McpEndpoint.Map(app);

@@ -86,6 +86,16 @@ public class StandingApprovalTests
 
 public class EnvironmentTests
 {
+    [Fact]
+    public void Time_zone_list_uses_iana_ids_the_server_can_resolve()
+    {
+        Assert.Contains(TimeZones.Options, z => z.Id == "UTC" || z.Id == "Etc/UTC");
+        Assert.Contains(TimeZones.Options, z => z.Id == "Europe/Amsterdam");
+        Assert.All(TimeZones.Options, z => Assert.False(string.IsNullOrWhiteSpace(z.Label)));
+        Assert.True(TimeZones.IsKnown("America/New_York"));
+        Assert.False(TimeZones.IsKnown("Not/AZone"));
+    }
+
     [Theory]
     [InlineData(7, false, "summer")]
     [InlineData(7, true, "winter")]

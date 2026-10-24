@@ -254,8 +254,26 @@ public sealed class SafetyService(SlopDbContext db)
     }
 }
 
+public sealed record TimeZoneOption(string Id, string Label);
+
 public static class TimeZones
 {
+    /// <summary>Every zone this machine can resolve, labelled with its standard offset so the UI can offer a picker.</summary>
+    public static IReadOnlyList<TimeZoneOption> Options { get; } = TimeZoneInfo.GetSystemTimeZones()
+        .Select(z => new TimeZoneOption(z.Id, Label(z)))
+        .DistinctBy(z => z.Id)
+        .OrderBy(z => z.Id, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    public static bool IsKnown(string id) => Options.Any(z => string.Equals(z.Id, id, StringComparison.OrdinalIgnoreCase));
+
+    private static string Label(TimeZoneInfo z)
+    {
+        var off = z.BaseUtcOffset;
+        var sign = off < TimeSpan.Zero ? "−" : "+";
+        return $"(UTC{sign}{off.Duration():hh\\:mm}) {z.Id.Replace('_', ' ')}";
+    }
+
     public static TimeZoneInfo Find(string? id)
     {
         if (string.IsNullOrWhiteSpace(id)) return TimeZoneInfo.Utc;

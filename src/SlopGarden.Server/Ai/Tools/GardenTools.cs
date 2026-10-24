@@ -244,6 +244,7 @@ public static class GardenTools
             async (ctx, i) =>
             {
                 Ensure.OneOf(i.Environment, GardenVocab.Environments, "environment");
+                if (i.TimezoneId is not null && !TimeZones.IsKnown(i.TimezoneId)) throw AppException.Bad($"Unknown time zone '{i.TimezoneId}'. Choose one from the list.");
                 var g = new Garden
                 {
                     Name = i.Name,
@@ -275,6 +276,7 @@ public static class GardenTools
                 Ensure.OneOf(i.LocationSource, ["device", "manual"], "locationSource");
                 Ensure.OneOf(i.TimezoneSource, ["device", "manual"], "timezoneSource");
                 Ensure.OneOf(i.DefaultGrowingMedium, GrowingMedia.All, "defaultGrowingMedium");
+                if (i.TimezoneId is not null && !TimeZones.IsKnown(i.TimezoneId)) throw AppException.Bad($"Unknown time zone '{i.TimezoneId}'. Choose one from the list.");
                 var g = Ensure.Found(await ctx.Db.Gardens.FirstOrDefaultAsync(x => x.Id == i.GardenId, ctx.Ct), "Garden");
                 Patch.Apply(g, i, nameof(i.GardenId));
                 if (i.Latitude is not null && i.LocationSource is null) g.LocationSource = "manual";
