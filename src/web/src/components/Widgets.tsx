@@ -43,7 +43,7 @@ export function ReadingPill({ r, target }: { r: LatestReading; target?: CareRang
   const stale = r.at ? Date.now() - new Date(r.at).getTime() > 10 * 60_000 : true
   return (
     <Tooltip label={`${r.sensorName} · ${ago(r.at)}${target ? ` · target ${target.min ?? '…'}–${target.max ?? '…'} (${target.source})` : ''}`}>
-      <Paper withBorder px={8} py={4} radius="md" style={{ opacity: stale ? 0.6 : 1 }}>
+      <Paper withBorder px={8} py={4} radius="md" style={{ opacity: stale ? 0.6 : 1, flexShrink: 0 }}>
         <Text size="10px" c="dimmed" tt="uppercase" fw={600} lh={1.2}>{metricLabel(r.metric)}</Text>
         <Group gap={4} wrap="nowrap">
           <span className="sg-dot" style={{ background: `var(--mantine-color-${toneColor[tone]}-6)` }} />

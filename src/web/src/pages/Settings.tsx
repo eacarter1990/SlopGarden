@@ -333,9 +333,9 @@ function TokensTab() {
             <Group><Code>{created}</Code><CopyButton value={created}>{({ copied, copy }) => <Button size="xs" onClick={copy}>{copied ? 'Copied' : 'Copy'}</Button>}</CopyButton></Group>
           </Alert>
         )}
-        <Group align="flex-end">
-          <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-          <MultiSelect label="Scopes" w={260} data={[{ value: 'read', label: 'read' }, { value: 'propose', label: 'propose (changes need approval)', disabled: !canWrite }, { value: 'write', label: 'write (changes run directly)', disabled: !canWrite }]} value={scopes} onChange={setScopes} />
+        <Group align="flex-end" wrap="wrap">
+          <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} style={{ flex: '1 1 12rem' }} />
+          <MultiSelect label="Scopes" style={{ flex: '1 1 18rem' }} styles={{ pill: { maxWidth: 'none' } }} data={[{ value: 'read', label: 'read' }, { value: 'propose', label: 'propose (changes need approval)', disabled: !canWrite }, { value: 'write', label: 'write (changes run directly)', disabled: !canWrite }]} value={scopes} onChange={setScopes} />
           <NumberInput label="Expires (days, 0 = never)" w={170} value={days} onChange={setDays} min={0} />
           <Button onClick={async () => { const r = await act(() => api.post<{ token: string }>('/api/tokens', { name, scopes, expiresInDays: Number(days) || null }), 'Token created'); if (r) setCreated(r.token); refresh() }}>Create token</Button>
         </Group>

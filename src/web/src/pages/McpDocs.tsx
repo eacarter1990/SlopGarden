@@ -64,12 +64,12 @@ export function McpDocsPage() {
             {list.map((t) => (
               <Accordion.Item key={t.name} value={t.name}>
                 <Accordion.Control>
-                  <Group justify="space-between" wrap="nowrap">
-                    <div style={{ minWidth: 0 }}>
-                      <Text ff="monospace" size="sm" fw={600}>{t.name}</Text>
-                      <Text size="xs" c="dimmed" lineClamp={1}>{t.description}</Text>
+                  <Group justify="space-between" wrap="wrap" gap="xs">
+                    <div style={{ minWidth: 0, flex: '1 1 12rem' }}>
+                      <Text ff="monospace" size="sm" fw={600} style={{ overflowWrap: 'anywhere' }}>{t.name}</Text>
+                      <Text size="xs" c="dimmed" lineClamp={2}>{t.description}</Text>
                     </div>
-                    <Group gap={4} wrap="nowrap">
+                    <Group gap={4} wrap="wrap" justify="flex-end">
                       <Badge size="xs" color={t.effect === 'read' ? 'blue' : 'orange'} variant="light">{t.effect}</Badge>
                       {t.effect === 'mutate' && !t.noApprovalNeeded && <Badge size="xs" color="violet" variant="light">approval</Badge>}
                       {t.noApprovalNeeded && <Badge size="xs" color="red" variant="light">immediate</Badge>}

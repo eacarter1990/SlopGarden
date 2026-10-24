@@ -48,6 +48,33 @@ public static class Metrics
         [TdsPpm] = "ppm",
         [OrpMv] = "mV",
     };
+
+    /// <summary>Short names for people. Alerts and the web use these instead of the stored id.</summary>
+    public static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string>
+    {
+        [SoilMoisturePct] = "Soil moisture",
+        [SoilTemperatureC] = "Soil temp",
+        [AirTemperatureC] = "Air temp",
+        [AirHumidityPct] = "Humidity",
+        [AirPressureHpa] = "Pressure",
+        [LightLux] = "Light",
+        [Par] = "PAR",
+        [WaterLevelPct] = "Tank level",
+        [WaterTemperatureC] = "Water temp",
+        [Ph] = "pH",
+        [EcMsCm] = "EC",
+        [Co2Ppm] = "CO₂",
+        [Rain] = "Rain",
+        [FlowLitersPerMin] = "Flow",
+        [Voltage] = "Voltage",
+        [Digital] = "Digital",
+        [DissolvedOxygenMgL] = "Dissolved O₂",
+        [TdsPpm] = "TDS",
+        [OrpMv] = "ORP",
+    };
+
+    public static string Label(string metric) =>
+        Labels.TryGetValue(metric, out var label) ? label : metric.Replace('_', ' ');
 }
 
 public static class ActuatorKinds

@@ -10,6 +10,7 @@ import {
   IconLogout,
   IconMessageChatbot,
   IconMoon,
+  IconUser,
   IconPlant2,
   IconSettings,
   IconShieldCheck,
@@ -83,17 +84,18 @@ function LayoutShell({ children }: { children: ReactNode }) {
 
   return (
     <AppShell
-      header={{ height: 60 }}
+      header={{ height: { base: 104, sm: 60 } }}
       navbar={{ width: 240, breakpoint: 'sm', collapsed: { mobile: !opened } }}
       aside={{ width: wide ? 460 : 400, breakpoint: 'md', collapsed: { desktop: !chatOpen || onAssistantPage, mobile: !chatOpen || onAssistantPage } }}
       padding="lg"
     >
       <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6 }} className="sg-header">
+        <Group h={{ base: 'auto', sm: '100%' }} px={{ base: 'xs', sm: 'md' }} justify="space-between" wrap="nowrap" gap="xs" style={{ minWidth: 0 }}>
+          <Group gap="xs" wrap="nowrap" style={{ minWidth: 0, flex: '1 1 auto' }}>
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
-            <img src="/favicon.svg" width={30} height={30} alt="" />
-            <Text fw={750} size="lg">SlopGarden</Text>
+            <img src="/favicon.svg" width={30} height={30} alt="" style={{ flex: '0 0 auto' }} />
+            <Text fw={750} size="lg" visibleFrom="sm">SlopGarden</Text>
             {gardens.length > 0 && (
               <Select
                 aria-label="Garden"
@@ -103,11 +105,12 @@ function LayoutShell({ children }: { children: ReactNode }) {
                 allowDeselect={false}
                 searchable
                 size="sm"
+                visibleFrom="sm"
                 w={220}
               />
             )}
           </Group>
-          <Group gap="xs" wrap="nowrap">
+          <Group gap={4} wrap="nowrap" style={{ flex: '0 0 auto' }}>
             <Tooltip label={connected ? 'Live updates connected' : 'Reconnecting…'}>
               <span className="sg-dot" style={{ background: connected ? 'var(--mantine-color-green-6)' : 'var(--mantine-color-red-6)' }} />
             </Tooltip>
@@ -131,8 +134,9 @@ function LayoutShell({ children }: { children: ReactNode }) {
             </ActionIcon>
             <Menu position="bottom-end" withArrow>
               <Menu.Target>
-                <Badge variant="light" size="lg" style={{ cursor: 'pointer', textTransform: 'none' }}>
-                  {user?.displayName} · {user ? roleLabel[user.role] : ''}
+                <Badge variant="light" size="lg" style={{ cursor: 'pointer', textTransform: 'none' }} aria-label="Account">
+                  <IconUser size={14} />
+                  <Text span visibleFrom="sm" ml={6}>{user?.displayName} · {user ? roleLabel[user.role] : ''}</Text>
                 </Badge>
               </Menu.Target>
               <Menu.Dropdown>
@@ -144,6 +148,21 @@ function LayoutShell({ children }: { children: ReactNode }) {
             </Menu>
           </Group>
         </Group>
+        {gardens.length > 0 && (
+          <Select
+            aria-label="Garden"
+            data={gardens.map((g) => ({ value: g.id, label: g.name }))}
+            value={gardenId || null}
+            onChange={(v) => v && select(v)}
+            allowDeselect={false}
+            searchable
+            size="sm"
+            hiddenFrom="sm"
+            mx="xs"
+            comboboxProps={{ width: 'target', position: 'bottom' }}
+          />
+        )}
+        </div>
       </AppShell.Header>
 
       <AppShell.Navbar p="sm">

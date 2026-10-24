@@ -1,4 +1,4 @@
-import { Alert, Anchor, Badge, Button, Card, Group, NumberInput, PasswordInput, Select, Stack, Switch, Table, Text, Textarea, TextInput } from '@mantine/core'
+import { Alert, Anchor, Badge, Button, Card, Group, NumberInput, PasswordInput, Select, SimpleGrid, Stack, Switch, Table, Text, Textarea, TextInput } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconAlertTriangle, IconCheck, IconWifi, IconX } from '@tabler/icons-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -87,9 +87,15 @@ export function DevicesPage() {
               } catch (e) { notifications.show({ color: 'red', message: (e as Error).message }) }
             }}>Update server</Button>
           </Group>
-          <Text size="xs" c="dimmed" mt="xs">{releases?.serverImage || 'Server image appears when a release is selected.'}</Text>
-          <Text size="xs" c="dimmed">{releases?.clientImage}</Text>
-          {releases?.error && <Text size="xs" c="orange" mt={4}>{releases.error}</Text>}
+          {releases?.version ? (
+            <>
+              <Text size="xs" c="dimmed" mt="xs" style={{ overflowWrap: 'anywhere' }}>{releases.serverImage}</Text>
+              <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>{releases.clientImage}</Text>
+            </>
+          ) : (
+            <Text size="xs" c={releases?.error ? 'orange' : 'dimmed'} mt="xs">{releases?.error || 'No GitHub releases published yet.'}</Text>
+          )}
+          {releases?.version && releases.error && <Text size="xs" c="orange" mt={4}>{releases.error}</Text>}
         </Card>
       )}
 
@@ -100,11 +106,11 @@ export function DevicesPage() {
             Installs only the client on that machine and points it at this server. You choose a display name, then confirm the host key. The login is forgotten after the install, and the device stays pending until you approve it. The AI cannot see this login.
           </Text>
           <TextInput label="Display name" placeholder="Greenhouse Pi" value={sshName} onChange={(e) => setSshName(e.currentTarget.value)} maw={360} />
-          <Group align="flex-end" grow mt="xs">
+          <SimpleGrid cols={{ base: 1, sm: 3 }} mt="xs">
             <TextInput label="Host" placeholder="192.168.1.50" value={sshHost} onChange={(e) => setSshHost(e.currentTarget.value)} />
-            <NumberInput label="Port" value={sshPort} onChange={setSshPort} min={1} max={65535} maw={120} />
+            <NumberInput label="Port" value={sshPort} onChange={setSshPort} min={1} max={65535} />
             <TextInput label="Username" placeholder="pi" value={sshUser} onChange={(e) => setSshUser(e.currentTarget.value)} />
-          </Group>
+          </SimpleGrid>
           <PasswordInput label="Password" mt="xs" value={sshPassword} onChange={(e) => setSshPassword(e.currentTarget.value)} />
           <Textarea label="Private key" placeholder="Optional. Paste a PEM key instead of a password." minRows={2} mt="xs" value={sshKey} onChange={(e) => setSshKey(e.currentTarget.value)} />
           <Group mt="sm">

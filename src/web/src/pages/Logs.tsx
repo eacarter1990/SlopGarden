@@ -49,7 +49,7 @@ export function LogsPage() {
             />
           )}
           <Text size="xs" c="dimmed">{isFetching ? 'Refreshing…' : 'Refreshes every 10 seconds'}</Text>
-          <Code block style={{ whiteSpace: 'pre-wrap', maxHeight: 560, overflow: 'auto' }}>
+          <Code block style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: 560, overflow: 'auto' }}>
             {data?.text || 'Nothing here yet.'}
           </Code>
         </Stack>

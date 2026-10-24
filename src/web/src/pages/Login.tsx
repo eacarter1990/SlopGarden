@@ -43,7 +43,7 @@ export function LoginPage({ needsSetup }: { needsSetup: boolean }) {
 
   return (
     <Center h="100vh" style={{ background: 'linear-gradient(135deg, var(--mantine-color-green-9), var(--mantine-color-teal-7))' }}>
-      <Paper p="xl" w={380} shadow="xl" radius="lg">
+      <Paper p="xl" shadow="xl" radius="lg" style={{ width: 'min(380px, calc(100vw - 32px))' }}>
         <form onSubmit={submit}>
           <Stack>
             <Stack gap={4} align="center">
@@ -66,8 +66,8 @@ export function LoginPage({ needsSetup }: { needsSetup: boolean }) {
                     <TextInput label="Host" value={host} onChange={(e) => setHost(e.currentTarget.value)} />
                     <NumberInput label="Port" value={port} onChange={setPort} min={1} max={65535} />
                     <TextInput label="Database" value={database} onChange={(e) => setDatabase(e.currentTarget.value)} />
-                    <TextInput label="Username" value={dbUser} onChange={(e) => setDbUser(e.currentTarget.value)} />
-                    <PasswordInput label="Password" value={dbPassword} onChange={(e) => setDbPassword(e.currentTarget.value)} />
+                    <TextInput label="Database user" value={dbUser} onChange={(e) => setDbUser(e.currentTarget.value)} />
+                    <PasswordInput label="Database password" value={dbPassword} onChange={(e) => setDbPassword(e.currentTarget.value)} />
                     <Button variant="light" type="button" loading={restarting} onClick={async () => {
                       setRestarting(true)
                       setError(null)

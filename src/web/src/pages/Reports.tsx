@@ -90,13 +90,13 @@ export function ReportsPage() {
           <Button loading={generate.isPending} onClick={() => generate.mutate()} disabled={!gardenId}>Generate now</Button>
         </Group>
       </Card>
-      <Group align="flex-start" grow>
+      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
         <Card>
           <Stack gap="xs">
             {(reports ?? []).map((r) => (
-              <Button key={r.id} variant={selected?.id === r.id ? 'light' : 'subtle'} justify="space-between" onClick={() => setOpen(r.id)}>
-                <Group justify="space-between" wrap="nowrap" w="100%">
-                  <Text size="sm" fw={600}>{r.title}</Text>
+              <Button key={r.id} variant={selected?.id === r.id ? 'light' : 'subtle'} justify="space-between" fullWidth onClick={() => setOpen(r.id)} styles={{ label: { width: '100%', whiteSpace: 'normal' } }}>
+                <Group justify="space-between" wrap="wrap" w="100%" gap={4}>
+                  <Text size="sm" fw={600} ta="left" style={{ flex: '1 1 10rem' }}>{r.title}</Text>
                   <Text size="xs" c="dimmed">{new Date(r.createdAt).toLocaleString()}</Text>
                 </Group>
               </Button>
@@ -126,7 +126,7 @@ export function ReportsPage() {
             )}
           </Card>
         )}
-      </Group>
+      </SimpleGrid>
     </Stack>
   )
 }

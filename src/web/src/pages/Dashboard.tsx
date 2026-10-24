@@ -132,7 +132,7 @@ export function DashboardPage() {
           <Text fw={650} mb="xs">Garden conditions</Text>
           <Group gap="xs">{o.gardenReadings.map((r) => <ReadingPill key={r.channelId} r={r} />)}</Group>
           {gardenActuators.length > 0 && (
-            <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} mt="md" spacing="xs">
+            <SimpleGrid cols={{ base: 1, sm: 2, xl: 3 }} mt="md" spacing="xs">
               {gardenActuators.map((a) => <Card key={a.id} padding="xs" radius="md"><ActuatorControl a={a} /></Card>)}
             </SimpleGrid>
           )}

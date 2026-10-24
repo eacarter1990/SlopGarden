@@ -1,4 +1,4 @@
-import { Button, Textarea } from '@mantine/core'
+import { Button, Text, Textarea } from '@mantine/core'
 import { modals } from '@mantine/modals'
 import { notifications } from '@mantine/notifications'
 import { IconHandStop } from '@tabler/icons-react'
@@ -43,8 +43,8 @@ export function EmergencyStopButton({ scopeType, scopeId, label = 'Emergency sto
     })
   }
   return (
-    <Button color="red" variant={compact ? 'filled' : 'light'} size={compact ? 'xs' : 'sm'} leftSection={<IconHandStop size={16} />} onClick={trigger}>
-      {label}
+    <Button color="red" variant={compact ? 'filled' : 'light'} size={compact ? 'xs' : 'sm'} leftSection={<IconHandStop size={16} />} onClick={trigger} aria-label={label} px={compact ? 8 : undefined}>
+      {compact ? <Text span visibleFrom="sm">{label}</Text> : label}
     </Button>
   )
 }

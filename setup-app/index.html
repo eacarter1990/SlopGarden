@@ -12,6 +12,11 @@
   p.lead { color: #526; margin-top: 0; }
   .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   button, .choice { font: inherit; border-radius: 12px; border: 1px solid #c8d5cc; background: #f6faf7; padding: 16px; text-align: left; cursor: pointer; }
+  button:focus-visible, .choice:focus-visible, input:focus-visible { outline: 2px solid #1b4332; outline-offset: 2px; }
+  @media (max-width: 520px) {
+    .choices { grid-template-columns: 1fr; }
+    main { margin: 12px; padding: 20px; }
+  }
   button.primary { background: #2d6a4f; color: white; border: 0; width: 100%; margin-top: 12px; }
   button.primary:disabled { opacity: .6; }
   label { display: block; font-size: .85rem; margin: 12px 0 4px; font-weight: 650; }

@@ -177,9 +177,9 @@ export function DeviceDetailPage() {
               <Text fw={650} mb="xs">Sensors ({d.sensors.length})</Text>
               <Stack gap="xs">
                 {d.sensors.map((s) => (
-                  <Group key={s.id} justify="space-between">
-                    <div><Text size="sm" fw={600}>{s.name}</Text><Text size="xs" c="dimmed">{s.pluginId} · {s.targetType} · every {s.readIntervalSec}s</Text></div>
-                    <Group gap={6}>{s.channels.map((c) => <ReadingPill key={c.id} r={{ sensorId: s.id, sensorName: s.name, channelId: c.id, metric: c.metric, unit: c.unit, value: c.lastValue, at: c.lastValueAt }} />)}</Group>
+                  <Group key={s.id} justify="space-between" wrap="nowrap" align="flex-start" gap="xs">
+                    <div style={{ minWidth: 0, flex: '1 1 auto' }}><Text size="sm" fw={600}>{s.name}</Text><Text size="xs" c="dimmed">{s.pluginId} · {s.targetType} · every {s.readIntervalSec}s</Text></div>
+                    <Group gap={6} wrap="nowrap" justify="flex-end" style={{ flex: '0 0 auto' }}>{s.channels.map((c) => <ReadingPill key={c.id} r={{ sensorId: s.id, sensorName: s.name, channelId: c.id, metric: c.metric, unit: c.unit, value: c.lastValue, at: c.lastValueAt }} />)}</Group>
                   </Group>
                 ))}
               </Stack>
@@ -220,7 +220,7 @@ export function DeviceDetailPage() {
                       </Group>
                     </Group>
                     {p.trust === 'unsigned' && <Text size="xs" c="orange" mt={4}>⚠ Unsigned plugin — its security can't be guaranteed.</Text>}
-                    <Text size="10px" c="dimmed" ff="monospace" truncate>sha256 {p.sha256}</Text>
+                    <Text size="10px" c="dimmed" ff="monospace" style={{ overflowWrap: 'anywhere' }}>sha256 {p.sha256}</Text>
                   </Card>
                 ))}
               </Stack>
