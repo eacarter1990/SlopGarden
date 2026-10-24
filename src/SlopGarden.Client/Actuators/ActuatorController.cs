@@ -248,8 +248,8 @@ public sealed class ActuatorController : IAsyncDisposable
         await ShutdownAsync();
     }
 
-    /// <summary>An explicit request (command, schedule, local). Off latches continuous runs off; a successful start clears
-    /// the off latch and the flow-stall latch.</summary>
+    /// <summary>A request from a command, schedule or local action. Off latches continuous runs off; a successful start
+    /// by a command or local action (not a schedule) clears the off latch and the flow-stall wait.</summary>
     private async Task<CommandOutcome> StartAsync(Slot slot, ActuatorRequest request, string source, Guid? commandId, Guid? scheduleId)
     {
         await slot.Gate.WaitAsync();
@@ -260,7 +260,7 @@ public sealed class ActuatorController : IAsyncDisposable
             {
                 slot.OffLatched = true;
             }
-            else if (outcome.Status == CommandStatuses.Running)
+            else if (outcome.Status == CommandStatuses.Running && source is RunSources.Command or RunSources.Manual)
             {
                 slot.OffLatched = false;
                 slot.StallRetryAt = null;

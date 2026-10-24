@@ -125,12 +125,68 @@ after `systemctl restart slopgarden-client`.
   off fails, the command is reported as failed and the client keeps retrying in the background.
 - Schedules (cron, in the garden's time zone) run from the cached config while offline.
 - Plugin exceptions are logged and reported as sensor/actuator errors; they never stop the client.
+- Safety events carry a machine-readable `code` where one applies: `interlock_tripped`, `flow_stall`,
+  `unexpected_flow`, `pump_not_running`.
+
+### Hydroponics
+
+Everything below runs on the device from the cached config, so it keeps working while offline. A
+supervisor loop evaluates it about once a second.
+
+- **Continuous runs** (`continuousRun: true`, e.g. NFT/DWC circulation pumps and air pumps): switched on
+  when the config is applied (also at startup from the cached config) and re-asserted every 30 s while they
+  are off and nothing blocks them (emergency stop, interlock, flow-stall wait, disabled, explicit off). The
+  run is reported with source `continuous`; when it ends (off command, interlock, stall, emergency stop,
+  reconfiguration) an actuator run is reported as usual. If a continuous run cannot be started, a
+  `pump_not_running` warning is raised (at most every 30 min per actuator). Turning `continuousRun` off in
+  the config stops a running continuous run.
+- **Off latch**: an explicit `off` (server command or local API) keeps a continuous actuator off. The latch
+  is cleared by an explicit `on`/`pulse`/`dose`, or by a config change *of that actuator* (any field, e.g.
+  toggling `continuousRun` or renaming it) that still has `continuousRun: true`. A new config version that
+  leaves the actuator unchanged, re-applying the same version (reconnects) and schedules do not clear it.
+  The latch is kept in memory: after a client restart continuous actuators start again — disable the
+  actuator to keep it off permanently.
+- **Continuous roles** (`circulation_pump`, `air_pump`) ignore the per-run, daily and minimum-interval
+  limits (they would otherwise stop a pump that is meant to run all day). Interlocks, emergency stop and
+  `enabled` still apply.
+- **Flow watchdog** (`flowWatch` on a pump or valve, pointing at a flow sensor channel in L/min):
+  - *Stall*: on for at least `graceSec`, and the latest flow reading (taken after the grace period, at most
+    60 s old) is below `minFlowWhenOn` → `critical` safety event `flow_stall` (at most every 5 min per
+    actuator), e.g. "NFT pump: no flow (0.0 L/min) for 21 s — pump stopped, clogged or reservoir empty".
+    With `stopOnStall` the actuator is switched off (run stop reason `flow_stall`); a continuous run then
+    waits `stallRetrySec` (default 300 s) before it tries again, and keeps retrying once per
+    `stallRetrySec` while the stall persists. Any explicit start clears the wait; sufficient flow clears it too.
+  - *Unexpected flow*: off for at least `graceSec`, and a fresh reading taken after the grace period is above
+    `maxFlowWhenOff` → `warning` event `unexpected_flow` (leak, stuck valve), at most every 5 min.
+  - *Silent sensor*: on for more than 3 × `graceSec` without a fresh, valid flow reading → `warning`
+    event (no stop, no code) once per silence, repeated hourly. Read flow sensors at least every 60 s
+    (5–10 s is better).
+- **Dosing limits** (checked for `on`, `pulse` and `dose`; `off` is always allowed):
+  - `maxHourlyAmountMl`: millilitres in the last 60 minutes, including the request (recorded amounts, or
+    run time × `flowRateMlPerMin`). Requires `flowRateMlPerMin`; an open-ended `on` is capped to what is left.
+  - `minSecondsBetweenReservoirDoses`: rejected while any dosing actuator (`dose_*` role) with the same
+    `reservoirId` is dosing or finished less than that many seconds ago, so the last dose can mix.
+  - `requiresActuatorOn`: rejected unless that actuator is on (never dose while the circulation pump is
+    off). If it goes off while this actuator runs, this one is switched off within a second
+    (`critical` event `pump_not_running`, run stop reason `interlock`).
 
 ## Plugins
 
 Built in: `emulator-sensor`, `emulator-actuator`, `emulator-camera`, `gpio-digital-input`, `gpio-relay`,
-`ads1115`, `ds18b20`, `bme280`, `arduino-serial-adc` (see [hardware/arduino-adc-bridge.md](hardware/arduino-adc-bridge.md)),
+`gpio-flow-meter`, `ads1115`, `ds18b20`, `bme280`, `arduino-serial-adc` (see [hardware/arduino-adc-bridge.md](hardware/arduino-adc-bridge.md)),
 plus hardware discovery (I²C bus scan, 1-Wire probes, emulator inventory) reported to the server.
+
+`gpio-flow-meter` reads a hall-effect pulse flow meter (YF-S201 and similar) on a GPIO pin: it counts
+falling edges and reports channel `flow` as `flow_l_min` = pulses ÷ `windowSec` ÷ `pulsesPerLiter` × 60.
+Settings: `pin` (BCM, required), `pulsesPerLiter` (default 450, i.e. F[Hz] = 7.5 × Q[L/min]), `pullUp`
+(default true; the sensor output is open-collector), `windowSec` (rolling window, default 2). Most of these
+sensors run on 5 V: feed the signal to the Pi through a level shifter or a voltage divider.
+
+Analog pH and EC probes (with their usual amplifier boards) go through `ads1115` (or `arduino-serial-adc`)
+with `two_point` calibration on the channel: measure the raw voltage in two buffer/calibration solutions
+(e.g. pH 4.0 and 7.0, or 1.413 and 12.88 mS/cm) and enter them as `rawLow`/`valueLow` and
+`rawHigh`/`valueHigh`. Recalibrate pH probes monthly; EC readings depend on water temperature unless the
+board compensates for it.
 
 ### Writing a plugin
 

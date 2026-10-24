@@ -11,7 +11,7 @@ dotnet run --project src/SlopGarden.Emulator          # http://0.0.0.0:5090
 
 | URL | What |
 |---|---|
-| `http://localhost:5090/` | Control page: live values, overrides, actuator states, camera previews, time scale |
+| `http://localhost:5090/` | Control page: live values, overrides, actuator states and stall faults, camera previews, time scale |
 | `http://localhost:5090/openapi/v1.json` | OpenAPI document of the REST API below |
 
 Settings (`appsettings.json`, `--Emulator:Key value` or `Emulator__Key=value`):
@@ -34,15 +34,44 @@ component with the `emulatorUrl` setting.
 Couplings: the valves raise their bed's soil moisture (1.2–2 %/min) and drain the tank; the pump drains
 the tank; the grow light adds light; the heater warms the air. `POST /api/scenario/reset` restores it.
 
+### Hydroponic NFT rack
+
+The default scenario also contains a nutrient film technique (NFT) rack with its own reservoir:
+
+| Id | Kind / metric | Behaviour |
+|---|---|---|
+| `hydro-ec` | `ec_ms_cm` | Starts at 1.6, rises ~0.02/h as plants take up water; +2.0/min while a nutrient doser runs |
+| `hydro-ph` | `ph` | Starts at 6.0, drifts up ~0.03/h; −1.5/min while `doser-ph-down` runs, +1.5/min for `doser-ph-up` |
+| `hydro-water-temperature` | `water_temperature_c` | Daily sine 18–23 °C |
+| `hydro-reservoir-level` | `water_level_pct` | Starts at 80 %, drops ~0.4 %/h (evaporation and uptake) |
+| `hydro-flow` | `flow_l_min` | 0 when the pump is off; reads 3.2 L/min (`while_on` coupling) while `nft-pump` runs and is not stalled |
+| `hydro-dissolved-oxygen` | `dissolved_oxygen_mg_l` | ~7.5 mg/L while `air-pump` runs (capped at 7.6); falls ~0.6 mg/L per hour without aeration |
+| `nft-pump` | `pump` | Circulation pump feeding the channels |
+| `air-pump` | `pump` | Air stone in the reservoir |
+| `doser-nutrient-a`, `doser-nutrient-b` | `fertilizer_doser` | Two-part nutrient peristaltic pumps |
+| `doser-ph-down`, `doser-ph-up` | `fertilizer_doser` | pH adjustment pumps |
+| `hydro-cam` | camera (`nft-rack.jpg`) | Top-down view of the rack with lettuce heads in the channels |
+
+Typical demo: configure `nft-pump` as a `circulation_pump` with `continuousRun` and a flow watch on
+`hydro-flow`, then press **Stall** on the pump card (or `PUT /api/actuators/nft-pump/fault`): the pump still
+reports on, the flow drops to 0 and the client raises a `flow_stall` event and switches the pump off.
+
 ## Model
 
 - **Signal models** (`model.type`): `constant` (`value`); `sine` (`min`, `max`, `periodSec`, `phase` =
   seconds into the local-time period where the wave crosses its midpoint rising); `random_walk` (`min`,
   `max`, `step` per √s, `start`); `drying` (`start`, `ratePerHour`, `floor`). `floor`/`ceiling` clamp any model.
 - **Noise**: gaussian with standard deviation `noise`, rounded to `decimals`.
-- **Couplings**: while `actuatorId` is on, `sensorId` changes by `ratePerMinute` × level (default level 1)
-  per simulated minute. Stateful models (drying, random walk, constant) keep the change; on `sine` it is an
-  offset that fades with time constant `offsetDecaySec` (default 1800 s).
+- **Couplings** (`mode`, default `rate`):
+  - `rate`: while `actuatorId` is on, `sensorId` changes by `ratePerMinute` × level (default level 1)
+    per simulated minute. Stateful models (drying, random walk, constant) keep the change; on `sine` it is an
+    offset that fades with time constant `offsetDecaySec` (default 1800 s).
+  - `while_on`: while `actuatorId` is on, `sensorId` reads `value` × level (plus the sensor's noise) instead of
+    its model; when it is off the sensor follows its own model again. Meant for flow meters and similar
+    "only while running" signals. Several active `while_on` couplings on one sensor add up.
+- **Faults**: a *stalled* actuator keeps its on/off state (so the client sees what it commanded) but all of
+  its couplings are inactive — a dead pump, a clogged line or an empty reservoir. Faults are runtime state;
+  they are not saved in the scenario file and are cleared by a reset or scenario load.
 - **Time scale**: simulated seconds per real second (0 < factor ≤ 100000). Physics and the sine clock use
   simulated time; override durations are real seconds.
 - **Override**: pins a sensor to a value (optionally for `durationSec`), e.g. to simulate a broken probe
@@ -84,9 +113,10 @@ Sensor definition:
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| GET | `/api/actuators` | | `{id, name, kind, on, level, since}` per actuator |
-| GET | `/api/actuators/{id}` | | Actuator including its recent `history` |
+| GET | `/api/actuators` | | `{id, name, kind, on, level, since, stalled}` per actuator |
+| GET | `/api/actuators/{id}` | | Actuator including its recent `history` (state changes and faults) |
 | PUT | `/api/actuators/{id}/state` | `{on, level?, source?}` (level 0–1) | Actuator |
+| PUT | `/api/actuators/{id}/fault` | `{stalled}` | Actuator. `stalled: true` disables its couplings while it keeps reporting on |
 
 ### Cameras
 
@@ -114,14 +144,18 @@ Scenario document:
   "name": "Balcony",
   "timeScale": 1,
   "sensors": [ { "id": "pot-moisture", "name": "Pot", "metric": "soil_moisture_pct", "unit": "%",
-                 "model": { "type": "drying", "start": 45, "ratePerHour": 1, "floor": 5 } } ],
+                 "model": { "type": "drying", "start": 45, "ratePerHour": 1, "floor": 5 } },
+               { "id": "pot-flow", "name": "Pot pump flow", "metric": "flow_l_min", "unit": "L/min",
+                 "model": { "type": "constant", "value": 0, "floor": 0 } } ],
   "actuators": [ { "id": "pot-pump", "name": "Pot pump", "kind": "pump" } ],
   "cameras": [ { "id": "pot-cam", "name": "Pot cam", "image": "tomato-bed.jpg" } ],
-  "couplings": [ { "actuatorId": "pot-pump", "sensorId": "pot-moisture", "ratePerMinute": 3 } ]
+  "couplings": [ { "actuatorId": "pot-pump", "sensorId": "pot-moisture", "ratePerMinute": 3 },
+                 { "actuatorId": "pot-pump", "sensorId": "pot-flow", "mode": "while_on", "value": 1.5 } ]
 }
 ```
 
-Camera `image` is a bundled image (`tomato-bed.jpg`, `lettuce-bed.jpg`) or a path to a JPEG/PNG file.
+Camera `image` is a bundled image (`tomato-bed.jpg`, `lettuce-bed.jpg`, `nft-rack.jpg`) or a path to a JPEG/PNG
+file. The bundled images are rendered by `scripts/generate-emulator-images.py`.
 
 ## Examples
 
@@ -132,6 +166,10 @@ curl -X POST localhost:5090/api/sensors/water-tank-level/override -H 'content-ty
 
 # Run the garden 60× faster (a 1-minute watering moves moisture as much as 1 hour would)
 curl -X POST localhost:5090/api/scenario/time-scale -H 'content-type: application/json' -d '{"factor": 60}'
+
+# Simulate a dead NFT pump (still "on", but no flow) and fix it again
+curl -X PUT localhost:5090/api/actuators/nft-pump/fault -H 'content-type: application/json' -d '{"stalled": true}'
+curl -X PUT localhost:5090/api/actuators/nft-pump/fault -H 'content-type: application/json' -d '{"stalled": false}'
 
 # Use your own photo for a camera
 curl -X PUT localhost:5090/api/cameras/tomato-cam/image -H 'content-type: image/jpeg' --data-binary @bed.jpg

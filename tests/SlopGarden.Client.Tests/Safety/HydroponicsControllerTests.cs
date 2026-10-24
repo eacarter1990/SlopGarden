@@ -159,6 +159,26 @@ public sealed class HydroponicsControllerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Schedule_runs_do_not_clear_the_off_latch()
+    {
+        var pump = Pump();
+        await ApplyAsync(pump);
+        var device = _plugin.Devices[pump.Id];
+        await _controller.ExecuteCommandAsync(Command(pump, ActuatorActions.Off));
+
+        var schedule = new ScheduleConfig(Guid.NewGuid(), "Flush", pump.Id, "0 6 * * *", "UTC", 5, null, true);
+        Assert.Equal(CommandStatuses.Running, (await _controller.RunScheduleAsync(schedule)).Status);
+        for (var i = 0; i < 20 && device.On; i++)
+        {
+            await Task.Delay(5);
+            _time.Advance(TimeSpan.FromSeconds(1));
+        }
+        await Wait.UntilAsync(() => _reporter.Runs.Any(r => r.Source == RunSources.Schedule), Timeout, "the scheduled run ends");
+        await TickAsync(TimeSpan.FromMinutes(1));
+        Assert.False(device.On);
+    }
+
+    [Fact]
     public async Task Disabling_continuous_run_stops_the_pump()
     {
         var pump = Pump();
