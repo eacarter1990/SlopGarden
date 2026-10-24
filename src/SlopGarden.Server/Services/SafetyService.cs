@@ -44,7 +44,7 @@ public sealed class SafetyService(SlopDbContext db)
         if (l.ActuatorKind is { Length: > 0 } kind) return kind == a.Kind;
         return l.LimitType switch
         {
-            SafetyLimitTypes.TankLowLockout => ActuatorKinds.IsWatering(a.Kind) || IsDoser(a),
+            SafetyLimitTypes.TankLowLockout => (ActuatorKinds.IsWatering(a.Kind) || IsDoser(a)) && a.Role != ActuatorRoles.AirPump,
             SafetyLimitTypes.MaxTemperatureCutoff => a.Kind is ActuatorKinds.Heater or ActuatorKinds.Light,
             SafetyLimitTypes.MinTemperatureCutoff => ActuatorKinds.IsWatering(a.Kind) && !ActuatorRoles.IsContinuous(a.Role),
             SafetyLimitTypes.MaxDailyAmountMl or SafetyLimitTypes.MaxHourlyAmountMl or SafetyLimitTypes.MinSecondsBetweenDoses => IsDoser(a),
