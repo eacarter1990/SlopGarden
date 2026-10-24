@@ -39,6 +39,7 @@ start sg-server "SlopGarden__SeedDemo=true SlopGarden__InitialAdminPassword=slop
 until curl -sf http://localhost:5080/api/health >/dev/null; do sleep 1; done
 until curl -sf http://localhost:5090/api/sensors >/dev/null; do sleep 1; done
 
+"$ROOT/scripts/stage-sample-plugin.sh" --dest "$DEMO/client/plugins" >/dev/null
 start sg-client "Client__DataDirectory=$DEMO/client Client__HardwareId=demo-pi-1 Client__Name='Demo Pi (emulated)' \
   Client__Location__Latitude=52.37 Client__Location__Longitude=4.9 Client__Location__Label='Amsterdam, NL' \
   Plugins__Emulator__BaseUrl=http://localhost:5090 dotnet run --no-build -c Release --project src/SlopGarden.Client"
