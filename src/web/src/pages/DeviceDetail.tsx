@@ -3,7 +3,7 @@ import { modals } from '@mantine/modals'
 import { IconAlertTriangle, IconPencil, IconPlus } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/client'
 import type { Actuator, DeviceDetail, DevicePlugin, DiscoveredHardware, PluginComponent, Sensor } from '../api/types'
 import { useAuth } from '../auth'
@@ -130,6 +130,7 @@ function ActuatorEditForm({ a }: { a: Actuator }) {
 
 export function DeviceDetailPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const { canWrite, isAdmin } = useAuth()
   const save = useSave()
   const { data: d } = useQuery({ queryKey: ['device', id], queryFn: () => api.op<DeviceDetail>('get_device', { deviceId: id }), refetchInterval: 15_000 })
@@ -147,7 +148,14 @@ export function DeviceDetailPage() {
             <Badge size="lg" color={dev.isOnline ? 'green' : 'gray'}>{dev.isOnline ? 'online' : `offline · ${ago(dev.lastSeenAt)}`}</Badge>
             {canWrite && <Button leftSection={<IconPlus size={16} />} variant="light" onClick={() => modals.open({ title: 'Add a sensor, actuator or camera', size: 'lg', children: <ComponentForm deviceId={dev.id} plugins={d.plugins} /> })}>Add component</Button>}
             <EmergencyStopButton scopeType="device" scopeId={dev.id} label="Stop device" />
-            {isAdmin && dev.status === 'approved' && <Button color="red" variant="subtle" onClick={() => modals.openConfirmModal({ title: 'Revoke this device?', children: <Text size="sm">Its credential stops working; it must be approved again.</Text>, labels: { confirm: 'Revoke', cancel: 'Cancel' }, confirmProps: { color: 'red' }, onConfirm: () => save('revoke_device', { deviceId: dev.id }, 'Revoked') })}>Revoke</Button>}
+            {isAdmin && dev.status === 'approved' && <Button color="red" variant="subtle" onClick={() => modals.openConfirmModal({ title: 'Revoke this device?', children: <Text size="sm">Its credential stops working; it must be approved again. Sensors and cameras stay.</Text>, labels: { confirm: 'Revoke', cancel: 'Cancel' }, confirmProps: { color: 'red' }, onConfirm: () => save('revoke_device', { deviceId: dev.id }, 'Revoked') })}>Revoke</Button>}
+            {isAdmin && <Button color="red" variant="light" onClick={() => modals.openConfirmModal({
+              title: `Remove ${dev.name}?`,
+              children: <Text size="sm">This deletes the device and its sensors, cameras, actuators, and their readings. Plants and beds stay. If the client is still running, it shows up again as pending and needs approval.</Text>,
+              labels: { confirm: 'Remove device', cancel: 'Cancel' },
+              confirmProps: { color: 'red' },
+              onConfirm: async () => { await save('remove_device', { deviceId: dev.id }, 'Device removed'); navigate('/devices') },
+            })}>Remove</Button>}
           </>
         }
       />

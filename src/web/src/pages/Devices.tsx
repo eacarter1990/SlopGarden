@@ -1,4 +1,5 @@
 import { Alert, Anchor, Badge, Button, Card, Group, NumberInput, PasswordInput, Select, SimpleGrid, Stack, Switch, Table, Text, Textarea, TextInput } from '@mantine/core'
+import { modals } from '@mantine/modals'
 import { notifications } from '@mantine/notifications'
 import { IconAlertTriangle, IconCheck, IconWifi, IconX } from '@tabler/icons-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -32,6 +33,14 @@ export function DevicesPage() {
   const [sshBusy, setSshBusy] = useState(false)
   const pending = (devices ?? []).filter((d) => d.status === 'pending')
   const others = (devices ?? []).filter((d) => d.status !== 'pending')
+
+  const remove = (d: Device) => modals.openConfirmModal({
+    title: `Remove ${d.name || d.hostname}?`,
+    children: <Text size="sm">This deletes the device and its sensors, cameras, actuators, and their readings. Plants and beds stay. If the client is still running, it shows up again as pending and needs approval.</Text>,
+    labels: { confirm: 'Remove device', cancel: 'Cancel' },
+    confirmProps: { color: 'red' },
+    onConfirm: () => save('remove_device', { deviceId: d.id }, 'Device removed'),
+  })
 
   const addByIp = async () => {
     try {
@@ -177,6 +186,7 @@ export function DevicesPage() {
                       <Group gap="xs" justify="flex-end">
                         <Button size="xs" leftSection={<IconCheck size={14} />} onClick={() => save('approve_device', { deviceId: d.id }, 'Device approved; credential issued')}>Approve</Button>
                         <Button size="xs" variant="light" color="gray" leftSection={<IconX size={14} />} onClick={() => save('reject_device', { deviceId: d.id }, 'Rejected')}>Reject</Button>
+                        <Button size="xs" variant="light" color="red" onClick={() => remove(d)}>Remove</Button>
                       </Group>
                     ) : (
                       <Text size="xs" c="dimmed">An Admin must approve</Text>
@@ -236,6 +246,7 @@ export function DevicesPage() {
                         />
                       </Group>
                     )}
+                    {isAdmin && <Button size="xs" variant="subtle" color="red" onClick={() => remove(d)}>Remove</Button>}
                   </Stack>
                 </Table.Td>
                 <Table.Td>{ago(d.lastSeenAt)}{d.bufferedReadings > 0 && <Text size="xs" c="dimmed">{d.bufferedReadings} buffered</Text>}</Table.Td>

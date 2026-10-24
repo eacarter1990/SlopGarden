@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.EntityFrameworkCore;
 using SlopGarden.Contracts;
+using SlopGarden.Server.Data;
 
 namespace SlopGarden.Server.Tests;
 
@@ -175,6 +176,73 @@ public class DeviceAndSafetyTests(ServerFixture f) : IClassFixture<ServerFixture
         await grower.Op("create_bed", new { gardenId = beds[0]!["gardenId"]!.ToString(), name = "Grower bed" });
         var approve = await grower.PostAsJsonAsync("/api/ops/approve_device", new { deviceId = Guid.NewGuid() });
         Assert.Equal(HttpStatusCode.Forbidden, approve.StatusCode);
+    }
+
+    [Fact]
+    public async Task Removing_a_device_deletes_its_sensors_cameras_and_actuators()
+    {
+        var admin = await f.LoginAsync();
+        await using var dev = await DeviceHarness.OnboardAsync(f, admin, "hw-remove");
+        var gardenId = f.WithDb(db => db.Gardens.OrderBy(g => g.CreatedAt).Select(g => g.Id).First());
+        var plantsBefore = f.WithDb(db => db.Plants.Count());
+
+        var sensor = await admin.Op("create_sensor", new
+        {
+            deviceId = dev.DeviceId,
+            name = "Probe",
+            pluginId = "emulator-sensor",
+            targetType = "garden",
+            gardenId,
+            channels = new[] { new { key = "v", metric = "soil_moisture_pct", unit = "%" } },
+        });
+        var camera = await admin.Op("create_camera", new
+        {
+            deviceId = dev.DeviceId,
+            name = "Cam",
+            pluginId = "emulator-camera",
+            targetType = "garden",
+            gardenId,
+        });
+        var actuator = await admin.Op("create_actuator", new
+        {
+            deviceId = dev.DeviceId,
+            name = "Valve",
+            kind = "valve",
+            pluginId = "emulator-actuator",
+            targetType = "garden",
+            gardenId,
+        });
+        var cameraId = Guid.Parse(camera["id"]!.ToString());
+        var actuatorId = Guid.Parse(actuator["id"]!.ToString());
+        var channelId = Guid.Parse(sensor["channels"]![0]!["id"]!.ToString());
+        await f.WithDbAsync(async db =>
+        {
+            db.Media.Add(new Media { CameraId = cameraId, Kind = "camera_frame", Data = [1, 2, 3], Width = 1, Height = 1 });
+            db.SafetyLimits.Add(new SafetyLimit { ScopeType = ScopeTypes.Device, ScopeId = dev.DeviceId, LimitType = SafetyLimitTypes.MaxRunSeconds, Value = 10, Notes = "only this device" });
+            db.Schedules.Add(new Schedule { GardenId = gardenId, Name = "valve morning", Kind = ScheduleKinds.Actuator, ActuatorId = actuatorId, Cron = "0 7 * * *" });
+            db.Readings.Add(new Reading { ChannelId = channelId, Time = DateTimeOffset.UtcNow, Value = 1 });
+            await db.SaveChangesAsync();
+        });
+
+        var grower = await f.LoginAsync("grower", "demo-password");
+        Assert.Equal(HttpStatusCode.Forbidden, (await grower.PostAsJsonAsync("/api/ops/remove_device", new { deviceId = dev.DeviceId })).StatusCode);
+
+        var removed = await admin.Op("remove_device", new { deviceId = dev.DeviceId });
+        Assert.Equal(1, removed["sensors"]!.GetValue<int>());
+        Assert.Equal(1, removed["actuators"]!.GetValue<int>());
+        Assert.Equal(1, removed["cameras"]!.GetValue<int>());
+        Assert.False(f.WithDb(db => db.Devices.Any(d => d.Id == dev.DeviceId)));
+        Assert.False(f.WithDb(db => db.Sensors.Any(s => s.Id == Guid.Parse(sensor["id"]!.ToString()))));
+        Assert.False(f.WithDb(db => db.Cameras.Any(c => c.Id == cameraId)));
+        Assert.False(f.WithDb(db => db.Actuators.Any(a => a.Id == actuatorId)));
+        Assert.False(f.WithDb(db => db.Media.Any(m => m.CameraId == cameraId)));
+        Assert.False(f.WithDb(db => db.Readings.Any(r => r.ChannelId == channelId)));
+        Assert.False(f.WithDb(db => db.Schedules.Any(s => s.ActuatorId == actuatorId)));
+        Assert.False(f.WithDb(db => db.SafetyLimits.Any(l => l.ScopeId == dev.DeviceId)));
+        Assert.Equal(plantsBefore, f.WithDb(db => db.Plants.Count()));
+
+        var gone = await f.CreateClient().GetAsync($"/api/device-api/register/{dev.DeviceId}?secret=missing");
+        Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
     }
 }
 

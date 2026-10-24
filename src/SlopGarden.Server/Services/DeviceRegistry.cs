@@ -13,6 +13,7 @@ public sealed class DeviceRegistry(
     IDataProtectionProvider dp,
     NotificationService notifications,
     ConfigPushQueue configQueue,
+    CameraFrameStore frames,
     LiveNotifier live)
 {
     private readonly IDataProtector _protector = dp.CreateProtector("SlopGarden.DeviceCredential.v1");
@@ -137,6 +138,51 @@ public sealed class DeviceRegistry(
         return device;
     }
 
+    /// <summary>Deletes the device and everything configured on it: sensors, cameras, actuators, readings, frames, and schedules that drive those actuators. Plants and beds stay.</summary>
+    public async Task<DeviceRemoved> RemoveAsync(Guid deviceId, Actor actor, CancellationToken ct)
+    {
+        if (!actor.IsAdmin) throw AppException.Forbidden("Only Admins can remove devices");
+        var device = await db.Devices.FirstOrDefaultAsync(d => d.Id == deviceId, ct) ?? throw AppException.NotFound("Device");
+        var sensorIds = await db.Sensors.Where(s => s.DeviceId == deviceId).Select(s => s.Id).ToListAsync(ct);
+        var channelIds = await db.SensorChannels.Where(c => sensorIds.Contains(c.SensorId)).Select(c => c.Id).ToListAsync(ct);
+        var actuatorIds = await db.Actuators.Where(a => a.DeviceId == deviceId).Select(a => a.Id).ToListAsync(ct);
+        var cameraIds = await db.Cameras.Where(c => c.DeviceId == deviceId).Select(c => c.Id).ToListAsync(ct);
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        if (cameraIds.Count > 0)
+            await db.Media.Where(m => m.CameraId != null && cameraIds.Contains(m.CameraId.Value)).ExecuteDeleteAsync(ct);
+        await db.DeviceUpdates.Where(u => u.DeviceId == deviceId).ExecuteDeleteAsync(ct);
+        await db.SafetyLimits.Where(l =>
+            (l.ChannelId != null && channelIds.Contains(l.ChannelId.Value))
+            || (l.ScopeId == deviceId && l.ScopeType == ScopeTypes.Device)
+            || (l.ScopeId != null && l.ScopeType == ScopeTypes.Actuator && actuatorIds.Contains(l.ScopeId.Value)))
+            .ExecuteDeleteAsync(ct);
+        await db.EmergencyStops.Where(s =>
+            (s.ScopeId == deviceId && s.ScopeType == ScopeTypes.Device)
+            || (s.ScopeId != null && s.ScopeType == ScopeTypes.Actuator && actuatorIds.Contains(s.ScopeId.Value)))
+            .ExecuteDeleteAsync(ct);
+        await db.NotificationMutes.Where(m =>
+            (m.ScopeType == "device" && m.ScopeId == deviceId)
+            || (m.ScopeType == "sensor" && sensorIds.Contains(m.ScopeId))
+            || (m.ScopeType == "actuator" && actuatorIds.Contains(m.ScopeId)))
+            .ExecuteDeleteAsync(ct);
+
+        db.Audit(actor, "device.remove", "device", device.Id, new()
+        {
+            ["name"] = device.Name,
+            ["sensors"] = sensorIds.Count,
+            ["actuators"] = actuatorIds.Count,
+            ["cameras"] = cameraIds.Count,
+        });
+        db.Devices.Remove(device);
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+
+        foreach (var id in cameraIds) frames.Drop(id);
+        await live.Changed("devices", "sensors", "actuators", "cameras", "safety");
+        return new DeviceRemoved(device.Id, device.Name, sensorIds.Count, actuatorIds.Count, cameraIds.Count);
+    }
+
     /// <summary>Location and timezone are inherited from the client unless the user set them manually.</summary>
     public static void InheritEnvironment(Garden garden, Device device)
     {
@@ -212,3 +258,5 @@ public sealed class DeviceRegistry(
         await live.Changed("devices");
     }
 }
+
+public sealed record DeviceRemoved(Guid DeviceId, string Name, int Sensors, int Actuators, int Cameras);

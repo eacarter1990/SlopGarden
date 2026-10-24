@@ -49,7 +49,7 @@ public class ToolRegistryTests
     public void Credential_tools_are_not_offered_to_the_ai()
     {
         var r = Build();
-        foreach (var name in new[] { "approve_device", "reject_device", "revoke_device", "add_device_by_ip" })
+        foreach (var name in new[] { "approve_device", "reject_device", "revoke_device", "remove_device", "add_device_by_ip" })
             Assert.False(r.Find(name)!.AiAllowed);
         Assert.DoesNotContain(AgentService.BuildToolSchemas(r), t => t?["function"]?["name"]?.ToString() == "approve_device");
     }
