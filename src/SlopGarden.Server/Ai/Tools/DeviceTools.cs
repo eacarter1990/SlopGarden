@@ -40,15 +40,16 @@ public sealed record ChannelInput(
 public sealed record AdoptHardwareInput(
     Guid DiscoveredId,
     string? Name = null,
-    [property: Description("garden | bed | plant")] string? TargetType = null,
+    [property: Description("garden | bed | plant | reservoir")] string? TargetType = null,
     Guid? GardenId = null,
     Guid? BedId = null,
     Guid? PlantId = null,
-    int? ReadIntervalSec = null);
+    int? ReadIntervalSec = null,
+    Guid? ReservoirId = null);
 
 public sealed record AdoptResult(string Kind, Guid ComponentId, string Name);
 
-public sealed record ListComponentsInput(Guid? GardenId = null, Guid? DeviceId = null, Guid? BedId = null, Guid? PlantId = null);
+public sealed record ListComponentsInput(Guid? GardenId = null, Guid? DeviceId = null, Guid? BedId = null, Guid? PlantId = null, Guid? ReservoirId = null);
 
 public sealed record CreateSensorInput(
     Guid DeviceId,
@@ -61,7 +62,8 @@ public sealed record CreateSensorInput(
     Guid? BedId = null,
     Guid? PlantId = null,
     int? ReadIntervalSec = null,
-    bool? Enabled = null);
+    bool? Enabled = null,
+    Guid? ReservoirId = null);
 
 public sealed record UpdateSensorInput(
     Guid SensorId,
@@ -72,7 +74,8 @@ public sealed record UpdateSensorInput(
     string? TargetType = null,
     Guid? GardenId = null,
     Guid? BedId = null,
-    Guid? PlantId = null);
+    Guid? PlantId = null,
+    Guid? ReservoirId = null);
 
 public sealed record SensorIdInput(Guid SensorId);
 
@@ -111,7 +114,15 @@ public sealed record CreateActuatorInput(
     Guid? PlantId = null,
     [property: Description("Flow rate for pumps/dosers; enables amount-based dosing and per-day ml limits")] double? FlowRateMlPerMin = null,
     [property: Description("off | on — state applied on shutdown, errors and emergency stop")] string? FailsafeState = null,
-    bool? Enabled = null);
+    bool? Enabled = null,
+    [property: Description("irrigation | circulation_pump | air_pump | dose_nutrient_a | dose_nutrient_b | dose_ph_up | dose_ph_down | dose_calmag | dose_additive | chiller | top_up_valve | drain")] string? Role = null,
+    [property: Description("Keep it running 24/7 on the device (NFT/DWC/RDWC circulation and air pumps)")] bool? ContinuousRun = null,
+    [property: Description("Flow sensor channel that proves this pump/valve is moving water (stall detection)")] Guid? FlowChannelId = null,
+    [property: Description("Minimum L/min expected while on; below it after the grace period = flow stall")] double? FlowMinWhenOn = null,
+    [property: Description("Seconds to wait after switching before judging flow (default 20)")] int? FlowGraceSec = null,
+    [property: Description("Flow above this while off = unexpected flow (leak/stuck valve)")] double? FlowMaxWhenOff = null,
+    [property: Description("Switch off on a flow stall to protect the pump (default true)")] bool? StopOnStall = null,
+    Guid? ReservoirId = null);
 
 public sealed record UpdateActuatorInput(
     Guid ActuatorId,
@@ -124,7 +135,15 @@ public sealed record UpdateActuatorInput(
     Guid? PlantId = null,
     double? FlowRateMlPerMin = null,
     string? FailsafeState = null,
-    bool? Enabled = null);
+    bool? Enabled = null,
+    [property: Description("irrigation | circulation_pump | air_pump | dose_nutrient_a | dose_nutrient_b | dose_ph_up | dose_ph_down | dose_calmag | dose_additive | chiller | top_up_valve | drain")] string? Role = null,
+    [property: Description("Keep it running 24/7 on the device (NFT/DWC/RDWC circulation and air pumps)")] bool? ContinuousRun = null,
+    [property: Description("Flow sensor channel that proves this pump/valve is moving water (stall detection)")] Guid? FlowChannelId = null,
+    [property: Description("Minimum L/min expected while on; below it after the grace period = flow stall")] double? FlowMinWhenOn = null,
+    [property: Description("Seconds to wait after switching before judging flow (default 20)")] int? FlowGraceSec = null,
+    [property: Description("Flow above this while off = unexpected flow (leak/stuck valve)")] double? FlowMaxWhenOff = null,
+    [property: Description("Switch off on a flow stall to protect the pump (default true)")] bool? StopOnStall = null,
+    Guid? ReservoirId = null);
 
 public sealed record ActuatorIdInput(Guid ActuatorId);
 
@@ -150,7 +169,8 @@ public sealed record CreateCameraInput(
     int? CaptureWidth = null,
     int? CaptureHeight = null,
     [property: Description("Seconds between frames for the dashboard feed")] int? FrameIntervalSec = null,
-    bool? Enabled = null);
+    bool? Enabled = null,
+    Guid? ReservoirId = null);
 
 public sealed record UpdateCameraInput(
     Guid CameraId,
@@ -163,7 +183,8 @@ public sealed record UpdateCameraInput(
     int? CaptureWidth = null,
     int? CaptureHeight = null,
     int? FrameIntervalSec = null,
-    bool? Enabled = null);
+    bool? Enabled = null,
+    Guid? ReservoirId = null);
 
 public sealed record CameraIdInput(Guid CameraId);
 public sealed record CaptureInput(Guid CameraId, [property: Description("Requested width in pixels (default 1024)")] int? Width = null);
@@ -183,9 +204,11 @@ public static class DeviceTools
 
     private static Task Changed(ToolContext ctx, params string[] areas) => ctx.Get<LiveNotifier>().Changed(areas);
 
-    private static async Task<(Guid GardenId, Guid? BedId, Guid? PlantId, string TargetType)> ResolveTargetAsync(ToolContext ctx, string? targetType, Guid? gardenId, Guid? bedId, Guid? plantId, Guid? deviceGarden)
+    private sealed record Target(Guid GardenId, Guid? BedId, Guid? PlantId, Guid? ReservoirId, string TargetType);
+
+    private static async Task<Target> ResolveTargetAsync(ToolContext ctx, string? targetType, Guid? gardenId, Guid? bedId, Guid? plantId, Guid? deviceGarden, Guid? reservoirId = null)
     {
-        targetType ??= plantId is not null ? "plant" : bedId is not null ? "bed" : "garden";
+        targetType ??= plantId is not null ? "plant" : bedId is not null ? "bed" : reservoirId is not null ? "reservoir" : "garden";
         Ensure.OneOf(targetType, TargetTypes.Component, "targetType");
         switch (targetType)
         {
@@ -193,17 +216,32 @@ public static class DeviceTools
             {
                 var pid = plantId ?? throw AppException.Bad("plantId is required when targetType=plant");
                 var x = await ctx.Db.Plants.Where(p => p.Id == pid).Select(p => new { p.BedId, p.Bed!.GardenId }).FirstOrDefaultAsync(ctx.Ct) ?? throw AppException.NotFound("Plant");
-                return (x.GardenId, x.BedId, pid, targetType);
+                return new Target(x.GardenId, x.BedId, pid, null, targetType);
             }
             case "bed":
             {
                 var bid = bedId ?? throw AppException.Bad("bedId is required when targetType=bed");
                 var g = await ctx.Db.Beds.Where(b => b.Id == bid).Select(b => (Guid?)b.GardenId).FirstOrDefaultAsync(ctx.Ct) ?? throw AppException.NotFound("Bed");
-                return (g, bid, null, targetType);
+                return new Target(g, bid, null, null, targetType);
+            }
+            case "reservoir":
+            {
+                var rid = reservoirId ?? throw AppException.Bad("reservoirId is required when targetType=reservoir");
+                var g = await ctx.Db.Reservoirs.Where(r => r.Id == rid).Select(r => (Guid?)r.GardenId).FirstOrDefaultAsync(ctx.Ct) ?? throw AppException.NotFound("Reservoir");
+                return new Target(g, null, null, rid, targetType);
             }
             default:
-                return ((await GardenTools.ResolveGardenAsync(ctx.Db, gardenId ?? deviceGarden, ctx.Ct)).Id, null, null, targetType);
+                return new Target((await GardenTools.ResolveGardenAsync(ctx.Db, gardenId ?? deviceGarden, ctx.Ct)).Id, null, null, null, targetType);
         }
+    }
+
+    private static void ApplyTarget(ITargeted t, Target target)
+    {
+        t.TargetType = target.TargetType;
+        t.GardenId = target.GardenId;
+        t.BedId = target.BedId;
+        t.PlantId = target.PlantId;
+        t.ReservoirId = target.ReservoirId;
     }
 
     private static async Task<Device> ApprovedDeviceAsync(ToolContext ctx, Guid id)
@@ -213,8 +251,9 @@ public static class DeviceTools
         return d;
     }
 
-    private static async Task<string> TargetLabelAsync(ToolContext ctx, Guid? bedId, Guid? plantId)
+    private static async Task<string> TargetLabelAsync(ToolContext ctx, Guid? bedId, Guid? plantId, Guid? reservoirId = null)
     {
+        if (reservoirId is { } r) return "reservoir " + await ctx.Db.Reservoirs.Where(x => x.Id == r).Select(x => x.Name).FirstOrDefaultAsync(ctx.Ct);
         if (plantId is { } p) return "plant " + await ctx.Db.Plants.Where(x => x.Id == p).Select(x => x.Name).FirstOrDefaultAsync(ctx.Ct);
         if (bedId is { } b) return "bed " + await ctx.Db.Beds.Where(x => x.Id == b).Select(x => x.Name).FirstOrDefaultAsync(ctx.Ct);
         return "garden";
@@ -318,14 +357,15 @@ public static class DeviceTools
             {
                 var h = Ensure.Found(await ctx.Db.DiscoveredHardware.FirstOrDefaultAsync(x => x.Id == i.DiscoveredId, ctx.Ct), "Discovered hardware");
                 var device = await ApprovedDeviceAsync(ctx, h.DeviceId);
-                var (gardenId, bedId, plantId, tt) = await ResolveTargetAsync(ctx, i.TargetType, i.GardenId, i.BedId, i.PlantId, device.GardenId);
+                var target = await ResolveTargetAsync(ctx, i.TargetType, i.GardenId, i.BedId, i.PlantId, device.GardenId, i.ReservoirId);
                 var name = i.Name ?? h.SuggestedName;
                 Guid id;
                 switch (h.Kind)
                 {
                     case PluginKinds.Sensor:
                     {
-                        var s = new Sensor { DeviceId = device.Id, Name = name, PluginId = h.PluginId, Settings = h.SuggestedSettings.DeepClone().AsObject(), ReadIntervalSec = i.ReadIntervalSec ?? 30, TargetType = tt, GardenId = gardenId, BedId = bedId, PlantId = plantId };
+                        var s = new Sensor { DeviceId = device.Id, Name = name, PluginId = h.PluginId, Settings = h.SuggestedSettings.DeepClone().AsObject(), ReadIntervalSec = i.ReadIntervalSec ?? 30 };
+                        ApplyTarget(s, target);
                         foreach (var ch in h.Channels.Deserialize<List<DiscoveredChannel>>(SlopJson.Options) ?? [])
                             s.Channels.Add(new SensorChannel { Key = ch.Key, Metric = ch.Metric, Unit = ch.Unit });
                         ctx.Db.Sensors.Add(s);
@@ -334,14 +374,16 @@ public static class DeviceTools
                     }
                     case PluginKinds.Actuator:
                     {
-                        var a = new Actuator { DeviceId = device.Id, Name = name, Kind = h.ActuatorKind ?? ActuatorKinds.Other, PluginId = h.PluginId, Settings = h.SuggestedSettings.DeepClone().AsObject(), TargetType = tt, GardenId = gardenId, BedId = bedId, PlantId = plantId };
+                        var a = new Actuator { DeviceId = device.Id, Name = name, Kind = h.ActuatorKind ?? ActuatorKinds.Other, PluginId = h.PluginId, Settings = h.SuggestedSettings.DeepClone().AsObject() };
+                        ApplyTarget(a, target);
                         ctx.Db.Actuators.Add(a);
                         id = a.Id;
                         break;
                     }
                     case PluginKinds.Camera:
                     {
-                        var c = new Camera { DeviceId = device.Id, Name = name, PluginId = h.PluginId, Settings = h.SuggestedSettings.DeepClone().AsObject(), TargetType = tt, GardenId = gardenId, BedId = bedId, PlantId = plantId };
+                        var c = new Camera { DeviceId = device.Id, Name = name, PluginId = h.PluginId, Settings = h.SuggestedSettings.DeepClone().AsObject() };
+                        ApplyTarget(c, target);
                         ctx.Db.Cameras.Add(c);
                         id = c.Id;
                         break;
@@ -359,9 +401,9 @@ public static class DeviceTools
             async (ctx, i) =>
             {
                 var h = Ensure.Found(await ctx.Db.DiscoveredHardware.AsNoTracking().FirstOrDefaultAsync(x => x.Id == i.DiscoveredId, ctx.Ct), "Discovered hardware");
-                var label = await TargetLabelAsync(ctx, i.BedId, i.PlantId);
-                return new ProposalPreview($"Add {h.Kind} '{i.Name ?? h.SuggestedName}' for {label}", i.PlantId is not null ? "plant" : i.BedId is not null ? "bed" : "garden",
-                    i.PlantId ?? i.BedId ?? i.GardenId, i.GardenId, "low", [Patch.Change("plugin", null, h.PluginId), Patch.Change("target", null, label)]);
+                var label = await TargetLabelAsync(ctx, i.BedId, i.PlantId, i.ReservoirId);
+                return new ProposalPreview($"Add {h.Kind} '{i.Name ?? h.SuggestedName}' for {label}", i.PlantId is not null ? "plant" : i.BedId is not null ? "bed" : i.ReservoirId is not null ? "reservoir" : "garden",
+                    i.PlantId ?? i.BedId ?? i.ReservoirId ?? i.GardenId, i.GardenId, "low", [Patch.Change("plugin", null, h.PluginId), Patch.Change("target", null, label)]);
             });
     }
 
@@ -376,6 +418,7 @@ public static class DeviceTools
                 if (i.DeviceId is { } d) q = q.Where(s => s.DeviceId == d);
                 if (i.BedId is { } b) q = q.Where(s => s.BedId == b);
                 if (i.PlantId is { } p) q = q.Where(s => s.PlantId == p);
+                if (i.ReservoirId is { } r) q = q.Where(s => s.ReservoirId == r);
                 return (await q.OrderBy(s => s.Name).ToListAsync(ctx.Ct)).Select(SensorDto.From).ToList();
             });
 
@@ -383,13 +426,14 @@ public static class DeviceTools
             async (ctx, i) =>
             {
                 var device = await ApprovedDeviceAsync(ctx, i.DeviceId);
-                var (gardenId, bedId, plantId, tt) = await ResolveTargetAsync(ctx, i.TargetType, i.GardenId, i.BedId, i.PlantId, device.GardenId);
+                var target = await ResolveTargetAsync(ctx, i.TargetType, i.GardenId, i.BedId, i.PlantId, device.GardenId, i.ReservoirId);
                 if (i.Channels.Count == 0) throw AppException.Bad("At least one channel is required");
                 var s = new Sensor
                 {
                     DeviceId = device.Id, Name = i.Name, PluginId = i.PluginId, Settings = i.Settings ?? new JsonObject(), ReadIntervalSec = Math.Clamp(i.ReadIntervalSec ?? 60, 1, 86400),
-                    Enabled = i.Enabled ?? true, TargetType = tt, GardenId = gardenId, BedId = bedId, PlantId = plantId,
+                    Enabled = i.Enabled ?? true,
                 };
+                ApplyTarget(s, target);
                 foreach (var c in i.Channels) s.Channels.Add(NewChannel(c));
                 ctx.Db.Sensors.Add(s);
                 ctx.Db.Audit(ctx.Actor, "sensor.create", "sensor", s.Id);
@@ -398,15 +442,15 @@ public static class DeviceTools
                 await Changed(ctx, "sensors");
                 return SensorDto.From(s);
             },
-            async (ctx, i) => new ProposalPreview($"Add sensor '{i.Name}' for {await TargetLabelAsync(ctx, i.BedId, i.PlantId)}", i.TargetType, i.PlantId ?? i.BedId ?? i.GardenId, i.GardenId, "low", Patch.CreateChanges(i)));
+            async (ctx, i) => new ProposalPreview($"Add sensor '{i.Name}' for {await TargetLabelAsync(ctx, i.BedId, i.PlantId, i.ReservoirId)}", i.TargetType, i.PlantId ?? i.BedId ?? i.ReservoirId ?? i.GardenId, i.GardenId, "low", Patch.CreateChanges(i)));
 
         r.Mutate<UpdateSensorInput, SensorDto>("update_sensor", Category, "Change a sensor's name, settings, reading interval, enabled flag or target.",
             async (ctx, i) =>
             {
                 var s = Ensure.Found(await ctx.Db.Sensors.Include(x => x.Channels).FirstOrDefaultAsync(x => x.Id == i.SensorId, ctx.Ct), "Sensor");
-                if (i.TargetType is not null || i.BedId is not null || i.PlantId is not null || i.GardenId is not null)
-                    (s.GardenId, s.BedId, s.PlantId, s.TargetType) = await ResolveTargetAsync(ctx, i.TargetType ?? s.TargetType, i.GardenId ?? s.GardenId, i.BedId ?? s.BedId, i.PlantId ?? s.PlantId, null);
-                Patch.Apply(s, i, nameof(i.SensorId), nameof(i.TargetType), nameof(i.GardenId), nameof(i.BedId), nameof(i.PlantId));
+                if (i.TargetType is not null || i.BedId is not null || i.PlantId is not null || i.GardenId is not null || i.ReservoirId is not null)
+                    ApplyTarget(s, await ResolveTargetAsync(ctx, i.TargetType ?? s.TargetType, i.GardenId ?? s.GardenId, i.BedId ?? s.BedId, i.PlantId ?? s.PlantId, null, i.ReservoirId ?? s.ReservoirId));
+                Patch.Apply(s, i, nameof(i.SensorId), nameof(i.TargetType), nameof(i.GardenId), nameof(i.BedId), nameof(i.PlantId), nameof(i.ReservoirId));
                 s.ReadIntervalSec = Math.Clamp(s.ReadIntervalSec, 1, 86400);
                 ctx.Db.Audit(ctx.Actor, "sensor.update", "sensor", s.Id);
                 await ctx.Db.SaveChangesAsync(ctx.Ct);
@@ -503,6 +547,7 @@ public static class DeviceTools
                 if (i.DeviceId is { } d) q = q.Where(a => a.DeviceId == d);
                 if (i.BedId is { } b) q = q.Where(a => a.BedId == b);
                 if (i.PlantId is { } p) q = q.Where(a => a.PlantId == p);
+                if (i.ReservoirId is { } r) q = q.Where(a => a.ReservoirId == r);
                 return (await q.OrderBy(a => a.Name).ToListAsync(ctx.Ct)).Select(ActuatorDto.From).ToList();
             });
 
@@ -512,12 +557,15 @@ public static class DeviceTools
                 Ensure.OneOf(i.Kind, ActuatorKinds.All, "kind");
                 Ensure.OneOf(i.FailsafeState, ["off", "on"], "failsafeState");
                 var device = await ApprovedDeviceAsync(ctx, i.DeviceId);
-                var (gardenId, bedId, plantId, tt) = await ResolveTargetAsync(ctx, i.TargetType, i.GardenId, i.BedId, i.PlantId, device.GardenId);
+                Ensure.OneOf(i.Role, ActuatorRoles.All, "role");
+                var target = await ResolveTargetAsync(ctx, i.TargetType, i.GardenId, i.BedId, i.PlantId, device.GardenId, i.ReservoirId);
                 var a = new Actuator
                 {
                     DeviceId = device.Id, Name = i.Name, Kind = i.Kind, PluginId = i.PluginId, Settings = i.Settings ?? new JsonObject(), Enabled = i.Enabled ?? true,
-                    FailsafeState = i.FailsafeState ?? "off", FlowRateMlPerMin = i.FlowRateMlPerMin, TargetType = tt, GardenId = gardenId, BedId = bedId, PlantId = plantId,
+                    FailsafeState = i.FailsafeState ?? "off", FlowRateMlPerMin = i.FlowRateMlPerMin, Role = i.Role, ContinuousRun = i.ContinuousRun ?? ActuatorRoles.IsContinuous(i.Role),
+                    FlowChannelId = i.FlowChannelId, FlowMinWhenOn = i.FlowMinWhenOn, FlowGraceSec = i.FlowGraceSec, FlowMaxWhenOff = i.FlowMaxWhenOff, StopOnStall = i.StopOnStall ?? true,
                 };
+                ApplyTarget(a, target);
                 ctx.Db.Actuators.Add(a);
                 ctx.Db.Audit(ctx.Actor, "actuator.create", "actuator", a.Id);
                 await ctx.Db.SaveChangesAsync(ctx.Ct);
@@ -525,17 +573,19 @@ public static class DeviceTools
                 await Changed(ctx, "actuators");
                 return ActuatorDto.From(a);
             },
-            async (ctx, i) => new ProposalPreview($"Add {i.Kind} '{i.Name}' for {await TargetLabelAsync(ctx, i.BedId, i.PlantId)}", i.TargetType, i.PlantId ?? i.BedId ?? i.GardenId, i.GardenId, "medium", Patch.CreateChanges(i)));
+            async (ctx, i) => new ProposalPreview($"Add {i.Kind} '{i.Name}' for {await TargetLabelAsync(ctx, i.BedId, i.PlantId, i.ReservoirId)}", i.TargetType, i.PlantId ?? i.BedId ?? i.ReservoirId ?? i.GardenId, i.GardenId, "medium", Patch.CreateChanges(i)));
 
         r.Mutate<UpdateActuatorInput, ActuatorDto>("update_actuator", Category, "Change an actuator's name, kind, settings, flow rate, failsafe state, enabled flag or target.",
             async (ctx, i) =>
             {
                 Ensure.OneOf(i.Kind, ActuatorKinds.All, "kind");
                 Ensure.OneOf(i.FailsafeState, ["off", "on"], "failsafeState");
+                Ensure.OneOf(i.Role, ActuatorRoles.All, "role");
                 var a = Ensure.Found(await ctx.Db.Actuators.FirstOrDefaultAsync(x => x.Id == i.ActuatorId, ctx.Ct), "Actuator");
-                if (i.TargetType is not null || i.BedId is not null || i.PlantId is not null || i.GardenId is not null)
-                    (a.GardenId, a.BedId, a.PlantId, a.TargetType) = await ResolveTargetAsync(ctx, i.TargetType ?? a.TargetType, i.GardenId ?? a.GardenId, i.BedId ?? a.BedId, i.PlantId ?? a.PlantId, null);
-                Patch.Apply(a, i, nameof(i.ActuatorId), nameof(i.TargetType), nameof(i.GardenId), nameof(i.BedId), nameof(i.PlantId));
+                if (i.TargetType is not null || i.BedId is not null || i.PlantId is not null || i.GardenId is not null || i.ReservoirId is not null)
+                    ApplyTarget(a, await ResolveTargetAsync(ctx, i.TargetType ?? a.TargetType, i.GardenId ?? a.GardenId, i.BedId ?? a.BedId, i.PlantId ?? a.PlantId, null, i.ReservoirId ?? a.ReservoirId));
+                if (i.FlowChannelId is { } fc && !await ctx.Db.SensorChannels.AnyAsync(c => c.Id == fc, ctx.Ct)) throw AppException.NotFound("Flow channel");
+                Patch.Apply(a, i, nameof(i.ActuatorId), nameof(i.TargetType), nameof(i.GardenId), nameof(i.BedId), nameof(i.PlantId), nameof(i.ReservoirId));
                 ctx.Db.Audit(ctx.Actor, "actuator.update", "actuator", a.Id);
                 await ctx.Db.SaveChangesAsync(ctx.Ct);
                 ctx.Get<ConfigPushQueue>().Dirty(a.DeviceId);
@@ -597,6 +647,12 @@ public static class DeviceTools
                 var changes = new JsonArray(Patch.Change("state", a.IsOn ? "on" : "off", i.Action == ActuatorActions.Off ? "off" : "on"));
                 if (i.DurationSec is not null) changes.Add(Patch.Change("durationSec", null, i.DurationSec));
                 if (i.AmountMl is not null) changes.Add(Patch.Change("amountMl", null, i.AmountMl));
+                if (ActuatorRoles.IsDosing(a.Role) || a.Kind == ActuatorKinds.FertilizerDoser)
+                {
+                    var ml = i.AmountMl ?? (i.DurationSec is { } d && a.FlowRateMlPerMin is { } fr ? d * fr / 60.0 : null);
+                    var label = a.Role is { } role ? role.Replace("dose_", "").Replace('_', ' ') : "fertilizer";
+                    return new ProposalPreview(ml is { } m ? $"Dose {m:0.#} ml {label} with '{a.Name}'" : what, "actuator", a.Id, a.GardenId, "medium", changes, AllowStanding: false);
+                }
                 return new ProposalPreview(what, "actuator", a.Id, a.GardenId, a.Kind == ActuatorKinds.Heater ? "medium" : "low", changes);
             },
             routine: true);
@@ -627,6 +683,7 @@ public static class DeviceTools
                 if (i.DeviceId is { } d) q = q.Where(c => c.DeviceId == d);
                 if (i.BedId is { } b) q = q.Where(c => c.BedId == b);
                 if (i.PlantId is { } p) q = q.Where(c => c.PlantId == p);
+                if (i.ReservoirId is { } r) q = q.Where(c => c.ReservoirId == r);
                 return (await q.OrderBy(c => c.Name).ToListAsync(ctx.Ct)).Select(CameraDto.From).ToList();
             });
 
@@ -634,24 +691,25 @@ public static class DeviceTools
             async (ctx, i) =>
             {
                 var device = await ApprovedDeviceAsync(ctx, i.DeviceId);
-                var (gardenId, bedId, plantId, tt) = await ResolveTargetAsync(ctx, i.TargetType, i.GardenId, i.BedId, i.PlantId, device.GardenId);
-                var c = new Camera { DeviceId = device.Id, Name = i.Name, PluginId = i.PluginId, Settings = i.Settings ?? new JsonObject(), TargetType = tt, GardenId = gardenId, BedId = bedId, PlantId = plantId };
-                Patch.Apply(c, i, nameof(i.DeviceId), nameof(i.Settings), nameof(i.TargetType), nameof(i.GardenId), nameof(i.BedId), nameof(i.PlantId));
+                var target = await ResolveTargetAsync(ctx, i.TargetType, i.GardenId, i.BedId, i.PlantId, device.GardenId, i.ReservoirId);
+                var c = new Camera { DeviceId = device.Id, Name = i.Name, PluginId = i.PluginId, Settings = i.Settings ?? new JsonObject() };
+                ApplyTarget(c, target);
+                Patch.Apply(c, i, nameof(i.DeviceId), nameof(i.Settings), nameof(i.TargetType), nameof(i.GardenId), nameof(i.BedId), nameof(i.PlantId), nameof(i.ReservoirId));
                 ctx.Db.Cameras.Add(c);
                 await ctx.Db.SaveChangesAsync(ctx.Ct);
                 ctx.Get<ConfigPushQueue>().Dirty(device.Id);
                 await Changed(ctx, "cameras");
                 return CameraDto.From(c);
             },
-            async (ctx, i) => new ProposalPreview($"Add camera '{i.Name}' for {await TargetLabelAsync(ctx, i.BedId, i.PlantId)}", i.TargetType, i.PlantId ?? i.BedId ?? i.GardenId, i.GardenId, "low", Patch.CreateChanges(i)));
+            async (ctx, i) => new ProposalPreview($"Add camera '{i.Name}' for {await TargetLabelAsync(ctx, i.BedId, i.PlantId, i.ReservoirId)}", i.TargetType, i.PlantId ?? i.BedId ?? i.ReservoirId ?? i.GardenId, i.GardenId, "low", Patch.CreateChanges(i)));
 
         r.Mutate<UpdateCameraInput, CameraDto>("update_camera", Category, "Change camera name, settings, capture resolution, frame interval or target.",
             async (ctx, i) =>
             {
                 var c = Ensure.Found(await ctx.Db.Cameras.FirstOrDefaultAsync(x => x.Id == i.CameraId, ctx.Ct), "Camera");
-                if (i.TargetType is not null || i.BedId is not null || i.PlantId is not null || i.GardenId is not null)
-                    (c.GardenId, c.BedId, c.PlantId, c.TargetType) = await ResolveTargetAsync(ctx, i.TargetType ?? c.TargetType, i.GardenId ?? c.GardenId, i.BedId ?? c.BedId, i.PlantId ?? c.PlantId, null);
-                Patch.Apply(c, i, nameof(i.CameraId), nameof(i.TargetType), nameof(i.GardenId), nameof(i.BedId), nameof(i.PlantId));
+                if (i.TargetType is not null || i.BedId is not null || i.PlantId is not null || i.GardenId is not null || i.ReservoirId is not null)
+                    ApplyTarget(c, await ResolveTargetAsync(ctx, i.TargetType ?? c.TargetType, i.GardenId ?? c.GardenId, i.BedId ?? c.BedId, i.PlantId ?? c.PlantId, null, i.ReservoirId ?? c.ReservoirId));
+                Patch.Apply(c, i, nameof(i.CameraId), nameof(i.TargetType), nameof(i.GardenId), nameof(i.BedId), nameof(i.PlantId), nameof(i.ReservoirId));
                 await ctx.Db.SaveChangesAsync(ctx.Ct);
                 ctx.Get<ConfigPushQueue>().Dirty(c.DeviceId);
                 await Changed(ctx, "cameras");

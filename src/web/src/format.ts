@@ -20,7 +20,29 @@ export const metricLabels: Record<string, string> = {
   flow_l_min: 'Flow',
   voltage_v: 'Voltage',
   digital: 'Digital',
+  dissolved_oxygen_mg_l: 'Dissolved O₂',
+  tds_ppm: 'TDS',
+  orp_mv: 'ORP',
 }
+
+export const mediumLabels: Record<string, string> = { soil: 'Soil', soilless: 'Soilless', hydroponic: 'Hydroponic' }
+
+export const roleLabels: Record<string, string> = {
+  irrigation: 'Irrigation',
+  circulation_pump: 'Circulation pump',
+  air_pump: 'Air pump',
+  dose_nutrient_a: 'Nutrient A doser',
+  dose_nutrient_b: 'Nutrient B doser',
+  dose_ph_up: 'pH Up doser',
+  dose_ph_down: 'pH Down doser',
+  dose_calmag: 'Cal-Mag doser',
+  dose_additive: 'Additive doser',
+  chiller: 'Chiller',
+  top_up_valve: 'Top-up valve',
+  drain: 'Drain',
+}
+
+export const isDoser = (a: { role?: string | null; kind: string }) => (a.role?.startsWith('dose_') ?? false) || a.kind === 'fertilizer_doser'
 
 export const metricLabel = (m: string) => metricLabels[m] ?? m.replace(/_/g, ' ')
 

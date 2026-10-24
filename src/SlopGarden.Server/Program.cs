@@ -94,6 +94,7 @@ builder.Services.AddSingleton(_ =>
     DeviceTools.Register(r);
     AutomationTools.Register(r);
     MiscTools.Register(r);
+    ReservoirTools.Register(r);
     return r;
 });
 builder.Services.AddSingleton<OpenAiClient>();
@@ -117,6 +118,8 @@ builder.Services.AddHostedService<ConfigPushWorker>();
 builder.Services.AddHostedService<UdpDiscoveryService>();
 builder.Services.AddHostedService<ServerScheduler>();
 builder.Services.AddHostedService<HousekeepingService>();
+builder.Services.AddSingleton<HydroWatchdog>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<HydroWatchdog>());
 
 var app = builder.Build();
 
@@ -145,6 +148,7 @@ app.UseAuthorization();
 
 app.MapOpenApi().AllowAnonymous();
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok", time = DateTimeOffset.UtcNow })).AllowAnonymous();
+app.MapGet("/api/timezones", () => TimeZones.Options).RequireAuthorization(Policies.ReadOnly).WithTags("Garden");
 CoreEndpoints.Map(app);
 AdminEndpoints.Map(app);
 McpEndpoint.Map(app);

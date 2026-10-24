@@ -4,7 +4,7 @@ import { IconPlus, IconTrash } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../api/client'
-import type { Actuator, Bed, EmergencyStop, Plant, SafetyLimit, Sensor } from '../api/types'
+import type { Actuator, Bed, EmergencyStop, Plant, ReservoirStatus, SafetyLimit, Sensor } from '../api/types'
 import { useAuth } from '../auth'
 import { useSave } from '../components/Forms'
 import { useOverview } from '../components/Layout'
@@ -17,6 +17,8 @@ const limitTypes: Record<string, { label: string; unit: string; interlock?: bool
   max_daily_run_seconds: { label: 'Max watering time per day', unit: 's' },
   min_seconds_between_runs: { label: 'Min time between actions', unit: 's' },
   max_daily_amount_ml: { label: 'Max fertilizer dose per day', unit: 'ml' },
+  max_hourly_amount_ml: { label: 'Max dose per hour (per doser)', unit: 'ml' },
+  min_seconds_between_doses: { label: 'Mixing wait between doses (per reservoir)', unit: 's' },
   tank_low_lockout: { label: 'No pumping when tank is low', unit: '%', interlock: true },
   max_temperature_cutoff: { label: 'Heater/light cutoff above', unit: '°C', interlock: true },
   min_temperature_cutoff: { label: 'Watering cutoff below', unit: '°C', interlock: true },
@@ -27,16 +29,18 @@ function useNames() {
   const { data: plants } = useQuery({ queryKey: ['plants'], queryFn: () => api.op<Plant[]>('list_plants') })
   const { data: actuators } = useQuery({ queryKey: ['actuators'], queryFn: () => api.op<Actuator[]>('list_actuators') })
   const { data: sensors } = useQuery({ queryKey: ['sensors'], queryFn: () => api.op<Sensor[]>('list_sensors') })
+  const { data: reservoirs } = useQuery({ queryKey: ['reservoirs'], queryFn: () => api.op<ReservoirStatus[]>('list_reservoirs') })
   const name = (type: string, id?: string | null) =>
-    !id ? 'everything' : type === 'bed' ? beds?.find((x) => x.id === id)?.name : type === 'plant' ? plants?.find((x) => x.id === id)?.name : type === 'actuator' ? actuators?.find((x) => x.id === id)?.name : id.slice(0, 8)
+    !id ? 'everything' : type === 'bed' ? beds?.find((x) => x.id === id)?.name : type === 'plant' ? plants?.find((x) => x.id === id)?.name
+      : type === 'actuator' ? actuators?.find((x) => x.id === id)?.name : type === 'reservoir' ? reservoirs?.find((x) => x.id === id)?.name : id.slice(0, 8)
   const channels = (sensors ?? []).flatMap((s) => s.channels.map((c) => ({ value: c.id, label: `${s.name} · ${metricLabel(c.metric)}` })))
   const channelName = (id?: string | null) => channels.find((c) => c.value === id)?.label
-  return { beds, plants, actuators, name, channels, channelName }
+  return { beds, plants, actuators, reservoirs, name, channels, channelName }
 }
 
 function LimitForm({ gardenId }: { gardenId: string }) {
   const save = useSave()
-  const { beds, plants, actuators, channels } = useNames()
+  const { beds, plants, actuators, reservoirs, channels } = useNames()
   const [limitType, setLimitType] = useState<string | null>('max_run_seconds')
   const [scopeType, setScopeType] = useState<string | null>('global')
   const [scopeId, setScopeId] = useState<string | null>(null)
@@ -44,12 +48,13 @@ function LimitForm({ gardenId }: { gardenId: string }) {
   const [channelId, setChannelId] = useState<string | null>(null)
   const [kind, setKind] = useState<string | null>(null)
   const [notes, setNotes] = useState('')
-  const scopeOptions = scopeType === 'bed' ? beds?.map((b) => ({ value: b.id, label: b.name })) : scopeType === 'plant' ? plants?.map((p) => ({ value: p.id, label: p.name })) : scopeType === 'actuator' ? actuators?.map((a) => ({ value: a.id, label: a.name })) : undefined
+  const scopeOptions = scopeType === 'bed' ? beds?.map((b) => ({ value: b.id, label: b.name })) : scopeType === 'plant' ? plants?.map((p) => ({ value: p.id, label: p.name }))
+    : scopeType === 'actuator' ? actuators?.map((a) => ({ value: a.id, label: a.name })) : scopeType === 'reservoir' ? reservoirs?.map((r) => ({ value: r.id, label: r.name })) : undefined
   return (
     <Stack>
       <Select label="Limit" data={Object.entries(limitTypes).map(([value, l]) => ({ value, label: l.label }))} value={limitType} onChange={setLimitType} allowDeselect={false} />
       <Group grow>
-        <Select label="Applies to" data={['global', 'garden', 'bed', 'plant', 'actuator'].map((v) => ({ value: v, label: titleCase(v) }))} value={scopeType} onChange={(v) => { setScopeType(v); setScopeId(v === 'garden' ? gardenId : null) }} allowDeselect={false} />
+        <Select label="Applies to" data={['global', 'garden', 'bed', 'plant', 'reservoir', 'actuator'].map((v) => ({ value: v, label: titleCase(v) }))} value={scopeType} onChange={(v) => { setScopeType(v); setScopeId(v === 'garden' ? gardenId : null) }} allowDeselect={false} />
         {scopeOptions && <Select label={titleCase(scopeType ?? '')} data={scopeOptions} value={scopeId} onChange={setScopeId} searchable />}
       </Group>
       <Group grow>

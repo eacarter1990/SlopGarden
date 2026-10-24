@@ -55,7 +55,8 @@ public sealed class ToolContext(IServiceProvider services, SlopDbContext db, Act
     public T Get<T>() where T : notnull => Services.GetRequiredService<T>();
 }
 
-public sealed record ProposalPreview(string Title, string TargetType, Guid? TargetId, Guid? GardenId, string Risk, JsonArray Changes);
+/// <param name="AllowStanding">False when "always allow" must not be offered (e.g. nutrient and pH dosing).</param>
+public sealed record ProposalPreview(string Title, string TargetType, Guid? TargetId, Guid? GardenId, string Risk, JsonArray Changes, bool AllowStanding = true);
 
 public sealed class ToolDefinition
 {

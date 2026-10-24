@@ -8,6 +8,7 @@ import { openBedForm, openPlantForm } from '../components/Forms'
 import { useOverview } from '../components/Layout'
 import { AiBadge, CameraImage, PageTitle, ReadingPill } from '../components/Widgets'
 import { titleCase } from '../format'
+import { ReservoirCard } from '../components/Reservoir'
 import { usePageEntity } from '../pageContext'
 
 export function BedPage() {
@@ -24,11 +25,11 @@ export function BedPage() {
     <Stack gap="lg">
       <PageTitle
         title={b.bed.name}
-        subtitle={`${titleCase(b.bed.kind)} · ${titleCase(b.bed.sunExposure)} · ${titleCase(b.bed.irrigationType)} irrigation${b.bed.widthCm ? ` · ${b.bed.widthCm}×${b.bed.lengthCm} cm` : ''}`}
+        subtitle={`${titleCase(b.medium)}${b.hydroSystem ? ` (${b.hydroSystem.replace('_', ' ').toUpperCase()})` : ''} · ${titleCase(b.bed.kind)} · ${titleCase(b.bed.sunExposure)} · ${b.medium === 'hydroponic' ? 'reservoir-fed' : `${titleCase(b.bed.irrigationType)} irrigation`}${b.bed.widthCm ? ` · ${b.bed.widthCm}×${b.bed.lengthCm} cm` : ''}`}
         right={
           <>
             <AiBadge active={b.aiActive} />
-            {canWrite && <Button variant="light" leftSection={<IconPencil size={16} />} onClick={() => openBedForm(o.garden.id, b.bed)}>Edit</Button>}
+            {canWrite && <Button variant="light" leftSection={<IconPencil size={16} />} onClick={() => openBedForm(o.garden.id, b.bed, o.garden.defaultGrowingMedium)}>Edit</Button>}
             {canWrite && <Button variant="light" leftSection={<IconPlus size={16} />} onClick={() => openPlantForm(b.bed.id)}>Add plant</Button>}
             <EmergencyStopButton scopeType="bed" scopeId={b.bed.id} label="Stop bed" />
           </>
@@ -63,6 +64,7 @@ export function BedPage() {
         </Grid.Col>
         <Grid.Col span={{ base: 12, lg: 4 }}>
           <Stack>
+            {b.reservoirId && o.reservoirs.find((r) => r.id === b.reservoirId) && <ReservoirCard r={o.reservoirs.find((r) => r.id === b.reservoirId)!} />}
             <Card>
               <Text fw={650} mb="xs">Bed readings</Text>
               <Group gap={6}>{b.readings.length ? b.readings.map((r) => <ReadingPill key={r.channelId} r={r} />) : <Text size="sm" c="dimmed">No bed-level sensors.</Text>}</Group>

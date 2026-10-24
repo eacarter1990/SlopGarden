@@ -8,6 +8,7 @@ import { ActuatorControl } from '../components/ActuatorControl'
 import { useOverview } from '../components/Layout'
 import { AiBadge, CameraImage, PageTitle, ReadingPill } from '../components/Widgets'
 import { ago, titleCase } from '../format'
+import { ReservoirCard } from '../components/Reservoir'
 import { useAuth } from '../auth'
 
 function Stat({ icon: Icon, color, label, value, hint, to }: { icon: typeof IconCpu; color: string; label: string; value: React.ReactNode; hint?: React.ReactNode; to?: string }) {
@@ -29,6 +30,8 @@ function Stat({ icon: Icon, color, label, value, hint, to }: { icon: typeof Icon
 function BedCard({ b, o }: { b: BedOverview; o: GardenOverview }) {
   const actuators = o.actuators.filter((a) => a.bedId === b.bed.id || b.plants.some((p) => p.plant.id === a.plantId))
   const camera = o.cameras.find((c) => c.bedId === b.bed.id || b.plants.some((p) => p.plant.id === c.plantId))
+  const hydro = b.medium === 'hydroponic'
+  const reservoir = b.reservoirId ? o.reservoirs.find((r) => r.id === b.reservoirId) : undefined
   return (
     <Card className={b.aiActive ? 'sg-ai-active' : undefined} padding="md">
       <Card.Section>
@@ -43,9 +46,12 @@ function BedCard({ b, o }: { b: BedOverview; o: GardenOverview }) {
         <Anchor component={Link} to={`/beds/${b.bed.id}`} fw={700} size="lg" c="inherit">{b.bed.name}</Anchor>
         <Group gap={4} wrap="nowrap">
           <AiBadge active={b.aiActive} />
+          {hydro ? <Badge variant="filled" color="blue">{(b.hydroSystem ?? 'hydro').replace('_', ' ').toUpperCase()}</Badge> : b.medium === 'soilless' ? <Badge variant="light" color="grape">Soilless</Badge> : null}
           <Badge variant="light" color="gray">{titleCase(b.bed.kind)}</Badge>
         </Group>
       </Group>
+      {reservoir && <div style={{ marginTop: 8 }}><ReservoirCard r={reservoir} compact /></div>}
+      {hydro && !reservoir && <Text size="xs" c="orange" mt={6}>Hydroponic bed without a reservoir — link one on the Garden page.</Text>}
       {b.readings.length > 0 && (
         <Group gap={6} mt="xs">
           {b.readings.map((r) => <ReadingPill key={r.channelId} r={r} />)}
@@ -66,7 +72,7 @@ function BedCard({ b, o }: { b: BedOverview; o: GardenOverview }) {
                 <Badge size="xs" variant="outline" color="green">{p.plant.stage}</Badge>
               </Group>
             </Group>
-            {(p.readings.length > 0 || b.readings.length > 0) && (
+            {!hydro && (p.readings.length > 0 || b.readings.length > 0) && (
               <Group gap={6} mt={6}>
                 {(p.readings.length ? p.readings : b.readings.filter((r) => p.targets.some((t) => t.metric === r.metric))).map((r) => (
                   <ReadingPill key={r.channelId} r={r} target={p.targets.find((t) => t.metric === r.metric)} />

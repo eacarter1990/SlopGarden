@@ -75,6 +75,7 @@ public static class ClientHost
         services.AddSingleton<SensorManager>();
         services.AddSingleton<CameraManager>();
         services.AddSingleton<LocalScheduler>();
+        services.AddSingleton<ActuatorSupervisor>();
         services.AddSingleton<DeviceRuntime>();
         services.AddSingleton<HardwareDiscoveryRunner>();
         services.AddSingleton<ServerDiscovery>();
@@ -87,6 +88,7 @@ public static class ClientHost
         // are switched to their failsafe state after the connection and uploader have stopped.
         services.AddHostedService(sp => sp.GetRequiredService<DeviceRuntime>());
         services.AddHostedService(sp => sp.GetRequiredService<LocalScheduler>());
+        services.AddHostedService(sp => sp.GetRequiredService<ActuatorSupervisor>());
         services.AddHostedService(sp => sp.GetRequiredService<OutboxUploader>());
         services.AddHostedService(sp => sp.GetRequiredService<DeviceConnection>());
         services.AddHostedService(sp => sp.GetRequiredService<LocalApiServer>());

@@ -8,7 +8,7 @@ import { api } from '../api/client'
 import { useAuth } from '../auth'
 
 interface Props {
-  scopeType: 'global' | 'garden' | 'bed' | 'plant' | 'device' | 'actuator'
+  scopeType: 'global' | 'garden' | 'bed' | 'plant' | 'reservoir' | 'device' | 'actuator'
   scopeId?: string
   label?: string
   compact?: boolean

@@ -220,6 +220,35 @@ Every component has a **target**: `target_type` (`garden`\|`bed`\|`plant`) plus 
 | `notification_deliveries` | id, notification_id, channel_id, status (`sent`\|`failed`\|`suppressed`), attempted_at, error? | |
 | `notification_mutes` | id, scope_type (`garden`\|`bed`\|`plant`\|`device`\|`sensor`), scope_id, category?, muted_until? (null = until unmuted), reason?, created_by, created_at | Mute per plant and per client to stop repeat alerts |
 
+### 2.10 Hydroponics (growing medium per bed)
+
+Each bed has a **growing medium**: `soil`, `soilless` (coco, perlite, rockwool, drip-to-waste) or `hydroponic`. A bed that doesn't set one inherits `gardens.default_growing_medium`. Hydroponic beds also have a **system** and are fed by a **reservoir**; the water-side sensors, pumps and dosers target the reservoir, because one tank often feeds several channels or beds.
+
+| Table / column | Columns | Notes |
+|---|---|---|
+| `gardens.default_growing_medium` | `soil`\|`soilless`\|`hydroponic` | Default for beds |
+| `beds.growing_medium`, `beds.hydro_system`, `beds.reservoir_id` | medium (null = inherit); system `nft`\|`dwc`\|`rdwc`\|`ebb_flow`\|`drip_recirculating`\|`drip_to_waste`\|`kratky`\|`wick`\|`aeroponic`; reservoir | The system decides the pump pattern (continuous, timed, passive), key metrics and AI guidance (`list_hydro_systems`) |
+| `reservoirs` | id, garden_id, name, volume_liters, last_changed_at, change_interval_days, topped_up_liters_since_change, ai_context, notes, archived_at | Solution changes and top-ups are journal entries (`reservoir_change`, `top_up`) |
+| `sensors/actuators/cameras.reservoir_id` | target type `reservoir` | EC, pH, water temperature, level, flow, dissolved O₂ |
+| `actuators.role` | `irrigation`, `circulation_pump`, `air_pump`, `dose_nutrient_a`/`_b`, `dose_ph_up`/`_down`, `dose_calmag`, `dose_additive`, `chiller`, `top_up_valve`, `drain` | Roles decide which limits and watchdogs apply |
+| `actuators.continuous_run` | bool | Kept on 24/7 by the device (NFT/DWC/RDWC circulation and air pumps); exempt from watering run limits |
+| `actuators.flow_channel_id`, `flow_min_when_on`, `flow_grace_sec`, `flow_max_when_off`, `stop_on_stall` | flow watchdog | **Flow stall**: on for longer than the grace period with flow below the minimum, so a critical alarm and, if enabled, the pump is stopped. **Unexpected flow**: flow above the threshold while the pump is off (leak or stuck valve) |
+| `care_targets.reservoir_id` | scope `reservoir` | EC, pH and water-temperature targets. Defaults: pH 5.5–6.5, water 18–22 °C, EC from the crops fed (`plant_profiles.ec_min/ec_max`) |
+| `safety_limits` | new types `max_hourly_amount_ml` and `min_seconds_between_doses` (mixing wait); new scope `reservoir` | Dosers also need the reservoir's circulation (or air) pump running |
+| `emergency_stops` | new scope `reservoir` | |
+| `ai_proposals.allow_standing` | bool | Dosing proposals never offer "always allow": every AI dose needs approval |
+
+**Safety and devices.** The desired config gives each actuator its role, reservoir, continuous-run flag, flow watch and dosing limits (`MaxHourlyAmountMl`, `MinSecondsBetweenReservoirDoses`, `RequiresActuatorOn`). The client enforces all of them offline:
+- it keeps continuous pumps on;
+- it watches flow every second, stopping a stalled pump and retrying after a cooldown;
+- it refuses doses that break the hourly limit, the mixing wait or the "circulation pump must be running" rule.
+
+The mixing wait applies between doses of the same doser and between nutrient and pH doses. Nutrient parts (A, B, Cal-Mag) may follow each other directly.
+
+The server re-checks every command and runs a watchdog as a backstop for flow stalls, unexpected flow, continuous pumps that are off, and solution changes that are due. Device and server alarms share dedupe keys, so each alarm is notified once.
+
+**AI.** The snapshot carries each bed's medium and system and each reservoir's readings, targets, pumps, doses since the last change and alerts. The AI proposes small single adjustments (pH first, then EC, with both nutrient parts together). For high EC it suggests a plain-water top-up instead of dosing.
+
 ---
 
 ## 3. Device lifecycle and protocol
@@ -291,7 +320,7 @@ sequenceDiagram
 
 | Milestone | Scope |
 |---|---|
-| **M1 (current)** | React web app; server + PostgreSQL; client service (Pi/systemd, Windows, macOS); sensor/actuator/camera plugin frameworks; AI chat (API key entry, markdown, approve/reject) backed by the MCP tool registry; sensor emulator with REST control and static camera; seeded virtual garden; tests |
+| **M1 (current)** | React web app; server + PostgreSQL; client service (Pi/systemd, Windows, macOS); sensor/actuator/camera plugin frameworks; AI chat (API key entry, markdown, approve/reject) backed by the MCP tool registry; sensor emulator with REST control and static camera; seeded virtual garden; **hydroponic mode** (per-bed medium, reservoirs, all common hobby systems, flow watchdog, approval-only dosing); tests |
 | M2 | Guided calibration wizard + AI calibration; scheduled reports (growth, images, conditions, harvest predictions); notification rules engine; Discord rich embeds; client updates from server with approval |
 | M3 | Real hardware bring-up on the user's Pi: GPIO/I²C/1-Wire validation, Arduino ADC bridge, Pi camera (libcamera) plugin, MJPEG live streaming |
 | M4 | USB/Bluetooth transports, ESP32 satellite nodes, plugin catalog publishing workflow, hardware recommendations from testing |

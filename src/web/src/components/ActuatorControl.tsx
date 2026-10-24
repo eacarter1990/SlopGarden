@@ -3,7 +3,7 @@ import { notifications } from '@mantine/notifications'
 import { IconBulb, IconDroplet, IconFlame, IconPlayerPlay, IconPower, IconPropeller, IconTestPipe, IconToggleLeft } from '@tabler/icons-react'
 import { api } from '../api/client'
 import { useAuth } from '../auth'
-import { ago } from '../format'
+import { ago, isDoser } from '../format'
 
 const icons: Record<string, typeof IconDroplet> = {
   pump: IconDroplet,
@@ -26,6 +26,8 @@ interface Brief {
   isOn: boolean
   stateSince?: string | null
   enabled: boolean
+  role?: string | null
+  continuousRun?: boolean
 }
 
 async function run(id: string, action: string, durationSec?: number, amountMl?: number) {
@@ -46,6 +48,7 @@ export function ActuatorControl({ a }: { a: Brief }) {
       <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
         <Icon size={16} color={a.isOn ? 'var(--mantine-color-blue-6)' : 'var(--mantine-color-gray-5)'} />
         <Text size="sm" truncate>{a.name}</Text>
+        {a.continuousRun && <Badge size="xs" variant="light" color="blue">24/7</Badge>}
       </Group>
       <Group gap={4} wrap="nowrap">
         <Tooltip label={a.stateSince ? `since ${ago(a.stateSince)}` : 'no state reported yet'}>
@@ -57,8 +60,9 @@ export function ActuatorControl({ a }: { a: Brief }) {
               <ActionIcon size="sm" variant="light" aria-label={`Control ${a.name}`}><IconPlayerPlay size={14} /></ActionIcon>
             </Menu.Target>
             <Menu.Dropdown>
-              {a.kind === 'fertilizer_doser' ? (
+              {isDoser(a) ? (
                 <>
+                  <Menu.Item onClick={() => run(a.id, 'dose', undefined, 2)}>Dose 2 ml</Menu.Item>
                   <Menu.Item onClick={() => run(a.id, 'dose', undefined, 5)}>Dose 5 ml</Menu.Item>
                   <Menu.Item onClick={() => run(a.id, 'dose', undefined, 10)}>Dose 10 ml</Menu.Item>
                 </>

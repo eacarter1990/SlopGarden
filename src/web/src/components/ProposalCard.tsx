@@ -32,7 +32,7 @@ export function ProposalCard({ proposal, onDecided }: { proposal: Proposal; onDe
   const { canWrite } = useAuth()
   const qc = useQueryClient()
   const { data: tools } = useToolDocs()
-  const routine = tools?.find((t) => t.name === proposal.toolName)?.routine ?? false
+  const routine = (tools?.find((t) => t.name === proposal.toolName)?.routine ?? false) && proposal.allowStanding !== false
   const [note, setNote] = useState('')
   const [always, setAlways] = useState(false)
   const [busy, setBusy] = useState<'approve' | 'reject' | null>(null)
@@ -108,6 +108,7 @@ export function ProposalCard({ proposal, onDecided }: { proposal: Proposal; onDe
         {pending && canWrite && (
           <>
             <Textarea size="xs" placeholder="Optional note for the AI" autosize minRows={1} value={note} onChange={(e) => setNote(e.currentTarget.value)} />
+            {proposal.allowStanding === false && proposal.toolName === 'run_actuator' && <Text size="xs" c="dimmed">Dosing always needs your approval; "always allow" isn't offered for it.</Text>}
             {routine && (
               <Checkbox
                 size="xs"

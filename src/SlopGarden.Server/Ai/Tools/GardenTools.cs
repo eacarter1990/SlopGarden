@@ -17,7 +17,7 @@ public static class GardenVocab
     public static readonly string[] Stages = ["planned", "seed", "germinating", "seedling", "vegetative", "flowering", "fruiting", "harvesting", "dormant", "removed"];
     public static readonly string[] StartedFrom = ["seed", "transplant", "cutting", "unknown"];
     public static readonly string[] Autonomy = ["propose_all", "standing_approvals"];
-    public static readonly string[] JournalKinds = ["note", "sown", "transplanted", "watered", "fertilized", "pruned", "pest", "disease", "harvest", "observation", "stage_change"];
+    public static readonly string[] JournalKinds = ["note", "sown", "transplanted", "watered", "fertilized", "pruned", "pest", "disease", "harvest", "observation", "stage_change", "reservoir_change", "top_up", "dose"];
     public static readonly string[] Categories = ["vegetable", "fruit", "herb", "flower", "other"];
     public static readonly string[] WaterNeeds = ["low", "medium", "high"];
 }
@@ -52,7 +52,8 @@ public sealed record UpdateGardenInput(
     string? HardinessZone = null,
     string? ClimateNotes = null,
     string? AiContext = null,
-    [property: Description("propose_all (every AI change needs approval) | standing_approvals (approved routine actions may repeat autonomously)")] string? AiAutonomy = null);
+    [property: Description("propose_all (every AI change needs approval) | standing_approvals (approved routine actions may repeat autonomously)")] string? AiAutonomy = null,
+    [property: Description("Default growing medium for beds that don't set their own: soil | soilless | hydroponic")] string? DefaultGrowingMedium = null);
 
 public sealed record ListBedsInput(Guid? GardenId = null, bool IncludeArchived = false);
 
@@ -68,6 +69,9 @@ public sealed record CreateBedInput(
     string? SoilNotes = null,
     [property: Description("drip | sprinkler | soaker | manual | hydroponic | none")] string? IrrigationType = null,
     [property: Description("full_sun | part_sun | part_shade | full_shade | grow_light")] string? SunExposure = null,
+    [property: Description("soil | soilless (coco, perlite, rockwool) | hydroponic. Omit to inherit the garden default")] string? GrowingMedium = null,
+    [property: Description("For hydroponic beds: nft | dwc | rdwc | ebb_flow | drip_recirculating | drip_to_waste | kratky | wick | aeroponic (see list_hydro_systems)")] string? HydroSystem = null,
+    [property: Description("Reservoir feeding this bed (hydroponic/soilless)")] Guid? ReservoirId = null,
     double? LayoutX = null,
     double? LayoutY = null,
     string? AiContext = null,
@@ -85,6 +89,10 @@ public sealed record UpdateBedInput(
     string? SoilNotes = null,
     string? IrrigationType = null,
     string? SunExposure = null,
+    [property: Description("soil | soilless (coco, perlite, rockwool) | hydroponic. Omit to inherit the garden default")] string? GrowingMedium = null,
+    [property: Description("For hydroponic beds: nft | dwc | rdwc | ebb_flow | drip_recirculating | drip_to_waste | kratky | wick | aeroponic (see list_hydro_systems)")] string? HydroSystem = null,
+    [property: Description("Reservoir feeding this bed (hydroponic/soilless)")] Guid? ReservoirId = null,
+
     double? LayoutX = null,
     double? LayoutY = null,
     string? AiContext = null,
@@ -165,23 +173,24 @@ public sealed record UpsertPlantProfileInput(
     [property: Description("Citations/URLs backing the values")] List<string>? Sources = null);
 
 public sealed record SetCareTargetInput(
-    [property: Description("plant | bed")] string ScopeType,
+    [property: Description("plant | bed | reservoir (EC/pH/water temperature of a nutrient reservoir)")] string ScopeType,
     Guid? PlantId,
     Guid? BedId,
     [property: Description("Metric id, e.g. soil_moisture_pct, air_temperature_c, light_hours, ph, ec_ms_cm")] string Metric,
     double? MinValue = null,
     double? MaxValue = null,
     double? IdealValue = null,
-    string? Rationale = null);
+    string? Rationale = null,
+    Guid? ReservoirId = null);
 
 public sealed record CareTargetIdInput(Guid CareTargetId);
 
-public sealed record ListCareTargetsInput(Guid? PlantId = null, Guid? BedId = null);
+public sealed record ListCareTargetsInput(Guid? PlantId = null, Guid? BedId = null, Guid? ReservoirId = null);
 
-public sealed record ListJournalInput(Guid? GardenId = null, Guid? BedId = null, Guid? PlantId = null, int Limit = 50);
+public sealed record ListJournalInput(Guid? GardenId = null, Guid? BedId = null, Guid? PlantId = null, int Limit = 50, Guid? ReservoirId = null);
 
 public sealed record AddJournalEntryInput(
-    [property: Description("note | sown | transplanted | watered | fertilized | pruned | pest | disease | harvest | observation | stage_change")] string Kind,
+    [property: Description("note | sown | transplanted | watered | fertilized | pruned | pest | disease | harvest | observation | stage_change | reservoir_change | top_up | dose")] string Kind,
     string Notes,
     Guid? GardenId = null,
     Guid? BedId = null,
@@ -235,6 +244,7 @@ public static class GardenTools
             async (ctx, i) =>
             {
                 Ensure.OneOf(i.Environment, GardenVocab.Environments, "environment");
+                if (i.TimezoneId is not null && !TimeZones.IsKnown(i.TimezoneId)) throw AppException.Bad($"Unknown time zone '{i.TimezoneId}'. Choose one from the list.");
                 var g = new Garden
                 {
                     Name = i.Name,
@@ -265,6 +275,8 @@ public static class GardenTools
                 Ensure.OneOf(i.AiAutonomy, GardenVocab.Autonomy, "aiAutonomy");
                 Ensure.OneOf(i.LocationSource, ["device", "manual"], "locationSource");
                 Ensure.OneOf(i.TimezoneSource, ["device", "manual"], "timezoneSource");
+                Ensure.OneOf(i.DefaultGrowingMedium, GrowingMedia.All, "defaultGrowingMedium");
+                if (i.TimezoneId is not null && !TimeZones.IsKnown(i.TimezoneId)) throw AppException.Bad($"Unknown time zone '{i.TimezoneId}'. Choose one from the list.");
                 var g = Ensure.Found(await ctx.Db.Gardens.FirstOrDefaultAsync(x => x.Id == i.GardenId, ctx.Ct), "Garden");
                 Patch.Apply(g, i, nameof(i.GardenId));
                 if (i.Latitude is not null && i.LocationSource is null) g.LocationSource = "manual";
@@ -296,6 +308,7 @@ public static class GardenTools
             async (ctx, i) =>
             {
                 ValidateBed(i.Kind, i.Environment, i.IrrigationType, i.SunExposure);
+                await ValidateHydroAsync(ctx, i.GrowingMedium, i.HydroSystem, i.ReservoirId);
                 _ = Ensure.Found(await ctx.Db.Gardens.FirstOrDefaultAsync(g => g.Id == i.GardenId, ctx.Ct), "Garden");
                 var b = new Bed { GardenId = i.GardenId };
                 Patch.Apply(b, i);
@@ -311,6 +324,7 @@ public static class GardenTools
             async (ctx, i) =>
             {
                 ValidateBed(i.Kind, i.Environment, i.IrrigationType, i.SunExposure);
+                await ValidateHydroAsync(ctx, i.GrowingMedium, i.HydroSystem, i.ReservoirId);
                 var b = Ensure.Found(await ctx.Db.Beds.FirstOrDefaultAsync(x => x.Id == i.BedId, ctx.Ct), "Bed");
                 Patch.Apply(b, i, nameof(i.BedId));
                 ctx.Db.Audit(ctx.Actor, "bed.update", "bed", b.Id);
@@ -507,6 +521,7 @@ public static class GardenTools
                 var q = ctx.Db.CareTargets.AsNoTracking().AsQueryable();
                 if (i.PlantId is { } pid) q = q.Where(t => t.PlantId == pid);
                 if (i.BedId is { } bid) q = q.Where(t => t.BedId == bid);
+                if (i.ReservoirId is { } rid) q = q.Where(t => t.ReservoirId == rid);
                 return await q.OrderBy(t => t.Metric).ToListAsync(ctx.Ct);
             });
 
@@ -514,12 +529,13 @@ public static class GardenTools
             "Set the desired range for one metric on a plant or bed (e.g. soil_moisture_pct 45–65 for the tomatoes). Overrides the crop profile.",
             async (ctx, i) =>
             {
-                Ensure.OneOf(i.ScopeType, ["plant", "bed"], "scopeType");
+                Ensure.OneOf(i.ScopeType, ["plant", "bed", "reservoir"], "scopeType");
                 var (bedId, plantId) = await ResolveCareScopeAsync(ctx, i);
-                var t = await ctx.Db.CareTargets.FirstOrDefaultAsync(x => x.ScopeType == i.ScopeType && x.BedId == bedId && x.PlantId == plantId && x.Metric == i.Metric, ctx.Ct);
+                var reservoirId = i.ScopeType == "reservoir" ? i.ReservoirId : null;
+                var t = await ctx.Db.CareTargets.FirstOrDefaultAsync(x => x.ScopeType == i.ScopeType && x.BedId == bedId && x.PlantId == plantId && x.ReservoirId == reservoirId && x.Metric == i.Metric, ctx.Ct);
                 if (t is null)
                 {
-                    t = new CareTarget { ScopeType = i.ScopeType, BedId = bedId, PlantId = plantId, Metric = i.Metric };
+                    t = new CareTarget { ScopeType = i.ScopeType, BedId = bedId, PlantId = plantId, ReservoirId = reservoirId, Metric = i.Metric };
                     ctx.Db.CareTargets.Add(t);
                 }
                 t.MinValue = i.MinValue ?? t.MinValue;
@@ -530,7 +546,7 @@ public static class GardenTools
                 t.UpdatedByType = ctx.ChangeActorType;
                 t.UpdatedById = ctx.Actor.UserId;
                 t.UpdatedAt = DateTimeOffset.UtcNow;
-                ctx.Db.Audit(ctx.Actor, "care_target.set", i.ScopeType, plantId ?? bedId);
+                ctx.Db.Audit(ctx.Actor, "care_target.set", i.ScopeType, plantId ?? bedId ?? reservoirId);
                 await ctx.Db.SaveChangesAsync(ctx.Ct);
                 await Changed(ctx, "plants");
                 return t;
@@ -538,14 +554,18 @@ public static class GardenTools
             async (ctx, i) =>
             {
                 var (bedId, plantId) = await ResolveCareScopeAsync(ctx, i);
-                var existing = await ctx.Db.CareTargets.AsNoTracking().FirstOrDefaultAsync(x => x.ScopeType == i.ScopeType && x.BedId == bedId && x.PlantId == plantId && x.Metric == i.Metric, ctx.Ct);
-                var name = plantId is { } p ? (await ctx.Db.Plants.AsNoTracking().Where(x => x.Id == p).Select(x => x.Name).FirstOrDefaultAsync(ctx.Ct)) : (await ctx.Db.Beds.AsNoTracking().Where(x => x.Id == bedId).Select(x => x.Name).FirstOrDefaultAsync(ctx.Ct));
-                var gardenId = await ctx.Db.Beds.Where(b => b.Id == bedId).Select(b => (Guid?)b.GardenId).FirstOrDefaultAsync(ctx.Ct);
+                var reservoirId = i.ScopeType == "reservoir" ? i.ReservoirId : null;
+                var existing = await ctx.Db.CareTargets.AsNoTracking().FirstOrDefaultAsync(x => x.ScopeType == i.ScopeType && x.BedId == bedId && x.PlantId == plantId && x.ReservoirId == reservoirId && x.Metric == i.Metric, ctx.Ct);
+                var name = plantId is { } p ? (await ctx.Db.Plants.AsNoTracking().Where(x => x.Id == p).Select(x => x.Name).FirstOrDefaultAsync(ctx.Ct))
+                    : reservoirId is { } r ? (await ctx.Db.Reservoirs.AsNoTracking().Where(x => x.Id == r).Select(x => x.Name).FirstOrDefaultAsync(ctx.Ct))
+                    : (await ctx.Db.Beds.AsNoTracking().Where(x => x.Id == bedId).Select(x => x.Name).FirstOrDefaultAsync(ctx.Ct));
+                var gardenId = reservoirId is { } rr ? await ctx.Db.Reservoirs.Where(x => x.Id == rr).Select(x => (Guid?)x.GardenId).FirstOrDefaultAsync(ctx.Ct)
+                    : await ctx.Db.Beds.Where(b => b.Id == bedId).Select(b => (Guid?)b.GardenId).FirstOrDefaultAsync(ctx.Ct);
                 var changes = new JsonArray(
                     Patch.Change($"{i.Metric}.min", existing?.MinValue, i.MinValue ?? existing?.MinValue),
                     Patch.Change($"{i.Metric}.max", existing?.MaxValue, i.MaxValue ?? existing?.MaxValue));
                 if (i.IdealValue is not null) changes.Add(Patch.Change($"{i.Metric}.ideal", existing?.IdealValue, i.IdealValue));
-                return new ProposalPreview($"Set {i.Metric} target for '{name}'", i.ScopeType, plantId ?? bedId, gardenId, "low", changes);
+                return new ProposalPreview($"Set {i.Metric} target for '{name}'", i.ScopeType, plantId ?? bedId ?? reservoirId, gardenId, "low", changes);
             });
 
         r.Mutate<CareTargetIdInput, bool>("delete_care_target", Category, "Remove a care target override (falls back to the crop profile).",
@@ -571,6 +591,7 @@ public static class GardenTools
                 if (i.GardenId is { } g) q = q.Where(j => j.GardenId == g);
                 if (i.BedId is { } b) q = q.Where(j => j.BedId == b);
                 if (i.PlantId is { } p) q = q.Where(j => j.PlantId == p);
+                if (i.ReservoirId is { } r) q = q.Where(j => j.ReservoirId == r);
                 return await q.OrderByDescending(j => j.OccurredAt).Take(Math.Clamp(i.Limit, 1, 500)).ToListAsync(ctx.Ct);
             });
 
@@ -604,8 +625,21 @@ public static class GardenTools
         Ensure.OneOf(sun, GardenVocab.Sun, "sunExposure");
     }
 
+    private static async Task ValidateHydroAsync(ToolContext ctx, string? medium, string? system, Guid? reservoirId)
+    {
+        Ensure.OneOf(medium, GrowingMedia.All, "growingMedium");
+        Ensure.OneOf(system, HydroSystems.Ids, "hydroSystem");
+        if (reservoirId is { } rid && !await ctx.Db.Reservoirs.AnyAsync(r => r.Id == rid, ctx.Ct)) throw AppException.NotFound("Reservoir");
+    }
+
     private static async Task<(Guid? BedId, Guid? PlantId)> ResolveCareScopeAsync(ToolContext ctx, SetCareTargetInput i)
     {
+        if (i.ScopeType == "reservoir")
+        {
+            var rid = i.ReservoirId ?? throw AppException.Bad("reservoirId is required for scopeType=reservoir");
+            if (!await ctx.Db.Reservoirs.AnyAsync(r => r.Id == rid, ctx.Ct)) throw AppException.NotFound("Reservoir");
+            return (null, null);
+        }
         if (i.ScopeType == "plant")
         {
             var pid = i.PlantId ?? throw AppException.Bad("plantId is required for scopeType=plant");

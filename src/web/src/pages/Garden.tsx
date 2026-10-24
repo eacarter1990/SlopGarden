@@ -9,12 +9,14 @@ import { useAuth } from '../auth'
 import { environments, openBedForm, openPlantForm, opts, useSave } from '../components/Forms'
 import { useOverview } from '../components/Layout'
 import { PageTitle } from '../components/Widgets'
-import { titleCase } from '../format'
+import { ReservoirActions, ReservoirCard, openReservoirForm, useHydroSystems, useReservoirs } from '../components/Reservoir'
+import { mediumLabels, titleCase } from '../format'
 import { usePageEntity } from '../pageContext'
 
 function GardenSettings({ garden }: { garden: Garden }) {
   const { canWrite } = useAuth()
   const save = useSave()
+  const { data: timeZones } = useQuery({ queryKey: ['timezones'], queryFn: () => api.get<{ id: string; label: string }[]>('/api/timezones'), staleTime: Infinity })
   const [g, setG] = useState(garden)
   useEffect(() => setG(garden), [garden])
   const set = (k: keyof Garden) => (v: unknown) => setG((s) => ({ ...s, [k]: v }))
@@ -23,7 +25,7 @@ function GardenSettings({ garden }: { garden: Garden }) {
       gardenId: g.id, name: g.name, description: g.description, environment: g.environment, locationSource: g.locationSource, timezoneSource: g.timezoneSource,
       ...(g.locationSource === 'manual' ? { latitude: g.latitude, longitude: g.longitude, locationLabel: g.locationLabel } : {}),
       ...(g.timezoneSource === 'manual' ? { timezoneId: g.timezoneId } : {}),
-      hardinessZone: g.hardinessZone ?? undefined, aiContext: g.aiContext, aiAutonomy: g.aiAutonomy,
+      hardinessZone: g.hardinessZone ?? undefined, aiContext: g.aiContext, aiAutonomy: g.aiAutonomy, defaultGrowingMedium: g.defaultGrowingMedium,
     }, 'Garden saved')
   return (
     <Card>
@@ -32,6 +34,14 @@ function GardenSettings({ garden }: { garden: Garden }) {
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
           <TextInput label="Name" value={g.name} onChange={(e) => set('name')(e.currentTarget.value)} disabled={!canWrite} />
           <Select label="Environment" data={opts(environments)} value={g.environment} onChange={set('environment')} disabled={!canWrite} />
+          <Select
+            label="Default growing medium"
+            description="Beds use this unless they set their own"
+            data={[{ value: 'soil', label: 'Soil' }, { value: 'soilless', label: 'Soilless (coco, perlite, rockwool)' }, { value: 'hydroponic', label: 'Hydroponic' }]}
+            value={g.defaultGrowingMedium}
+            onChange={set('defaultGrowingMedium')}
+            disabled={!canWrite}
+          />
         </SimpleGrid>
         <div>
           <Text size="sm" fw={500} mb={4}>Location & time</Text>
@@ -40,7 +50,15 @@ function GardenSettings({ garden }: { garden: Garden }) {
         <SimpleGrid cols={{ base: 1, sm: 4 }}>
           <NumberInput label="Latitude" decimalScale={4} value={g.latitude ?? ''} onChange={(v) => set('latitude')(v === '' ? null : Number(v))} disabled={!canWrite || g.locationSource !== 'manual'} />
           <NumberInput label="Longitude" decimalScale={4} value={g.longitude ?? ''} onChange={(v) => set('longitude')(v === '' ? null : Number(v))} disabled={!canWrite || g.locationSource !== 'manual'} />
-          <TextInput label="Timezone" value={g.timezoneId} onChange={(e) => set('timezoneId')(e.currentTarget.value)} disabled={!canWrite || g.timezoneSource !== 'manual'} />
+          <Select
+            label="Time zone"
+            searchable
+            nothingFoundMessage="No matching time zone"
+            data={(timeZones ?? [{ id: g.timezoneId, label: g.timezoneId }]).map((z) => ({ value: z.id, label: z.label }))}
+            value={g.timezoneId}
+            onChange={(v) => v && set('timezoneId')(v)}
+            disabled={!canWrite || g.timezoneSource !== 'manual'}
+          />
           <TextInput label="Hardiness zone" value={g.hardinessZone ?? ''} onChange={(e) => set('hardinessZone')(e.currentTarget.value)} disabled={!canWrite} />
         </SimpleGrid>
         <Textarea label="Notes for the AI" description="Context the AI must respect for the whole garden" autosize minRows={2} value={g.aiContext} onChange={(e) => set('aiContext')(e.currentTarget.value)} disabled={!canWrite} />
@@ -66,11 +84,13 @@ export function GardenPage() {
   const { data: beds } = useQuery({ queryKey: ['beds'], queryFn: () => api.op<Bed[]>('list_beds') })
   const { data: plants } = useQuery({ queryKey: ['plants'], queryFn: () => api.op<Plant[]>('list_plants') })
   const { data: profiles } = useQuery({ queryKey: ['profiles'], queryFn: () => api.op<PlantProfile[]>('list_plant_profiles') })
+  const { data: reservoirs } = useReservoirs()
+  const { data: systems } = useHydroSystems()
   usePageEntity('garden', o?.garden.id, o ? `Garden: ${o.garden.name}` : undefined)
   if (!o) return null
   return (
     <Stack gap="lg">
-      <PageTitle title="Garden" subtitle="Beds, plants and the context the AI works with" right={canWrite && <Button leftSection={<IconPlus size={16} />} onClick={() => openBedForm(o.garden.id)}>New bed</Button>} />
+      <PageTitle title="Garden" subtitle="Beds, plants and the context the AI works with" right={canWrite && <Button leftSection={<IconPlus size={16} />} onClick={() => openBedForm(o.garden.id, undefined, o.garden.defaultGrowingMedium)}>New bed</Button>} />
       <GardenSettings garden={o.garden} />
       <SimpleGrid cols={{ base: 1, lg: 2 }}>
         {(beds ?? []).map((b) => (
@@ -78,10 +98,13 @@ export function GardenPage() {
             <Group justify="space-between">
               <Anchor component={Link} to={`/beds/${b.id}`} fw={700} c="inherit">{b.name}</Anchor>
               <Group gap={4}>
+                <Badge variant="filled" color={(b.growingMedium ?? o.garden.defaultGrowingMedium) === 'hydroponic' ? 'blue' : (b.growingMedium ?? o.garden.defaultGrowingMedium) === 'soilless' ? 'grape' : 'green'}>
+                  {mediumLabels[b.growingMedium ?? o.garden.defaultGrowingMedium]}{b.growingMedium ? '' : ' (default)'}
+                </Badge>
+                {b.hydroSystem && (b.growingMedium ?? o.garden.defaultGrowingMedium) === 'hydroponic' && <Badge variant="light" color="blue">{systems?.find((s) => s.id === b.hydroSystem)?.label ?? b.hydroSystem}</Badge>}
                 <Badge variant="light">{titleCase(b.kind)}</Badge>
                 <Badge variant="light" color="yellow">{titleCase(b.sunExposure)}</Badge>
-                <Badge variant="light" color="blue">{titleCase(b.irrigationType)}</Badge>
-                {canWrite && <ActionIcon variant="subtle" onClick={() => openBedForm(o.garden.id, b)}><IconPencil size={16} /></ActionIcon>}
+                {canWrite && <ActionIcon variant="subtle" onClick={() => openBedForm(o.garden.id, b, o.garden.defaultGrowingMedium)}><IconPencil size={16} /></ActionIcon>}
               </Group>
             </Group>
             {b.aiContext && <Text size="xs" c="dimmed" mt={4}>AI note: {b.aiContext}</Text>}
@@ -102,11 +125,30 @@ export function GardenPage() {
         ))}
       </SimpleGrid>
       <Card>
+        <Group justify="space-between" mb="xs">
+          <div>
+            <Text fw={650}>Reservoirs</Text>
+            <Text size="sm" c="dimmed">Nutrient tanks for hydroponic and soilless beds. EC, pH, water temperature, level and flow sensors, pumps and dosers attach to a reservoir.</Text>
+          </div>
+          {canWrite && <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => openReservoirForm()}>New reservoir</Button>}
+        </Group>
+        <SimpleGrid cols={{ base: 1, lg: 2 }}>
+          {(reservoirs ?? []).map((r) => (
+            <Stack key={r.id} gap={6}>
+              <ReservoirCard r={r} />
+              <Text size="xs" c="dimmed">Feeds: {r.beds.map((b) => b.name).join(', ') || 'no beds yet'}</Text>
+              <ReservoirActions r={r} />
+            </Stack>
+          ))}
+        </SimpleGrid>
+        {reservoirs?.length === 0 && <Text size="sm" c="dimmed">No reservoirs yet.</Text>}
+      </Card>
+      <Card>
         <Text fw={650} mb="xs">Crop profiles ({profiles?.length ?? 0})</Text>
         <Text size="sm" c="dimmed" mb="sm">Water, light and temperature needs the AI uses. The AI can research and tweak these (with your approval).</Text>
         <Table striped fz="xs">
           <Table.Thead>
-            <Table.Tr><Table.Th>Crop</Table.Th><Table.Th>Water</Table.Th><Table.Th>Soil moisture</Table.Th><Table.Th>Light h</Table.Th><Table.Th>Air °C</Table.Th><Table.Th>pH</Table.Th><Table.Th>Days</Table.Th><Table.Th>Source</Table.Th></Table.Tr>
+            <Table.Tr><Table.Th>Crop</Table.Th><Table.Th>Water</Table.Th><Table.Th>Soil moisture</Table.Th><Table.Th>Light h</Table.Th><Table.Th>Air °C</Table.Th><Table.Th>pH</Table.Th><Table.Th>Hydro EC</Table.Th><Table.Th>Days</Table.Th><Table.Th>Source</Table.Th></Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {(profiles ?? []).map((p) => (
@@ -117,6 +159,7 @@ export function GardenPage() {
                 <Table.Td>{p.lightHoursMin}–{p.lightHoursMax}</Table.Td>
                 <Table.Td>{p.airTempMinC}–{p.airTempMaxC}</Table.Td>
                 <Table.Td>{p.phMin}–{p.phMax}</Table.Td>
+                <Table.Td>{p.ecMin != null ? `${p.ecMin}–${p.ecMax}` : '–'}</Table.Td>
                 <Table.Td>{p.daysToMaturityMin}–{p.daysToMaturityMax}</Table.Td>
                 <Table.Td><Badge size="xs" variant="light" color={p.createdByType === 'ai' ? 'violet' : 'gray'}>{p.isBuiltin ? 'built-in' : p.createdByType}</Badge></Table.Td>
               </Table.Tr>

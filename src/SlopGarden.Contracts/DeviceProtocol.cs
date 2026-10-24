@@ -137,7 +137,8 @@ public sealed record DeviceEventReport(
     string Message,
     Guid? SensorId,
     Guid? ActuatorId,
-    Guid? CameraId);
+    Guid? CameraId,
+    string? Code = null);
 
 public sealed record ConfigAppliedReport(int Version, bool Success, IReadOnlyList<string> Errors);
 

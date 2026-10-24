@@ -33,7 +33,22 @@ MAPPING = {
     "fertilizer-doser": ("garden", None, None, {"flowRateMlPerMin": 60}),
     "tomato-cam": ("bed", "Tomato bed", None, {}),
     "lettuce-cam": ("bed", "Lettuce bed", None, {}),
+    # hydroponic NFT rack: water-side hardware targets the reservoir
+    "hydro-ec": ("reservoir", None, None, {}),
+    "hydro-ph": ("reservoir", None, None, {}),
+    "hydro-water-temperature": ("reservoir", None, None, {}),
+    "hydro-reservoir-level": ("reservoir", None, None, {}),
+    "hydro-flow": ("reservoir", None, None, {}),
+    "hydro-dissolved-oxygen": ("reservoir", None, None, {}),
+    "nft-pump": ("reservoir", None, None, {"role": "circulation_pump", "continuousRun": True}),
+    "air-pump": ("reservoir", None, None, {"role": "air_pump", "continuousRun": True}),
+    "doser-nutrient-a": ("reservoir", None, None, {"role": "dose_nutrient_a", "flowRateMlPerMin": 60}),
+    "doser-nutrient-b": ("reservoir", None, None, {"role": "dose_nutrient_b", "flowRateMlPerMin": 60}),
+    "doser-ph-down": ("reservoir", None, None, {"role": "dose_ph_down", "flowRateMlPerMin": 30}),
+    "doser-ph-up": ("reservoir", None, None, {"role": "dose_ph_up", "flowRateMlPerMin": 30}),
+    "hydro-cam": ("bed", "NFT lettuce rack", None, {}),
 }
+RESERVOIR = "NFT rack reservoir"
 
 
 class Api:
@@ -90,6 +105,7 @@ def main():
     detail = wait("discovered hardware", lambda: (lambda d: d if len(d["discovered"]) >= len(MAPPING) else None)(api.op("get_device", deviceId=device_id)))
     beds = {b["name"]: b["id"] for b in api.op("list_beds")}
     plants = {p["name"]: p["id"] for p in api.op("list_plants")}
+    reservoirs = {r["name"]: r["id"] for r in api.op("list_reservoirs")}
 
     adopted = {}
     for h in detail["discovered"]:
@@ -101,7 +117,13 @@ def main():
             adopted[emu_id] = (h["kind"], h["adoptedComponentId"])
             continue
         args = {"discoveredId": h["id"], "targetType": target_type, "readIntervalSec": 5}
+        if target_type == "reservoir":
+            if RESERVOIR not in reservoirs:
+                continue
+            args["reservoirId"] = reservoirs[RESERVOIR]
         if bed:
+            if bed not in beds:
+                continue
             args["bedId"] = beds[bed]
         if plant:
             args["plantId"] = plants[plant]
@@ -109,7 +131,7 @@ def main():
         adopted[emu_id] = (r["kind"], r["componentId"])
         if extra and r["kind"] == "actuator":
             api.op("update_actuator", actuatorId=r["componentId"], **extra)
-        print(f"  + {r['kind']:<8} {r['name']}  ->  {plant or bed or 'garden'}")
+        print(f"  + {r['kind']:<8} {r['name']}  ->  {plant or bed or (RESERVOIR if target_type == 'reservoir' else 'garden')}")
 
     sensors = api.op("list_sensors", deviceId=device_id)
     channel = {s["settings"].get("sensorId"): s["channels"][0]["id"] for s in sensors if s["channels"]}
@@ -132,6 +154,13 @@ def main():
     if not any(s["schedule"]["kind"] == "ai_review" for s in schedules):
         api.op("create_schedule", name="Daily AI garden check", kind="ai_review", cron="0 8 * * *",
                payload={"prompt": "Morning check: compare soil moisture to each plant's target and water anything that is too dry."})
+
+    if "nft-pump" in adopted and "hydro-flow" in channel:
+        api.op("update_actuator", actuatorId=adopted["nft-pump"][1], flowChannelId=channel["hydro-flow"], flowMinWhenOn=0.5, flowGraceSec=20,
+               flowMaxWhenOff=0.3, stopOnStall=True)
+    if "hydro-reservoir-level" in channel and not any(l["limitType"] == "tank_low_lockout" and l.get("scopeType") == "reservoir" for l in limits) and RESERVOIR in reservoirs:
+        api.op("set_safety_limit", scopeType="reservoir", scopeId=reservoirs[RESERVOIR], limitType="tank_low_lockout", value=20,
+               channelId=channel["hydro-reservoir-level"], notes="Protect the NFT pump from running dry")
 
     print(f"Demo garden wired: {len(adopted)} components on device {device_id}")
 

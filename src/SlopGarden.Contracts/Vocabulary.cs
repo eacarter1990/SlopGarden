@@ -22,6 +22,9 @@ public static class Metrics
     public const string FlowLitersPerMin = "flow_l_min";
     public const string Voltage = "voltage_v";
     public const string Digital = "digital";
+    public const string DissolvedOxygenMgL = "dissolved_oxygen_mg_l";
+    public const string TdsPpm = "tds_ppm";
+    public const string OrpMv = "orp_mv";
 
     public static readonly IReadOnlyDictionary<string, string> DefaultUnits = new Dictionary<string, string>
     {
@@ -41,6 +44,9 @@ public static class Metrics
         [FlowLitersPerMin] = "L/min",
         [Voltage] = "V",
         [Digital] = "bool",
+        [DissolvedOxygenMgL] = "mg/L",
+        [TdsPpm] = "ppm",
+        [OrpMv] = "mV",
     };
 }
 
@@ -59,6 +65,53 @@ public static class ActuatorKinds
 
     /// <summary>Kinds that move water and are subject to watering limits and tank-low lockout.</summary>
     public static bool IsWatering(string kind) => kind is Pump or Valve or Mister;
+}
+
+/// <summary>What an actuator does in the system. Roles decide which safety limits and watchdogs apply.</summary>
+public static class ActuatorRoles
+{
+    public const string Irrigation = "irrigation";
+    public const string CirculationPump = "circulation_pump";
+    public const string AirPump = "air_pump";
+    public const string DoseNutrientA = "dose_nutrient_a";
+    public const string DoseNutrientB = "dose_nutrient_b";
+    public const string DosePhUp = "dose_ph_up";
+    public const string DosePhDown = "dose_ph_down";
+    public const string DoseCalMag = "dose_calmag";
+    public const string DoseAdditive = "dose_additive";
+    public const string Chiller = "chiller";
+    public const string TopUpValve = "top_up_valve";
+    public const string Drain = "drain";
+
+    public static readonly string[] All = [Irrigation, CirculationPump, AirPump, DoseNutrientA, DoseNutrientB, DosePhUp, DosePhDown, DoseCalMag, DoseAdditive, Chiller, TopUpValve, Drain];
+
+    public static bool IsDosing(string? role) => role is not null && role.StartsWith("dose_", StringComparison.Ordinal);
+
+    public static string? DoseGroup(string? role) => role switch
+    {
+        DosePhUp or DosePhDown => "ph",
+        _ when IsDosing(role) => "nutrient",
+        _ => null,
+    };
+
+    /// <summary>
+    /// Mixing wait: after a dose, the reservoir must mix before the next one, except that parts of a nutrient
+    /// (A, B, Cal-Mag, additives) may follow each other directly. The same doser twice, nutrient→pH, pH→nutrient
+    /// and pH→pH all wait.
+    /// </summary>
+    public static bool NeedsMixingWait(string? previousRole, string? nextRole) =>
+        previousRole == nextRole || DoseGroup(previousRole) != DoseGroup(nextRole) || DoseGroup(nextRole) == "ph";
+
+    /// <summary>Pumps that are meant to run for long periods; per-run/per-day watering limits don't apply to them.</summary>
+    public static bool IsContinuous(string? role) => role is CirculationPump or AirPump;
+}
+
+public static class SafetyEventCodes
+{
+    public const string FlowStall = "flow_stall";
+    public const string UnexpectedFlow = "unexpected_flow";
+    public const string PumpNotRunning = "pump_not_running";
+    public const string InterlockTripped = "interlock_tripped";
 }
 
 public static class ActuatorActions

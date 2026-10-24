@@ -47,11 +47,11 @@ public sealed class RecordingReporter : IDeviceReporter
     public ConcurrentQueue<ActuatorStateReport> States { get; } = new();
     public ConcurrentQueue<ConfigAppliedReport> Configs { get; } = new();
 
-    public void Event(string severity, string category, string message, Guid? sensorId = null, Guid? actuatorId = null, Guid? cameraId = null) =>
-        Events.Enqueue(new DeviceEventReport(DateTimeOffset.UtcNow, severity, category, message, sensorId, actuatorId, cameraId));
+    public void Event(string severity, string category, string message, Guid? sensorId = null, Guid? actuatorId = null, Guid? cameraId = null, string? code = null) =>
+        Events.Enqueue(new DeviceEventReport(DateTimeOffset.UtcNow, severity, category, message, sensorId, actuatorId, cameraId, code));
 
-    public void EventThrottled(string key, TimeSpan interval, string severity, string category, string message, Guid? sensorId = null, Guid? actuatorId = null, Guid? cameraId = null) =>
-        Event(severity, category, message, sensorId, actuatorId, cameraId);
+    public void EventThrottled(string key, TimeSpan interval, string severity, string category, string message, Guid? sensorId = null, Guid? actuatorId = null, Guid? cameraId = null, string? code = null) =>
+        Event(severity, category, message, sensorId, actuatorId, cameraId, code);
 
     public void Ack(Guid commandId, string status, string? reason) => Acks.Enqueue(new CommandAck(commandId, status, reason, DateTimeOffset.UtcNow));
 
