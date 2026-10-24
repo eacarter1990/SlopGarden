@@ -225,7 +225,8 @@ public sealed class ActuatorController : IAsyncDisposable
             if (request.Action == ActuatorActions.Off)
             {
                 if (slot.On) await StopLockedAsync(slot, StopReasons.OffCommand, "switched off");
-                else if (!await TrySetDeviceAsync(slot, false)) return new CommandOutcome(CommandStatuses.Failed, "could not switch off");
+                else await TrySetDeviceAsync(slot, false);
+                if (slot.On || slot.OffFailed) return new CommandOutcome(CommandStatuses.Failed, "could not switch off");
                 if (commandId is { } offId) _reporter.Ack(offId, CommandStatuses.Completed, null);
                 return new CommandOutcome(CommandStatuses.Completed, null);
             }
@@ -337,6 +338,7 @@ public sealed class ActuatorController : IAsyncDisposable
         {
             using var timeout = new CancellationTokenSource(DeviceTimeout);
             await slot.Device.SetStateAsync(on, null, timeout.Token);
+            if (!on) slot.OffFailed = false;
             return true;
         }
         catch (Exception ex)
@@ -344,8 +346,51 @@ public sealed class ActuatorController : IAsyncDisposable
             _logger.LogError(ex, "Could not switch {ActuatorName} {State}", slot.Config.Name, on ? "on" : "off");
             _reporter.Event(on ? EventSeverities.Error : EventSeverities.Critical, EventCategories.Actuator,
                 $"Could not switch '{slot.Config.Name}' {(on ? "on" : "off")}: {ex.Message}", actuatorId: slot.Config.Id);
+            if (!on && !slot.OffFailed)
+            {
+                slot.OffFailed = true;
+                StartOffRetry(slot, slot.Device);
+            }
             return false;
         }
+    }
+
+    /// <summary>Keeps trying to switch off an output that failed to switch off, until it succeeds or the device is replaced.</summary>
+    private void StartOffRetry(Slot slot, IActuator device)
+    {
+        _ = Task.Run(async () =>
+        {
+            var delay = TimeSpan.FromSeconds(2);
+            while (true)
+            {
+                await Task.Delay(delay, _time);
+                delay = TimeSpan.FromSeconds(Math.Min(60, delay.TotalSeconds * 2));
+                await slot.Gate.WaitAsync();
+                try
+                {
+                    if (!slot.OffFailed || !ReferenceEquals(slot.Device, device)) return;
+                    if (slot.Run is not null) continue;
+                    using var timeout = new CancellationTokenSource(DeviceTimeout);
+                    await device.SetStateAsync(false, null, timeout.Token);
+                    slot.OffFailed = false;
+                    slot.On = false;
+                    slot.Level = null;
+                    slot.Since = _time.GetUtcNow();
+                    _logger.LogWarning("{ActuatorName} switched off after an earlier failure", slot.Config.Name);
+                    _reporter.Event(EventSeverities.Warning, EventCategories.Actuator, $"'{slot.Config.Name}' is off again after an earlier switch-off failure", actuatorId: slot.Config.Id);
+                    _reporter.ActuatorState(new ActuatorStateReport(slot.Config.Id, false, null, slot.Since, null, "off_retry"));
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Retrying switch-off of {ActuatorName} failed", slot.Config.Name);
+                }
+                finally
+                {
+                    slot.Gate.Release();
+                }
+            }
+        });
     }
 
     private async Task ApplyFailsafeAsync(Slot slot, string reason)
@@ -430,6 +475,7 @@ public sealed class ActuatorController : IAsyncDisposable
         public IActuator? Device { get; set; }
         public string? CreateError { get; set; }
         public bool On { get; set; }
+        public bool OffFailed { get; set; }
         public double? Level { get; set; }
         public DateTimeOffset Since { get; set; } = since;
         public ActiveRun? Run { get; set; }
