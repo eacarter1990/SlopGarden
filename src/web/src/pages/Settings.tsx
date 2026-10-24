@@ -24,7 +24,14 @@ async function act<T>(fn: () => Promise<T>, ok = 'Saved'): Promise<T | undefined
 interface AiSettings {
   providers: { id: string; name: string; baseUrl: string; defaultModel: string; hasApiKey: boolean }[]
   assignments: { job: string; providerId?: string | null; model: string; temperature?: number | null; maxOutputTokens?: number | null; contextMessageLimit: number }[]
-  webSearch: { provider: string; baseUrl?: string | null; hasApiKey: boolean; providers: string[] }
+  webSearch: {
+    provider: string
+    baseUrl?: string | null
+    mode: 'auto' | 'custom'
+    hasApiKey: boolean
+    providers: string[]
+    status: { job: string; mode: 'openai_native' | 'custom' | 'none'; model?: string | null; reason: string; fallbackAvailable: boolean }[]
+  }
 }
 
 const jobLabels: Record<string, string> = {
@@ -84,10 +91,10 @@ function AiTab() {
   const qc = useQueryClient()
   const { isAdmin } = useAuth()
   const { data } = useQuery({ queryKey: ['settings', 'ai'], queryFn: () => api.get<AiSettings>('/api/settings/ai') })
-  const [search, setSearch] = useState<{ provider: string; baseUrl: string; apiKey: string } | null>(null)
+  const [search, setSearch] = useState<{ provider: string; baseUrl: string; apiKey: string; mode: 'auto' | 'custom' } | null>(null)
   const refresh = () => qc.invalidateQueries({ queryKey: ['settings', 'ai'] })
   if (!data) return null
-  const ws = search ?? { provider: data.webSearch.provider, baseUrl: data.webSearch.baseUrl ?? '', apiKey: '' }
+  const ws = search ?? { provider: data.webSearch.provider, baseUrl: data.webSearch.baseUrl ?? '', apiKey: '', mode: data.webSearch.mode }
   return (
     <Stack>
       <Card>
@@ -128,17 +135,80 @@ function AiTab() {
           </Table.Tbody>
         </Table>
       </Card>
-      <Card>
-        <Text fw={650}>Web search for the AI</Text>
-        <Text size="xs" c="dimmed" mb="xs">Used by the web_search tool for crop research.</Text>
-        <SimpleGrid cols={{ base: 1, sm: 3 }}>
-          <Select label="Provider" data={data.webSearch.providers.map((p) => ({ value: p, label: titleCase(p) }))} value={ws.provider} onChange={(v) => setSearch({ ...ws, provider: v ?? 'none' })} disabled={!isAdmin} />
-          {ws.provider === 'searxng' && <TextInput label="SearXNG URL" value={ws.baseUrl} onChange={(e) => setSearch({ ...ws, baseUrl: e.currentTarget.value })} />}
-          {(ws.provider === 'tavily' || ws.provider === 'brave') && <PasswordInput label="API key" placeholder={data.webSearch.hasApiKey ? 'stored' : ''} value={ws.apiKey} onChange={(e) => setSearch({ ...ws, apiKey: e.currentTarget.value })} />}
-        </SimpleGrid>
-        {isAdmin && <Group justify="flex-end" mt="sm"><Button size="xs" onClick={async () => { await act(() => api.put('/api/settings/ai/web-search', { provider: ws.provider, baseUrl: ws.baseUrl || null, apiKey: ws.apiKey || null })); refresh() }}>Save search</Button></Group>}
-      </Card>
+      <WebSearchCard data={data} ws={ws} setSearch={setSearch} isAdmin={isAdmin} onSaved={() => { setSearch(null); refresh() }} />
     </Stack>
+  )
+}
+
+const modeBadge: Record<string, [string, string]> = {
+  openai_native: ['green', 'OpenAI built-in'],
+  custom: ['blue', 'Custom provider'],
+  none: ['gray', 'Unavailable'],
+}
+
+type SearchDraft = { provider: string; baseUrl: string; apiKey: string; mode: 'auto' | 'custom' }
+
+/** Shows which web search backend the AI uses per job and lets Admins pick the custom provider or override OpenAI's built-in search. */
+function WebSearchCard({ data, ws, setSearch, isAdmin, onSaved }: { data: AiSettings; ws: SearchDraft; setSearch: (s: SearchDraft) => void; isAdmin: boolean; onSaved: () => void }) {
+  const status = data.webSearch.status
+  const chat = status.find((s) => s.job === 'chat')
+  const nativeAnywhere = status.some((s) => s.mode === 'openai_native')
+  const openAiEligible = nativeAnywhere || (data.webSearch.mode === 'custom' && data.providers.some((p) => p.baseUrl.includes('api.openai.com')))
+  const providerName = titleCase(data.webSearch.provider)
+  return (
+    <Card>
+      <Text fw={650}>Web search for the AI</Text>
+      <Text size="xs" c="dimmed" mb="sm">Used by the web_search tool for crop research, pests and regional planting dates.</Text>
+      {chat?.mode === 'openai_native' ? (
+        <Alert color="green" mb="sm" title={`Using OpenAI built-in web search (${chat.model})`}>
+          The chat model runs on OpenAI, so searches use OpenAI's own web search tool with your OpenAI key — no extra search account needed.
+          {chat.fallbackAvailable ? ` If it fails, ${providerName} is used instead.` : ' Optionally pick a custom provider below as a fallback.'}
+        </Alert>
+      ) : chat?.mode === 'custom' ? (
+        <Alert color="blue" mb="sm" title={`Using custom provider: ${providerName}`}>{chat.reason}.</Alert>
+      ) : (
+        <Alert color="gray" mb="sm" title="No web search available">{chat?.reason ?? 'Configure a provider below'}. Choose a custom provider to enable search for bring-your-own models (LM Studio, Ollama, …).</Alert>
+      )}
+      {openAiEligible && (
+        <Switch
+          mb="sm"
+          disabled={!isAdmin}
+          label="Use a custom provider instead of OpenAI's built-in search"
+          description="OpenAI search is billed per call by OpenAI; a custom provider (e.g. self-hosted SearXNG) may be cheaper."
+          checked={ws.mode === 'custom'}
+          onChange={(e) => setSearch({ ...ws, mode: e.currentTarget.checked ? 'custom' : 'auto' })}
+        />
+      )}
+      <SimpleGrid cols={{ base: 1, sm: 3 }}>
+        <Select
+          label={chat?.mode === 'openai_native' && ws.mode !== 'custom' ? 'Fallback provider (optional)' : 'Custom provider'}
+          description="Also used for jobs whose model isn't on OpenAI"
+          data={data.webSearch.providers.map((p) => ({ value: p, label: titleCase(p) }))}
+          value={ws.provider}
+          onChange={(v) => setSearch({ ...ws, provider: v ?? 'none' })}
+          disabled={!isAdmin}
+        />
+        {ws.provider === 'searxng' && <TextInput label="SearXNG URL" placeholder="http://searxng.local:8080" value={ws.baseUrl} onChange={(e) => setSearch({ ...ws, baseUrl: e.currentTarget.value })} />}
+        {(ws.provider === 'tavily' || ws.provider === 'brave') && <PasswordInput label="API key" placeholder={data.webSearch.hasApiKey ? 'stored' : ''} value={ws.apiKey} onChange={(e) => setSearch({ ...ws, apiKey: e.currentTarget.value })} />}
+      </SimpleGrid>
+      {isAdmin && (
+        <Group justify="flex-end" mt="sm">
+          <Button size="xs" onClick={async () => { await act(() => api.put('/api/settings/ai/web-search', { provider: ws.provider, baseUrl: ws.baseUrl || null, apiKey: ws.apiKey || null, mode: ws.mode })); onSaved() }}>Save search</Button>
+        </Group>
+      )}
+      <Table mt="md" fz="xs" verticalSpacing={4}>
+        <Table.Thead><Table.Tr><Table.Th>Job</Table.Th><Table.Th>Search mode</Table.Th><Table.Th>Why</Table.Th></Table.Tr></Table.Thead>
+        <Table.Tbody>
+          {status.map((s) => (
+            <Table.Tr key={s.job}>
+              <Table.Td>{jobLabels[s.job] ?? s.job}</Table.Td>
+              <Table.Td><Badge size="xs" variant="light" color={modeBadge[s.mode][0]}>{s.mode === 'custom' ? providerName : modeBadge[s.mode][1]}</Badge></Table.Td>
+              <Table.Td c="dimmed">{s.reason}</Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </Card>
   )
 }
 
