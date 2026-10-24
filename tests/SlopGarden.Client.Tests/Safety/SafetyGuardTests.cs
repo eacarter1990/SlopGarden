@@ -422,10 +422,11 @@ public sealed class SafetyGuardTests
     {
         var reservoir = Guid.NewGuid();
         var a = Doser("Nutrient A", ActuatorRoles.DoseNutrientA, reservoir, reservoirWait: 300);
-        var b = Doser("Nutrient B", ActuatorRoles.DoseNutrientB, reservoir, reservoirWait: 300);
+        var b = Doser("pH Down", ActuatorRoles.DosePhDown, reservoir, reservoirWait: 300);
+        var partB = Doser("Nutrient B", ActuatorRoles.DoseNutrientB, reservoir, reservoirWait: 300);
         var other = Doser("Other tank", ActuatorRoles.DoseNutrientA, Guid.NewGuid(), reservoirWait: 300);
         var pump = Configs.Actuator(kind: ActuatorKinds.Pump) with { Role = ActuatorRoles.CirculationPump, ReservoirId = reservoir };
-        var peers = Peers(_ => false, a, b, other, pump);
+        var peers = Peers(_ => false, a, b, partB, other, pump);
         RecordRun(a.Id, Noon.AddSeconds(-110), 10, ml: 10);
         RecordRun(pump.Id, Noon.AddSeconds(-5), 4);
 
@@ -435,6 +436,7 @@ public sealed class SafetyGuardTests
         Assert.Contains("'Nutrient A' finished 100s ago", rejected.Reason);
         Assert.False(_guard.Evaluate(a, "UTC", EmergencyStopState.None, Dose(5), false, peers).Allowed);
         Assert.True(_guard.Evaluate(other, "UTC", EmergencyStopState.None, Dose(5), false, peers).Allowed);
+        Assert.True(_guard.Evaluate(partB, "UTC", EmergencyStopState.None, Dose(5), false, peers).Allowed);
 
         _time.Advance(TimeSpan.FromSeconds(200));
         Assert.True(_guard.Evaluate(b, "UTC", EmergencyStopState.None, Dose(5), false, peers).Allowed);

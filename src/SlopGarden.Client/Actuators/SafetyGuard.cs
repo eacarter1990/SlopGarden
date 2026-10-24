@@ -201,8 +201,9 @@ public sealed class SafetyGuard(IRunLedger ledger, IChannelValues values, TimePr
         return peers.IsOn(requiredId) ? null : $"requires '{required.Name}' to be on, but it is off";
     }
 
-    /// <summary>Enforces <c>MinSecondsBetweenReservoirDoses</c>: no dose while any doser of the same reservoir is dosing or
-    /// finished less than that many seconds ago, so the previous dose can mix before the next one.</summary>
+    /// <summary>Enforces <c>MinSecondsBetweenReservoirDoses</c>: no dose while another doser of the same reservoir is dosing,
+    /// and none within that many seconds of a previous dose that needs mixing first (<see cref="ActuatorRoles.NeedsMixingWait"/>:
+    /// nutrient parts A/B/Cal-Mag may follow each other directly; repeats and nutrient↔pH wait).</summary>
     private string? CheckReservoirMixing(ActuatorConfig actuator, ActuatorPeers? peers, DateTimeOffset now)
     {
         if (actuator.Safety?.MinSecondsBetweenReservoirDoses is not { } wait || wait <= 0 || actuator.ReservoirId is not { } reservoir) return null;
@@ -212,7 +213,7 @@ public sealed class SafetyGuard(IRunLedger ledger, IChannelValues values, TimePr
         {
             if (doser.Id != actuator.Id && peers!.IsOn(doser.Id))
                 return $"'{doser.Name}' is dosing into the same reservoir right now; wait {wait}s after it for mixing";
-            if (ledger.LastEnd(doser.Id) is { } end && (now - end).TotalSeconds < wait)
+            if (ActuatorRoles.NeedsMixingWait(doser.Role, actuator.Role) && ledger.LastEnd(doser.Id) is { } end && (now - end).TotalSeconds < wait)
                 return $"minimum {wait}s between doses into the same reservoir for mixing ('{doser.Name}' finished {Fmt((now - end).TotalSeconds)}s ago)";
         }
         return null;

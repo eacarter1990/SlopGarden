@@ -379,8 +379,9 @@ public sealed class HydroponicsControllerTests : IAsyncLifetime
     {
         var reservoir = Guid.NewGuid();
         var a = Doser("Nutrient A", ActuatorRoles.DoseNutrientA, reservoir, reservoirWait: 300);
-        var b = Doser("Nutrient B", ActuatorRoles.DoseNutrientB, reservoir, reservoirWait: 300);
-        await ApplyAsync(a, b);
+        var b = Doser("pH Down", ActuatorRoles.DosePhDown, reservoir, reservoirWait: 300);
+        var partB = Doser("Nutrient B", ActuatorRoles.DoseNutrientB, reservoir, reservoirWait: 300);
+        await ApplyAsync(a, b, partB);
         var deviceA = _plugin.Devices[a.Id];
 
         Assert.Equal(CommandStatuses.Running, (await _controller.ExecuteCommandAsync(Command(a, ActuatorActions.Dose, amount: 5))).Status);
@@ -397,6 +398,13 @@ public sealed class HydroponicsControllerTests : IAsyncLifetime
         var after = await _controller.ExecuteCommandAsync(Command(b, ActuatorActions.Dose, amount: 5));
         Assert.Equal(CommandStatuses.Rejected, after.Status);
         Assert.Contains("mixing", after.Reason);
+        Assert.Equal(CommandStatuses.Running, (await _controller.ExecuteCommandAsync(Command(partB, ActuatorActions.Dose, amount: 5))).Status);
+        for (var i = 0; i < 20 && _plugin.Devices[partB.Id].On; i++)
+        {
+            await Task.Delay(5);
+            _time.Advance(TimeSpan.FromSeconds(1));
+        }
+        await Wait.UntilAsync(() => _reporter.Runs.Any(r => r.ActuatorId == partB.Id), Timeout, "the dose of B completes");
 
         _time.Advance(TimeSpan.FromSeconds(300));
         Assert.Equal(CommandStatuses.Running, (await _controller.ExecuteCommandAsync(Command(b, ActuatorActions.Dose, amount: 5))).Status);
