@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SlopGarden · Sensor Emulator</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%2322c55e' d='M5 21c0-9 5-15 16-16-1 11-7 16-16 16Z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" class="logo" aria-hidden="true"><path d="M5 21c0-9 5-15 16-16-1 11-7 16-16 16Z"/><path class="vein" d="M5 21 15 11"/></svg>
+      <div>
+        <h1>SlopGarden <span>Sensor Emulator</span></h1>
+        <p id="scenario-name" class="muted">Loading scenario…</p>
+      </div>
+    </div>
+    <div class="clock">
+      <div>
+        <span class="label">Simulated time</span>
+        <span id="sim-time" class="mono">--:--:--</span>
+      </div>
+      <div class="scale">
+        <span class="label">Time scale</span>
+        <div class="segmented" id="scale-buttons">
+          <button data-scale="1">1×</button>
+          <button data-scale="10">10×</button>
+          <button data-scale="60">60×</button>
+          <button data-scale="600">600×</button>
+        </div>
+        <input id="scale-input" type="number" min="0.1" step="any" title="Custom time scale">
+      </div>
+      <button id="reset" class="ghost" title="Reload the default demo garden">Reset scenario</button>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <div class="section-head">
+        <h2>Sensors</h2>
+        <button id="add-sensor-toggle" class="ghost small">+ Add sensor</button>
+      </div>
+      <form id="add-sensor" class="card add-form hidden">
+        <div class="grid-form">
+          <label>Id<input name="id" required placeholder="pepper-soil-moisture"></label>
+          <label>Name<input name="name" placeholder="Pepper bed soil moisture"></label>
+          <label>Metric<input name="metric" required value="soil_moisture_pct" list="metric-list"></label>
+          <label>Unit<input name="unit" value="%"></label>
+          <label>Model<select name="type"><option>drying</option><option>constant</option><option>sine</option><option>random_walk</option></select></label>
+          <label>Noise<input name="noise" type="number" step="any" value="0.1"></label>
+        </div>
+        <div class="actions"><button type="submit">Create sensor</button></div>
+      </form>
+      <datalist id="metric-list">
+        <option>soil_moisture_pct</option><option>soil_temperature_c</option><option>air_temperature_c</option>
+        <option>air_humidity_pct</option><option>air_pressure_hpa</option><option>light_lux</option><option>water_level_pct</option>
+        <option>ph</option><option>ec_ms_cm</option><option>co2_ppm</option><option>flow_l_min</option><option>water_temperature_c</option>
+        <option>dissolved_oxygen_mg_l</option><option>tds_ppm</option><option>orp_mv</option>
+      </datalist>
+      <div id="sensors" class="grid sensors"></div>
+    </section>
+
+    <section>
+      <div class="section-head"><h2>Actuators</h2><span class="muted small">Toggle for manual testing — the SlopGarden client drives these through the emulator plugin. “Stall” simulates a dead pump or clog.</span></div>
+      <div id="actuators" class="grid actuators"></div>
+    </section>
+
+    <section>
+      <div class="section-head"><h2>Cameras</h2></div>
+      <div id="cameras" class="grid cameras"></div>
+    </section>
+  </main>
+
+  <footer class="muted small">
+    REST API: <a href="/openapi/v1.json">/openapi/v1.json</a> · Polling every second · <span id="status">connecting…</span>
+  </footer>
+
+  <template id="sensor-template">
+    <article class="card sensor">
+      <div class="card-head">
+        <div>
+          <h3 class="name"></h3>
+          <span class="chip metric"></span>
+          <span class="chip model"></span>
+          <span class="chip override-badge hidden">override</span>
+        </div>
+        <button class="icon-btn edit" title="Edit model">
+          <svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/></svg>
+        </button>
+      </div>
+      <div class="reading"><span class="value">--</span><span class="unit"></span></div>
+      <svg class="spark" viewBox="0 0 100 28" preserveAspectRatio="none"><polyline points=""/></svg>
+      <div class="override">
+        <input class="ov-slider" type="range">
+        <div class="row">
+          <input class="ov-value" type="number" step="any" placeholder="value">
+          <input class="ov-duration" type="number" min="0" step="1" placeholder="sec (∞)">
+          <button class="small ov-apply">Override</button>
+          <button class="small ghost ov-clear">Clear</button>
+        </div>
+      </div>
+      <form class="model-editor hidden">
+        <div class="grid-form">
+          <label>Name<input name="name"></label>
+          <label>Model<select name="type"><option>constant</option><option>sine</option><option>random_walk</option><option>drying</option></select></label>
+          <label data-for="constant">Value<input name="value" type="number" step="any"></label>
+          <label data-for="sine random_walk">Min<input name="min" type="number" step="any"></label>
+          <label data-for="sine random_walk">Max<input name="max" type="number" step="any"></label>
+          <label data-for="sine">Period (s)<input name="periodSec" type="number" step="any"></label>
+          <label data-for="sine">Phase (s)<input name="phase" type="number" step="any"></label>
+          <label data-for="random_walk">Step<input name="step" type="number" step="any"></label>
+          <label data-for="random_walk drying">Start<input name="start" type="number" step="any"></label>
+          <label data-for="drying">Rate / hour<input name="ratePerHour" type="number" step="any"></label>
+          <label>Floor<input name="floor" type="number" step="any"></label>
+          <label>Ceiling<input name="ceiling" type="number" step="any"></label>
+          <label>Noise σ<input name="noise" type="number" step="any"></label>
+        </div>
+        <div class="actions">
+          <button type="button" class="ghost small danger delete">Delete</button>
+          <span class="spacer"></span>
+          <button type="button" class="ghost small cancel">Cancel</button>
+          <button type="submit" class="small">Save model</button>
+        </div>
+      </form>
+    </article>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
