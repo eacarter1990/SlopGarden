@@ -69,7 +69,24 @@ public sealed record ActuatorConfig(
     bool Enabled,
     string FailsafeState,
     double? FlowRateMlPerMin,
-    ActuatorSafety Safety);
+    ActuatorSafety Safety,
+    string? Role = null,
+    Guid? ReservoirId = null,
+    bool ContinuousRun = false,
+    FlowWatch? FlowWatch = null);
+
+/// <summary>
+/// Watches a flow sensor channel for the pump/valve it belongs to. Stall: the actuator has been on for
+/// <c>GraceSec</c> and flow is below <c>MinFlowWhenOn</c> (stopped pump, clog, dry reservoir). Unexpected flow:
+/// the actuator has been off for <c>GraceSec</c> and flow is above <c>MaxFlowWhenOff</c> (leak, stuck valve).
+/// </summary>
+public sealed record FlowWatch(
+    Guid ChannelId,
+    double MinFlowWhenOn,
+    int GraceSec,
+    double? MaxFlowWhenOff,
+    bool StopOnStall,
+    int StallRetrySec = 300);
 
 /// <summary>Effective (most restrictive) safety limits the server resolved for one actuator.
 /// The client enforces them locally and cannot be overridden by commands.</summary>
@@ -78,7 +95,10 @@ public sealed record ActuatorSafety(
     int? MaxDailyRunSeconds,
     int? MinSecondsBetweenRuns,
     double? MaxDailyAmountMl,
-    IReadOnlyList<SafetyInterlock> Interlocks)
+    IReadOnlyList<SafetyInterlock> Interlocks,
+    double? MaxHourlyAmountMl = null,
+    int? MinSecondsBetweenReservoirDoses = null,
+    Guid? RequiresActuatorOn = null)
 {
     public static readonly ActuatorSafety None = new(null, null, null, null, []);
 }
