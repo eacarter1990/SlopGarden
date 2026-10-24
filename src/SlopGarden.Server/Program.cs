@@ -101,6 +101,7 @@ builder.Services.AddScoped<ToolExecutor>();
 builder.Services.AddScoped<SecretStore>();
 builder.Services.AddScoped<SettingsService>();
 builder.Services.AddScoped<WebSearchService>();
+builder.Services.AddSingleton<WebSearchExecutor>();
 builder.Services.AddScoped<SafetyService>();
 builder.Services.AddScoped<DeviceConfigService>();
 builder.Services.AddScoped<CommandService>();

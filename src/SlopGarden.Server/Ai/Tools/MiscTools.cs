@@ -102,8 +102,9 @@ public static class MiscTools
             "Current local date/time, season, hemisphere, daylight hours, sunrise/sunset, indoor/outdoor and location of a garden (inherited from the device unless overridden).",
             async (ctx, i) => ctx.Get<EnvironmentService>().For(await GardenTools.ResolveGardenAsync(ctx.Db, i.GardenId, ctx.Ct)));
 
-        r.Read<WebSearchInput, List<WebSearchResult>>("web_search", ai, "Search the web with the configured provider (for crop research, pests, regional planting dates).",
-            (ctx, i) => ctx.Get<WebSearchService>().SearchAsync(i.Query, Math.Clamp(i.MaxResults, 1, 10), ctx.Ct));
+        r.Read<WebSearchInput, WebSearchResponse>("web_search", ai,
+            "Search the web (crop research, pests, regional planting dates). Uses OpenAI's built-in web search when the model runs on OpenAI and supports it, otherwise the configured search provider. Returns a summary (native mode) and cited results.",
+            (ctx, i) => ctx.Get<WebSearchService>().SearchAsync(i.Query, Math.Clamp(i.MaxResults, 1, 10), ctx.Job, ctx.Ct));
 
         const string catalog = "Catalogs";
         r.Read<EmptyInput, List<HardwareCatalogEntry>>("list_hardware_catalog", catalog, "Curated compatible sensors/actuators/cameras, which plugin drives them and whether SlopGarden recommends them.",

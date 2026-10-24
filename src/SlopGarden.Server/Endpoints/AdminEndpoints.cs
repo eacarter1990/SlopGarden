@@ -12,7 +12,7 @@ namespace SlopGarden.Server.Endpoints;
 public sealed record ProviderRequest(string Name, string BaseUrl, string? ApiKey, string? DefaultModel, bool ClearApiKey = false);
 public sealed record ProviderTestRequest(string BaseUrl, string? ApiKey, Guid? ProviderId);
 public sealed record AssignmentRequest(Guid ProviderId, string Model, double? Temperature, int? MaxOutputTokens, int? ContextMessageLimit);
-public sealed record WebSearchRequest(string Provider, string? BaseUrl, string? ApiKey);
+public sealed record WebSearchRequest(string Provider, string? BaseUrl, string? ApiKey, string? Mode = null);
 public sealed record ChannelRequest(string Kind, string Name, string? WebhookUrl, string? MinSeverity, List<string>? Categories, bool? Enabled);
 public sealed record UserRequest(string Username, string? DisplayName, string? Email, string Role, string? Password, bool? IsDisabled);
 public sealed record PasswordChange(string CurrentPassword, string NewPassword);
@@ -36,18 +36,19 @@ public static class AdminEndpoints
     {
         var g = app.MapGroup("/api/settings/ai").WithTags("Settings").RequireAuthorization(Policies.ReadOnly);
 
-        g.MapGet("/", async (SlopDbContext db, SettingsService settings, CancellationToken ct) =>
+        g.MapGet("/", async (SlopDbContext db, WebSearchService webSearch, CancellationToken ct) =>
         {
             var providers = await db.AiProviders.AsNoTracking().OrderBy(p => p.CreatedAt).ToListAsync(ct);
             var assignments = await db.AiModelAssignments.AsNoTracking().ToListAsync(ct);
-            var search = await settings.GetAsync<WebSearchSettings>(WebSearchService.SettingsKey, ct) ?? new WebSearchSettings();
+            var search = await webSearch.SettingsAsync(ct);
+            var searchStatus = await webSearch.StatusAsync(ct);
             return new
             {
                 providers = providers.Select(p => new { p.Id, p.Name, p.BaseUrl, p.DefaultModel, hasApiKey = p.ApiKeySecretId != null, p.CreatedAt }),
                 assignments = AiJobs.All.Select(j => assignments.FirstOrDefault(a => a.Job == j) is { } a
                     ? new { job = j, providerId = (Guid?)a.ProviderId, a.Model, a.Temperature, a.MaxOutputTokens, a.ContextMessageLimit }
                     : new { job = j, providerId = (Guid?)null, Model = "", Temperature = (double?)null, MaxOutputTokens = (int?)null, ContextMessageLimit = 30 }),
-                webSearch = new { search.Provider, search.BaseUrl, hasApiKey = search.ApiKeySecretId != null, providers = WebSearchSettings.Providers },
+                webSearch = new { search.Provider, search.BaseUrl, search.Mode, hasApiKey = search.ApiKeySecretId != null, providers = WebSearchSettings.Providers, status = searchStatus },
             };
         });
 
@@ -128,13 +129,14 @@ public static class AdminEndpoints
             return Results.Ok();
         }).RequireAuthorization(Policies.Admin);
 
-        g.MapPut("/web-search", async (WebSearchRequest req, SettingsService settings, SecretStore secrets, HttpContext http, CancellationToken ct) =>
+        g.MapPut("/web-search", async (WebSearchRequest req, SettingsService settings, WebSearchService webSearch, SecretStore secrets, HttpContext http, CancellationToken ct) =>
         {
             if (!WebSearchSettings.Providers.Contains(req.Provider)) return Results.BadRequest(new { error = "Unknown provider" });
-            var current = await settings.GetAsync<WebSearchSettings>(WebSearchService.SettingsKey, ct) ?? new WebSearchSettings();
+            if (req.Mode is not null && !WebSearchSettings.Modes.Contains(req.Mode)) return Results.BadRequest(new { error = "mode must be auto or custom" });
+            var current = await webSearch.SettingsAsync(ct);
             var secretId = current.ApiKeySecretId;
             if (!string.IsNullOrWhiteSpace(req.ApiKey)) secretId = await secrets.SetAsync(secretId, "search", "search_api_key", req.ApiKey.Trim(), ct);
-            await settings.SetAsync(WebSearchService.SettingsKey, new WebSearchSettings(req.Provider, req.BaseUrl, secretId), http.Actor().UserId, ct);
+            await settings.SetAsync(WebSearchService.SettingsKey, new WebSearchSettings(req.Provider, req.BaseUrl, secretId, req.Mode ?? current.Mode), http.Actor().UserId, ct);
             return Results.Ok();
         }).RequireAuthorization(Policies.Admin);
     }

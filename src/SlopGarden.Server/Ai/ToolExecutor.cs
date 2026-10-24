@@ -36,7 +36,7 @@ public sealed class ToolExecutor(
     ILogger<ToolExecutor> log)
 {
     public async Task<ToolOutcome> ExecuteAsync(string toolName, JsonObject? args, Actor actor, ToolMode mode, CancellationToken ct,
-        Guid? conversationId = null, Guid? messageId = null, string origin = "chat")
+        Guid? conversationId = null, Guid? messageId = null, string origin = "chat", string? job = null)
     {
         var def = registry.Find(toolName);
         if (def is null) return Fail($"Unknown tool '{toolName}'");
@@ -56,12 +56,12 @@ public sealed class ToolExecutor(
 
             if (def.Effect == ToolEffect.Mutate && mode == ToolMode.Propose && !def.NoApprovalNeeded)
             {
-                var ctx = new ToolContext(services, db, actor, mode, ct) { ConversationId = conversationId, Reason = reason };
+                var ctx = new ToolContext(services, db, actor, mode, ct) { ConversationId = conversationId, Reason = reason, Job = job };
                 var preview = await def.Preview!(ctx, input);
                 if (def.Routine && await MatchingStandingApprovalAsync(def, preview, args, ct) is { } standing)
                 {
                     log.LogInformation("Standing approval {Id} covers {Tool}", standing.Id, def.Name);
-                    return await RunAsync(def, input, actor, ToolMode.Approved, conversationId, null, reason, preview, ct);
+                    return await RunAsync(def, input, actor, ToolMode.Approved, conversationId, null, reason, preview, ct, job);
                 }
                 if (actor.Type == ActorTypes.Ai && string.IsNullOrWhiteSpace(reason))
                     return Fail("Mutating tools require a 'reason' argument explaining why the change is needed.");
@@ -72,7 +72,7 @@ public sealed class ToolExecutor(
             ProposalPreview? pv = null;
             if (actor.Type == ActorTypes.Ai && def.Effect == ToolEffect.Mutate && def.Preview is not null)
                 pv = await def.Preview(new ToolContext(services, db, actor, mode, ct), input);
-            return await RunAsync(def, input, actor, mode, conversationId, null, reason, pv, ct);
+            return await RunAsync(def, input, actor, mode, conversationId, null, reason, pv, ct, job);
         }
         catch (AppException ex)
         {
@@ -86,13 +86,13 @@ public sealed class ToolExecutor(
     }
 
     private async Task<ToolOutcome> RunAsync(ToolDefinition def, object input, Actor actor, ToolMode mode, Guid? conversationId, Guid? proposalId,
-        string? reason, ProposalPreview? preview, CancellationToken ct)
+        string? reason, ProposalPreview? preview, CancellationToken ct, string? job = null)
     {
         Guid? activityId = null;
         if (preview is not null && (actor.Type == ActorTypes.Ai || mode == ToolMode.Approved))
             activityId = await activities.StartAsync(preview.GardenId, preview.TargetType, preview.TargetId, "tool", preview.Title, conversationId, proposalId);
 
-        var ctx = new ToolContext(services, db, actor, mode, ct) { ConversationId = conversationId, ProposalId = proposalId, Reason = reason, ActivityId = activityId };
+        var ctx = new ToolContext(services, db, actor, mode, ct) { ConversationId = conversationId, ProposalId = proposalId, Reason = reason, ActivityId = activityId, Job = job };
         try
         {
             var result = await def.Handler(ctx, input);

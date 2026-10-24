@@ -37,6 +37,9 @@ public sealed class ToolContext(IServiceProvider services, SlopDbContext db, Act
     public Guid? ProposalId { get; init; }
     public string? Reason { get; init; }
 
+    /// <summary>The AI job (chat, scheduled_review…) this call belongs to; decides which model's capabilities apply.</summary>
+    public string? Job { get; init; }
+
     /// <summary>The AI activity (dashboard indicator) wrapping this call, if any.</summary>
     public Guid? ActivityId { get; init; }
 

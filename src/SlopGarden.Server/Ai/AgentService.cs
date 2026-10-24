@@ -138,7 +138,7 @@ public sealed class AgentService(IServiceScopeFactory scopes, LiveNotifier live,
                     }
                     var outcome = args is null
                         ? new ToolOutcome(ToolOutcome.Failed, null, null, "Arguments were not valid JSON", [])
-                        : await executor.ExecuteAsync(call.Name, args, aiActor, ToolMode.Propose, ct, conversationId, assistant.Id);
+                        : await executor.ExecuteAsync(call.Name, args, aiActor, ToolMode.Propose, ct, conversationId, assistant.Id, job: job);
                     pendingImages.AddRange(outcome.Images);
                     var toolMsg = await AppendAsync(db, conversationId, new ChatMessage
                     {
