@@ -91,6 +91,12 @@ public sealed class ServerFixture : WebApplicationFactory<Program>, IAsyncLifeti
         return client;
     }
 
+    public async Task WithDbAsync(Func<SlopDbContext, Task> f)
+    {
+        using var scope = Services.CreateScope();
+        await f(scope.ServiceProvider.GetRequiredService<SlopDbContext>());
+    }
+
     public T WithDb<T>(Func<SlopDbContext, T> f)
     {
         using var scope = Services.CreateScope();

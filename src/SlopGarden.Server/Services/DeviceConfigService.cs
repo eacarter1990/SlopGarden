@@ -107,8 +107,25 @@ public sealed class DeviceConfigService(SlopDbContext db, SafetyService safety, 
     private static string Fingerprint(DeviceConfigDocument d) =>
         JsonSerializer.Serialize(d with { Version = 0, GeneratedAt = DateTimeOffset.UnixEpoch }, Json);
 
-    /// <summary>Regenerates the document; stores a new revision if it changed; pushes it if the device is connected.</summary>
+    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> SyncLocks = new();
+
+    /// <summary>Regenerates the document; stores a new revision if it changed; pushes it if the device is connected.
+    /// Serialized per device: a reconnect (Hello) and the background push worker may sync at the same moment.</summary>
     public async Task<DeviceConfigDocument?> SyncAsync(Guid deviceId, bool forcePush, CancellationToken ct)
+    {
+        var gate = SyncLocks.GetOrAdd(deviceId, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(ct);
+        try
+        {
+            return await SyncCoreAsync(deviceId, forcePush, ct);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private async Task<DeviceConfigDocument?> SyncCoreAsync(Guid deviceId, bool forcePush, CancellationToken ct)
     {
         var device = await db.Devices.FirstOrDefaultAsync(d => d.Id == deviceId, ct);
         if (device is null || device.Status != DeviceStatuses.Approved) return null;

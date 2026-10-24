@@ -21,11 +21,11 @@ public sealed class FakeDevice : IAsyncDisposable
     public ValueTask DisposeAsync() => Hub.DisposeAsync();
 }
 
-public class DeviceAndSafetyTests(ServerFixture f) : IClassFixture<ServerFixture>
+public static class DeviceHarness
 {
-    private static DeviceEnvironmentInfo Env => new("Europe/Amsterdam", 120, DateTimeOffset.Now, 52.1, 5.1, "Utrecht");
+    public static DeviceEnvironmentInfo Env => new("Europe/Amsterdam", 120, DateTimeOffset.Now, 52.1, 5.1, "Utrecht");
 
-    private async Task<FakeDevice> OnboardAsync(HttpClient admin, string hardwareId)
+    public static async Task<FakeDevice> OnboardAsync(ServerFixture f, HttpClient admin, string hardwareId, IReadOnlyList<PluginInfo>? extraPlugins = null)
     {
         var anon = f.CreateClient();
         var secret = Guid.NewGuid().ToString("N");
@@ -61,7 +61,10 @@ public class DeviceAndSafetyTests(ServerFixture f) : IClassFixture<ServerFixture
         await HttpExtensions.Wait(() => device.Configs.IsEmpty ? null : device.Configs.Last());
         return device;
     }
+}
 
+public class DeviceAndSafetyTests(ServerFixture f) : IClassFixture<ServerFixture>
+{
     [Fact]
     public async Task Unapproved_and_bogus_tokens_cannot_use_the_device_hub()
     {
@@ -73,7 +76,7 @@ public class DeviceAndSafetyTests(ServerFixture f) : IClassFixture<ServerFixture
     public async Task Device_onboarding_config_push_readings_and_plugin_trust()
     {
         var admin = await f.LoginAsync();
-        await using var dev = await OnboardAsync(admin, "hw-onboard");
+        await using var dev = await DeviceHarness.OnboardAsync(f, admin, "hw-onboard");
         var plants = await admin.Op("list_plants");
         var plantId = plants[0]!["id"]!.ToString();
 
@@ -109,7 +112,7 @@ public class DeviceAndSafetyTests(ServerFixture f) : IClassFixture<ServerFixture
     public async Task Commands_respect_safety_limits_and_emergency_stops()
     {
         var admin = await f.LoginAsync();
-        await using var dev = await OnboardAsync(admin, "hw-safety");
+        await using var dev = await DeviceHarness.OnboardAsync(f, admin, "hw-safety");
         var beds = await admin.Op("list_beds");
         var bedId = beds[0]!["id"]!.ToString();
         var valve = await admin.Op("create_actuator", new { deviceId = dev.DeviceId, name = "Valve", kind = "valve", pluginId = "emulator-actuator", settings = new { actuatorId = "v1" }, targetType = "bed", bedId });
@@ -145,7 +148,7 @@ public class DeviceAndSafetyTests(ServerFixture f) : IClassFixture<ServerFixture
     public async Task Tank_low_interlock_blocks_pumping()
     {
         var admin = await f.LoginAsync();
-        await using var dev = await OnboardAsync(admin, "hw-tank");
+        await using var dev = await DeviceHarness.OnboardAsync(f, admin, "hw-tank");
         var tank = await admin.Op("create_sensor", new { deviceId = dev.DeviceId, name = "Tank", pluginId = "emulator-sensor", channels = new[] { new { key = "value", metric = Metrics.WaterLevelPct } }, targetType = "garden" });
         var channelId = Guid.Parse(tank["channels"]![0]!["id"]!.ToString());
         var pump = await admin.Op("create_actuator", new { deviceId = dev.DeviceId, name = "Pump", kind = "pump", pluginId = "emulator-actuator", targetType = "garden" });
