@@ -39,7 +39,7 @@ public sealed class RemoteSetupService(ServerUrlProvider urls)
         if (!pending.DockerInstalled)
             throw AppException.Bad("Docker is not installed on that machine. Install Docker, or run slopgarden-setup there.");
         string script;
-        try { script = MachineSetup.ClientDockerScript(urls.Get(), clientName, image); }
+        try { script = MachineSetup.ClientDockerScript(null, clientName, image); }
         catch (ArgumentException ex) { throw AppException.Bad(ex.Message); }
         return await Task.Run(() => Run(pending.Target, pending.Fingerprint, script), ct);
     }

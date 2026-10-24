@@ -12,6 +12,7 @@ public class MachineSetupTests
     {
         var script = MachineSetup.ClientDockerScript("http://192.168.1.20:5080", "Greenhouse Pi", null);
         Assert.Contains("docker run", script);
+        Assert.Contains("--network host", script);
         Assert.Contains("http://192.168.1.20:5080", script);
         Assert.Contains("Greenhouse Pi", script);
         Assert.Contains("SLOPGARDEN_CONTAINER=slopgarden-client", script);
@@ -29,6 +30,7 @@ public class MachineSetupTests
 
         var client = MachineSetup.ClientCompose("http://192.168.1.20:5080", "Greenhouse Pi", null);
         Assert.Contains("slopgarden-client", client);
+        Assert.Contains("network_mode: host", client);
         Assert.DoesNotContain("postgres", client, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("slopgarden-server", client);
     }
@@ -39,6 +41,17 @@ public class MachineSetupTests
         var fp = MachineSetup.FingerprintSha256([1, 2, 3, 4]);
         Assert.StartsWith("SHA256:", fp);
         Assert.DoesNotContain("=", fp);
+    }
+
+    [Fact]
+    public void A_blank_server_address_leaves_discovery_on()
+    {
+        var script = MachineSetup.ClientDockerScript(null, "Greenhouse Pi", null);
+        Assert.DoesNotContain("ServerUrl", script);
+        Assert.Contains("mDNS", script);
+        var compose = MachineSetup.ClientCompose("  ", "Greenhouse Pi", null);
+        Assert.DoesNotContain("ServerUrl", compose);
+        Assert.Contains("network_mode: host", compose);
     }
 
     [Theory]

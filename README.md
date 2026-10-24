@@ -18,7 +18,7 @@ Or download the setup app and run it on the machine. It asks whether this machin
 dotnet run --project tools/SlopGarden.Setup
 ```
 
-It listens on http://127.0.0.1:5077. Server setup starts PostgreSQL and the web app. Client setup starts only the client. A client-only machine can also use `docker compose -f docker-compose.client.yml up -d` with `SLOPGARDEN_SERVER_URL` set to the server.
+It listens on http://127.0.0.1:5077. Server setup starts PostgreSQL and the web app. Client setup starts only the client and leaves the server address blank, so the client finds the server on the LAN (mDNS and UDP). Type an address only if discovery cannot see it. A client-only machine can also use `docker compose -f docker-compose.client.yml up -d`.
 
 Open <http://localhost:5080>.
 
@@ -35,7 +35,7 @@ To point a Pi at this server, set `SLOPGARDEN_PUBLIC_URL` to the address the Pi 
 
 ## Client
 
-A client is a container or a published binary. It finds the server by UDP broadcast, by mDNS (`_slopgarden._tcp`), or because you add its IP under **Devices**. It stays pending until you approve it.
+A client is a container or a published binary. With no server address configured, it finds the server on the LAN by mDNS (`_slopgarden-server._tcp`) and by UDP broadcast on port 47474. You can still add it by IP under **Devices**. It stays pending until you approve it. The client container uses host networking so those discovery packets reach the LAN.
 
 ### Container
 

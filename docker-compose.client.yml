@@ -1,6 +1,7 @@
 # This machine is a client. It does not start PostgreSQL or the server.
 #   docker compose -f docker-compose.client.yml up -d
-# Set SLOPGARDEN_SERVER_URL to the server, for example http://192.168.1.20:5080
+# Leave SLOPGARDEN_SERVER_URL unset and the client finds the server on the LAN (mDNS and UDP).
+# Set it only when discovery cannot see the server.
 services:
   client:
     build:
@@ -8,8 +9,9 @@ services:
       dockerfile: docker/Dockerfile.client
     image: slopgarden-client:local
     container_name: slopgarden-client
+    network_mode: host
     environment:
-      SLOPGARDEN_Client__ServerUrl: ${SLOPGARDEN_SERVER_URL:?Set SLOPGARDEN_SERVER_URL to the server, for example http://192.168.1.20:5080}
+      SLOPGARDEN_Client__ServerUrl: ${SLOPGARDEN_SERVER_URL:-}
       SLOPGARDEN_Client__Name: ${SLOPGARDEN_CLIENT_NAME:-SlopGarden client}
       SLOPGARDEN_Client__DataDirectory: /data
       SLOPGARDEN_CONTAINER: slopgarden-client

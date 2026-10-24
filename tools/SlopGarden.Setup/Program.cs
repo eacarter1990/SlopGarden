@@ -196,9 +196,9 @@ function clientForm() {
   lead.textContent = 'This machine will be a client.'
   app.innerHTML = `
     <label>Name</label><input id="name" placeholder="Greenhouse Pi" />
-    <label>Server address</label><input id="url" placeholder="http://192.168.1.20:5080" />
+    <label>Server address</label><input id="url" placeholder="Leave blank — the client finds the server on this network" />
     <label>Install folder</label><input id="dir" placeholder="~/slopgarden" />
-    <p>The client will show up on the server as pending. An Admin approves it under Devices. This does not start a server or a database.</p>
+    <p>Leave the address blank and the client finds the server with mDNS and UDP. Type one only if this machine is outside that LAN. It shows up as pending until an Admin approves it. This does not start a server or a database.</p>
     <button class="primary" id="go">Start the client</button>
     <p><a href="#" id="back">Back</a></p>
     <div id="out"></div>`

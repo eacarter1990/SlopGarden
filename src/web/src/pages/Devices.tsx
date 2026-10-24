@@ -113,7 +113,7 @@ export function DevicesPage() {
           </Group>
           {probe && (
             <Alert mt="sm" color={probe.dockerInstalled ? 'green' : 'orange'} title={probe.fingerprint}>
-              {probe.detail} The client will use {probe.serverUrl}. Confirm this host key, then install.
+              {probe.detail} The client finds this server on the LAN (mDNS and UDP). Confirm this host key, then install.
             </Alert>
           )}
           {sshLog && <Alert mt="sm" color="green" title="Installed">{sshLog} Approve the device when it appears below.</Alert>}
