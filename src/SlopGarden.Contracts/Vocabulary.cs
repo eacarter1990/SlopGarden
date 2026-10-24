@@ -172,6 +172,22 @@ public static class Discovery
     public const string DiscoverMessageType = "slopgarden.discover";
     public const string ServerMessageType = "slopgarden.server";
     public const int ClientLocalApiPort = 8787;
+
+    /// <summary>Client advertisement: a device waiting to be paired. TXT carries hw, ver and name. Port is the local API (8787).</summary>
+    public const string MdnsClientService = "_slopgarden._tcp.local";
+    /// <summary>Server advertisement. TXT carries <c>url=http://…</c>.</summary>
+    public const string MdnsServerService = "_slopgarden-server._tcp.local";
+    public const int MdnsPort = 5353;
+    public const string MdnsGroup = "224.0.0.251";
+}
+
+/// <summary>Where a camera looks. The role is the camera's target: the garden, one bed, or one plant.</summary>
+public static class CameraRoles
+{
+    public const string Garden = "garden";
+    public const string Bed = "bed";
+    public const string Plant = "plant";
+    public static readonly string[] All = [Garden, Bed, Plant];
 }
 
 public static class DeviceStatuses

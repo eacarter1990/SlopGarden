@@ -40,6 +40,9 @@ public sealed class ServerOptions
     public string? PublicUrl { get; set; }
     public bool DiscoveryEnabled { get; set; } = true;
     public bool SeedDemo { get; set; }
+    /// <summary>Optional published client image. Empty until an Admin sets it (or these two are both set).</summary>
+    public string ClientReleaseVersion { get; set; } = "";
+    public string ClientReleaseImage { get; set; } = "";
     public string InitialAdminUsername { get; set; } = "admin";
     public string InitialAdminPassword { get; set; } = "";
     public DatabaseOptions Database { get; set; } = new();

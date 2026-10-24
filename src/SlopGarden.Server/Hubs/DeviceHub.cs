@@ -70,11 +70,29 @@ public sealed class DeviceHub(
         DeviceRegistry.ApplyEnvironment(device, hello.Environment);
         if (device.GardenId is { } gid && await db.Gardens.FirstOrDefaultAsync(g => g.Id == gid) is { } garden)
             DeviceRegistry.InheritEnvironment(garden, device);
+        var release = await ClientUpdateService.ReadAsync(db, CancellationToken.None);
+        if (!string.IsNullOrWhiteSpace(release.Version) && !ClientVersions.IsOutdated(device.ClientVersion, release.Version))
+            device.UpdateStatus = "current";
         await db.SaveChangesAsync();
         await registry.UpsertPluginsAsync(device.Id, hello.Plugins, CancellationToken.None);
         await configs.SyncAsync(device.Id, forcePush: true, CancellationToken.None);
         await commands.FlushPendingAsync(device.Id, CancellationToken.None);
         await Clients.Caller.SendAsync(DeviceHubMethods.RequestDiscovery);
+    }
+
+    public async Task ReportUpdate(UpdateResultReport report)
+    {
+        var device = await db.Devices.FirstOrDefaultAsync(d => d.Id == DeviceId);
+        if (device is null) return;
+        device.UpdateStatus = report.Status;
+        device.UpdateError = report.Error;
+        await db.SaveChangesAsync();
+        await live.All(LiveEvents.DeviceStatus, new { deviceId = device.Id, device.UpdateStatus, device.ClientVersion });
+        if (report.Status == "failed")
+        {
+            await notifications.CreateAsync(new NotificationRequest(device.GardenId, Severities.Warning, "device",
+                $"Update failed: {device.Name}", report.Error ?? "The client could not apply the image.", "device", device.Id), CancellationToken.None);
+        }
     }
 
     public async Task<ReadingBatchAck> ReportReadings(ReadingBatch batch)

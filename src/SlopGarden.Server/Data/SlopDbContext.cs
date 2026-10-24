@@ -37,6 +37,7 @@ public class SlopDbContext(DbContextOptions<SlopDbContext> options) : DbContext(
     public DbSet<ActuatorCommand> ActuatorCommands => Set<ActuatorCommand>();
     public DbSet<ActuatorRun> ActuatorRuns => Set<ActuatorRun>();
     public DbSet<Camera> Cameras => Set<Camera>();
+    public DbSet<GrowthReport> GrowthReports => Set<GrowthReport>();
     public DbSet<Media> Media => Set<Media>();
     public DbSet<DeviceEvent> DeviceEvents => Set<DeviceEvent>();
     public DbSet<Schedule> Schedules => Set<Schedule>();
@@ -272,6 +273,14 @@ public class SlopDbContext(DbContextOptions<SlopDbContext> options) : DbContext(
         b.Entity<AiActivity>(e => e.HasIndex(x => new { x.Status, x.StartedAt }));
 
         b.Entity<NotificationChannel>(e => e.Json(x => x.Settings));
+        b.Entity<GrowthReport>(e =>
+        {
+            e.HasIndex(x => new { x.GardenId, x.CreatedAt });
+            e.Json(x => x.Conditions);
+            e.Json(x => x.Predictions);
+            e.Json(x => x.ImageIds);
+            e.HasOne<Garden>().WithMany().HasForeignKey(x => x.GardenId).OnDelete(DeleteBehavior.Cascade);
+        });
         b.Entity<Notification>(e => e.HasIndex(x => x.CreatedAt));
         b.Entity<NotificationDelivery>(e => e.HasOne<Notification>().WithMany().HasForeignKey(x => x.NotificationId).OnDelete(DeleteBehavior.Cascade));
         b.Entity<NotificationMute>(e => e.HasIndex(x => new { x.ScopeType, x.ScopeId }));

@@ -288,6 +288,12 @@ public class Device : ITimestamped
     public DateTimeOffset? LastSeenAt { get; set; }
     public bool IsOnline { get; set; }
     public int BufferedReadings { get; set; }
+    /// <summary>When true, an outdated client image is applied without a per-update click. Safety limits and AI approvals are unchanged.</summary>
+    public bool AutoUpdate { get; set; }
+    public string? UpdateStatus { get; set; }
+    public string? UpdateError { get; set; }
+    /// <summary>Latest release version we already notified about, so a device is not announced twice.</summary>
+    public string? NotifiedUpdateVersion { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
@@ -394,6 +400,8 @@ public class ClientRelease
     public string Sha256 { get; set; } = "";
     public long SizeBytes { get; set; }
     public string FilePath { get; set; } = "";
+    /// <summary>Container image reference, for example ghcr.io/owner/slopgarden-client:0.2.3.</summary>
+    public string Image { get; set; } = "";
     public string Notes { get; set; } = "";
     public DateTimeOffset PublishedAt { get; set; } = DateTimeOffset.UtcNow;
 }
@@ -574,6 +582,24 @@ public class Media
     public byte[] Data { get; set; } = [];
     public DateTimeOffset CapturedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? RetainUntil { get; set; }
+}
+
+/// <summary>A stored growth report: narrative, conditions, harvest predictions and the camera frames it was written from.</summary>
+public class GrowthReport
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid GardenId { get; set; }
+    /// <summary>daily, weekly, monthly, or on_demand.</summary>
+    public string Kind { get; set; } = "on_demand";
+    public string Title { get; set; } = "";
+    public string Body { get; set; } = "";
+    public JsonObject Conditions { get; set; } = new();
+    public JsonArray Predictions { get; set; } = [];
+    public JsonArray ImageIds { get; set; } = [];
+    public DateTimeOffset PeriodStart { get; set; }
+    public DateTimeOffset PeriodEnd { get; set; }
+    public Guid? ScheduleId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public class DeviceEvent

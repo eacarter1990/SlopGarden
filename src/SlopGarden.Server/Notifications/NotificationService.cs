@@ -57,6 +57,7 @@ public sealed class NotificationService(
     SlopDbContext db,
     IEnumerable<INotificationSender> senders,
     LiveNotifier live,
+    ActivityLog activity,
     ILogger<NotificationService> log)
 {
     public static readonly TimeSpan DedupeWindow = TimeSpan.FromMinutes(30);
@@ -122,6 +123,7 @@ public sealed class NotificationService(
             };
             db.Notifications.Add(n);
             await db.SaveChangesAsync(ct);
+            activity.Note(r.GardenId, r.TargetType, r.TargetId, $"[{r.Severity}] {r.Title} — {r.Body}");
 
             var channels = await db.NotificationChannels.AsNoTracking().Where(c => c.Enabled).ToListAsync(ct);
             foreach (var ch in channels)

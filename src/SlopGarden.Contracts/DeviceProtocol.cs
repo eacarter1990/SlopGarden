@@ -58,8 +58,8 @@ public sealed record DeviceRegistrationStatus(Guid DeviceId, string Status, stri
 public sealed record DiscoveryProbe(string Type, string HardwareId, string Hostname, string ClientVersion);
 public sealed record DiscoveryAnnouncement(string Type, string ServerUrl, string ServerName, string ServerVersion);
 
-/// <summary>Body of POST http://{client-ip}:8787/pair sent by the server for "add device by IP".</summary>
-public sealed record ManualPairRequest(string ServerUrl);
+/// <summary>Body of POST http://{client-ip}:8787/pair sent by the server for "add device by IP" and for mDNS.</summary>
+public sealed record ManualPairRequest(string ServerUrl, string? Via = null);
 
 public sealed record ClientLocalStatus(
     string HardwareId,
@@ -95,6 +95,11 @@ public static class DeviceHubMethods
     public const string CaptureFrame = "CaptureFrame";
     public const string EmergencyStop = "EmergencyStop";
     public const string RequestDiscovery = "RequestDiscovery";
+    /// <summary>Ask the client to replace itself with a published container image. Image updates only — never a safety or approval bypass.</summary>
+    public const string ApplyUpdate = "ApplyUpdate";
+
+    // client → server
+    public const string ReportUpdate = "ReportUpdate";
 }
 
 public sealed record DeviceHello(
@@ -170,6 +175,12 @@ public sealed record ActuatorCommandMessage(
 /// <summary>Ask the client to capture a frame and upload it to
 /// POST /api/device-api/cameras/{cameraId}/frames?requestId={RequestId} (body: image bytes).</summary>
 public sealed record CaptureFrameRequest(Guid RequestId, Guid CameraId, int? Width, int? Height);
+
+/// <summary>Server → client. <paramref name="Image"/> is a container reference such as <c>ghcr.io/owner/slopgarden-client:0.2.3</c>.</summary>
+public sealed record ApplyUpdateCommand(string Version, string Image);
+
+/// <summary>Client → server after an update is accepted, skipped, or fails before the process is replaced.</summary>
+public sealed record UpdateResultReport(string Version, string Status, string? Error);
 
 public sealed record EmergencyStopState(bool DeviceStopped, IReadOnlyList<Guid> StoppedActuatorIds, string? Reason)
 {

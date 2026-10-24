@@ -112,6 +112,30 @@ public static class AiJobs
     public static readonly string[] All = [Chat, ScheduledReview, Vision, Reports, Calibration];
 }
 
+public static class ReportCadence
+{
+    public const string Daily = "daily";
+    public const string Weekly = "weekly";
+    public const string Monthly = "monthly";
+    public const string OnDemand = "on_demand";
+    public static readonly string[] Scheduled = [Daily, Weekly, Monthly];
+
+    public static string Cron(string cadence) => cadence switch
+    {
+        Weekly => "0 7 * * 1",
+        Monthly => "0 7 1 * *",
+        _ => "0 7 * * *",
+    };
+
+    public static string Title(string cadence) => cadence switch
+    {
+        Weekly => "Weekly growth report",
+        Monthly => "Monthly growth report",
+        OnDemand => "Growth report",
+        _ => "Daily growth report",
+    };
+}
+
 public static class ScheduleKinds
 {
     public const string Actuator = "actuator";

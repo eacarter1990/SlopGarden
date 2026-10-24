@@ -2,6 +2,8 @@ using System.Security.Claims;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Npgsql;
 using SlopGarden.Contracts;
 using SlopGarden.Server.Ai;
 using SlopGarden.Server.Data;
@@ -33,13 +35,42 @@ public static class CoreEndpoints
     {
         var g = app.MapGroup("/api/auth").WithTags("Auth");
 
-        g.MapGet("/status", async (SlopDbContext db, HttpContext http) =>
+        g.MapGet("/status", async (SlopDbContext db, HttpContext http, IOptions<ServerOptions> opts) =>
         {
             var needsSetup = !await db.Users.AnyAsync();
             UserDto? me = null;
             if (http.User.Identity?.IsAuthenticated == true && Guid.TryParse(http.User.FindFirstValue(Claims.UserId), out var id))
                 me = await db.Users.AsNoTracking().Where(u => u.Id == id).Select(u => UserDto.From(u)).FirstOrDefaultAsync();
-            return Results.Ok(new { needsSetup, user = me });
+            var database = opts.Value.Database;
+            return Results.Ok(new
+            {
+                needsSetup,
+                user = me,
+                database = new { database.Host, database.Port, database.Database, database.Username, database.SslMode },
+            });
+        }).AllowAnonymous();
+
+        g.MapPost("/setup-database", async (DatabaseOptions req, SlopDbContext db, ServerOverridesFile overrides, IHostApplicationLifetime life, CancellationToken ct) =>
+        {
+            if (await db.Users.AnyAsync(ct)) return Results.Conflict(new { error = "Setup already completed" });
+            if (string.IsNullOrWhiteSpace(req.Host) || string.IsNullOrWhiteSpace(req.Database) || string.IsNullOrWhiteSpace(req.Username))
+                return Results.BadRequest(new { error = "Host, database and username are required" });
+            try
+            {
+                await using var conn = new NpgsqlConnection(req.ToConnectionString());
+                await conn.OpenAsync(ct);
+            }
+            catch (Exception ex) when (ex is NpgsqlException or ArgumentException or System.Net.Sockets.SocketException or TimeoutException)
+            {
+                return Results.BadRequest(new { error = "Could not connect: " + ex.Message });
+            }
+            overrides.WriteDatabase(req);
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(600);
+                life.StopApplication();
+            });
+            return Results.Ok(new { saved = true, restarting = true });
         }).AllowAnonymous();
 
         g.MapPost("/setup", async (SetupRequest req, SlopDbContext db, HttpContext http) =>

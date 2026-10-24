@@ -15,7 +15,8 @@ public sealed class CommandService(
     DeviceConnections connections,
     IHubContext<DeviceHub> deviceHub,
     LiveNotifier live,
-    NotificationService notifications)
+    NotificationService notifications,
+    ActivityLog activity)
 {
     public static readonly TimeSpan DefaultExpiry = TimeSpan.FromMinutes(2);
 
@@ -58,6 +59,9 @@ public sealed class CommandService(
         db.ActuatorCommands.Add(cmd);
         db.Audit(actor, "actuator.command", "actuator", actuatorId, new() { ["action"] = action, ["durationSec"] = cmd.DurationSec, ["reason"] = reason });
         await db.SaveChangesAsync(ct);
+        var line = $"{actuator.Name}: {action} requested by {actor.Label}";
+        activity.Note(actuator.GardenId, actuator.BedId is null ? null : "bed", actuator.BedId, line);
+        if (actuator.PlantId is { } plantId) activity.Plant(plantId, line);
         await TrySendAsync(cmd, actuator.DeviceId, ct);
         await live.Changed("commands");
         return new CommandResult(cmd.Id, cmd.Status, null, cmd.DurationSec, decision.Notes);
