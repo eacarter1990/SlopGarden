@@ -87,6 +87,21 @@ public static class ActuatorRoles
 
     public static bool IsDosing(string? role) => role is not null && role.StartsWith("dose_", StringComparison.Ordinal);
 
+    public static string? DoseGroup(string? role) => role switch
+    {
+        DosePhUp or DosePhDown => "ph",
+        _ when IsDosing(role) => "nutrient",
+        _ => null,
+    };
+
+    /// <summary>
+    /// Mixing wait: after a dose, the reservoir must mix before the next one, except that parts of a nutrient
+    /// (A, B, Cal-Mag, additives) may follow each other directly. The same doser twice, nutrient→pH, pH→nutrient
+    /// and pH→pH all wait.
+    /// </summary>
+    public static bool NeedsMixingWait(string? previousRole, string? nextRole) =>
+        previousRole == nextRole || DoseGroup(previousRole) != DoseGroup(nextRole) || DoseGroup(nextRole) == "ph";
+
     /// <summary>Pumps that are meant to run for long periods; per-run/per-day watering limits don't apply to them.</summary>
     public static bool IsContinuous(string? role) => role is CirculationPump or AirPump;
 }

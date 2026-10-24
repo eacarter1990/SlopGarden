@@ -20,6 +20,7 @@ public class SlopDbContext(DbContextOptions<SlopDbContext> options) : DbContext(
     public DbSet<Plant> Plants => Set<Plant>();
     public DbSet<CareTarget> CareTargets => Set<CareTarget>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
+    public DbSet<Reservoir> Reservoirs => Set<Reservoir>();
     public DbSet<Device> Devices => Set<Device>();
     public DbSet<DeviceConfigRevision> DeviceConfigRevisions => Set<DeviceConfigRevision>();
     public DbSet<DevicePlugin> DevicePlugins => Set<DevicePlugin>();
@@ -110,7 +111,12 @@ public class SlopDbContext(DbContextOptions<SlopDbContext> options) : DbContext(
         b.Entity<Secret>(e => e.HasIndex(x => x.Name).IsUnique());
 
         b.Entity<Garden>(e => e.HasMany(x => x.Beds).WithOne(x => x.Garden!).HasForeignKey(x => x.GardenId).OnDelete(DeleteBehavior.Cascade));
-        b.Entity<Bed>(e => e.HasMany(x => x.Plants).WithOne(x => x.Bed!).HasForeignKey(x => x.BedId).OnDelete(DeleteBehavior.Cascade));
+        b.Entity<Bed>(e =>
+        {
+            e.HasMany(x => x.Plants).WithOne(x => x.Bed!).HasForeignKey(x => x.BedId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Reservoir>().WithMany().HasForeignKey(x => x.ReservoirId).OnDelete(DeleteBehavior.SetNull);
+        });
+        b.Entity<Reservoir>(e => e.HasOne<Garden>().WithMany().HasForeignKey(x => x.GardenId).OnDelete(DeleteBehavior.Cascade));
         b.Entity<PlantProfile>(e =>
         {
             e.HasIndex(x => x.Slug).IsUnique();
@@ -119,7 +125,8 @@ public class SlopDbContext(DbContextOptions<SlopDbContext> options) : DbContext(
         b.Entity<Plant>(e => e.HasOne(x => x.PlantProfile).WithMany().HasForeignKey(x => x.PlantProfileId).OnDelete(DeleteBehavior.SetNull));
         b.Entity<CareTarget>(e =>
         {
-            e.HasIndex(x => new { x.ScopeType, x.BedId, x.PlantId, x.Metric }).IsUnique().AreNullsDistinct(false);
+            e.HasIndex(x => new { x.ScopeType, x.BedId, x.PlantId, x.ReservoirId, x.Metric }).IsUnique().AreNullsDistinct(false);
+            e.HasOne<Reservoir>().WithMany().HasForeignKey(x => x.ReservoirId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Bed>().WithMany().HasForeignKey(x => x.BedId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Plant>().WithMany().HasForeignKey(x => x.PlantId).OnDelete(DeleteBehavior.Cascade);
         });
@@ -276,6 +283,7 @@ public class SlopDbContext(DbContextOptions<SlopDbContext> options) : DbContext(
         e.HasOne<Garden>().WithMany().HasForeignKey(x => x.GardenId).OnDelete(DeleteBehavior.Cascade);
         e.HasOne<Bed>().WithMany().HasForeignKey(x => x.BedId).OnDelete(DeleteBehavior.SetNull);
         e.HasOne<Plant>().WithMany().HasForeignKey(x => x.PlantId).OnDelete(DeleteBehavior.SetNull);
+        e.HasOne<Reservoir>().WithMany().HasForeignKey(x => x.ReservoirId).OnDelete(DeleteBehavior.SetNull);
     }
 }
 

@@ -15,10 +15,66 @@ public sealed class Seeder(SlopDbContext db, IOptions<ServerOptions> options, IC
         await SeedProfilesAsync(ct);
         await SeedHardwareCatalogAsync(ct);
         await SeedSafetyAsync(ct);
+        await EnsureHydroDefaultsAsync(ct);
         if (!await db.NotificationChannels.AnyAsync(ct))
             db.NotificationChannels.Add(new NotificationChannel { Kind = "browser", Name = "Browser notifications", MinSeverity = Severities.Warning });
         await db.SaveChangesAsync(ct);
-        if (options.Value.SeedDemo) await SeedDemoAsync(ct);
+        if (options.Value.SeedDemo)
+        {
+            await SeedDemoAsync(ct);
+            await SeedHydroDemoAsync(ct);
+        }
+    }
+
+    /// <summary>Hydroponic EC ranges (mS/cm) for the built-in crops.</summary>
+    private static readonly Dictionary<string, (double Min, double Max)> HydroEc = new()
+    {
+        ["tomato"] = (2.0, 5.0), ["cherry-tomato"] = (2.0, 5.0), ["lettuce"] = (0.8, 1.2), ["basil"] = (1.0, 1.6), ["pepper"] = (1.8, 2.8),
+        ["cucumber"] = (1.7, 2.5), ["zucchini"] = (1.8, 2.4), ["strawberry"] = (1.0, 1.4), ["carrot"] = (1.6, 2.0), ["spinach"] = (1.8, 2.3),
+        ["kale"] = (1.6, 2.5), ["bush-bean"] = (2.0, 4.0), ["parsley"] = (0.8, 1.8), ["mint"] = (2.0, 2.4), ["chili"] = (1.8, 2.8), ["microgreens"] = (0.8, 1.2),
+    };
+
+    private async Task EnsureHydroDefaultsAsync(CancellationToken ct)
+    {
+        var builtin = await db.PlantProfiles.Where(p => p.IsBuiltin && p.EcMin == null).ToListAsync(ct);
+        foreach (var p in builtin.Where(p => HydroEc.ContainsKey(p.Slug)))
+            (p.EcMin, p.EcMax) = HydroEc[p.Slug];
+
+        if (!await db.SafetyLimits.AnyAsync(l => l.LimitType == SafetyLimitTypes.MinSecondsBetweenDoses, ct))
+            db.SafetyLimits.Add(new SafetyLimit { ScopeType = ScopeTypes.Global, LimitType = SafetyLimitTypes.MinSecondsBetweenDoses, Value = 600, CreatedByType = ActorTypes.System, Notes = "Wait 10 min between doses to the same reservoir so it can mix" });
+        if (!await db.SafetyLimits.AnyAsync(l => l.LimitType == SafetyLimitTypes.MaxHourlyAmountMl, ct))
+            db.SafetyLimits.Add(new SafetyLimit { ScopeType = ScopeTypes.Global, LimitType = SafetyLimitTypes.MaxHourlyAmountMl, Value = 30, CreatedByType = ActorTypes.System, Notes = "Max 30 ml per doser per hour" });
+        await db.SaveChangesAsync(ct);
+    }
+
+    private async Task SeedHydroDemoAsync(CancellationToken ct)
+    {
+        var garden = await db.Gardens.OrderBy(g => g.CreatedAt).FirstOrDefaultAsync(g => g.ArchivedAt == null, ct);
+        if (garden is null || await db.Reservoirs.AnyAsync(ct)) return;
+        var reservoir = new Reservoir
+        {
+            GardenId = garden.Id, Name = "NFT rack reservoir", VolumeLiters = 60, ChangeIntervalDays = 14, LastChangedAt = DateTimeOffset.UtcNow.AddDays(-6),
+            AiContext = "Two-part nutrient (A + B, equal ml). pH Down is phosphoric acid; pH Up is potassium hydroxide.",
+        };
+        var rack = new Bed
+        {
+            GardenId = garden.Id, Name = "NFT lettuce rack", Kind = "hydroponic", Environment = "greenhouse", GrowingMedium = GrowingMedia.Hydroponic, HydroSystem = "nft",
+            ReservoirId = reservoir.Id, IrrigationType = "hydroponic", SunExposure = "grow_light", LayoutX = 3, LayoutY = 0,
+            AiContext = "Four 2 m NFT channels under LED grow lights in the greenhouse.",
+        };
+        db.Reservoirs.Add(reservoir);
+        db.Beds.Add(rack);
+        var profiles = await db.PlantProfiles.Where(p => p.Slug == "lettuce" || p.Slug == "basil").ToDictionaryAsync(p => p.Slug, ct);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        db.Plants.AddRange(
+            new Plant { BedId = rack.Id, PlantProfileId = profiles.GetValueOrDefault("lettuce")?.Id, Name = "Lettuce (NFT)", Variety = "Lollo Rossa", Quantity = 18, Stage = "vegetative", StartedFrom = "transplant", PlantedAt = today.AddDays(-21), ExpectedHarvestStart = today.AddDays(10) },
+            new Plant { BedId = rack.Id, PlantProfileId = profiles.GetValueOrDefault("basil")?.Id, Name = "Basil (NFT)", Variety = "Genovese", Quantity = 6, Stage = "vegetative", StartedFrom = "transplant", PlantedAt = today.AddDays(-25) });
+        db.CareTargets.AddRange(
+            new CareTarget { ScopeType = "reservoir", ReservoirId = reservoir.Id, Metric = Metrics.EcMsCm, MinValue = 1.0, MaxValue = 1.6, Source = "user", Rationale = "Lettuce + basil mix" },
+            new CareTarget { ScopeType = "reservoir", ReservoirId = reservoir.Id, Metric = Metrics.Ph, MinValue = 5.8, MaxValue = 6.2, Source = "user" },
+            new CareTarget { ScopeType = "reservoir", ReservoirId = reservoir.Id, Metric = Metrics.WaterTemperatureC, MinValue = 18, MaxValue = 22, Source = "user" });
+        await db.SaveChangesAsync(ct);
+        log.LogInformation("Seeded demo NFT rack and reservoir");
     }
 
     private async Task SeedAdminAsync(CancellationToken ct)

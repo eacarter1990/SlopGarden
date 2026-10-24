@@ -11,25 +11,31 @@ public sealed record StopScope(string ScopeType, Guid? ScopeId, string Reason);
 /// <summary>Resolves effective safety limits and emergency stops per actuator, and checks commands against them.</summary>
 public sealed class SafetyService(SlopDbContext db)
 {
-    public async Task<(Guid? BedId, Guid? PlantId)> ResolvePlacementAsync(ITargeted t, CancellationToken ct)
+    public sealed record Placement(Guid? BedId, Guid? PlantId, Guid? ReservoirId);
+
+    public async Task<Placement> ResolvePlacementAsync(ITargeted t, CancellationToken ct)
     {
-        if (t.PlantId is { } pid)
-        {
-            var bedId = await db.Plants.Where(p => p.Id == pid).Select(p => (Guid?)p.BedId).FirstOrDefaultAsync(ct);
-            return (bedId ?? t.BedId, pid);
-        }
-        return (t.BedId, null);
+        Guid? bedId = t.BedId, plantId = t.PlantId;
+        if (plantId is { } pid)
+            bedId = await db.Plants.Where(p => p.Id == pid).Select(p => (Guid?)p.BedId).FirstOrDefaultAsync(ct) ?? bedId;
+        var reservoirId = t.ReservoirId;
+        if (reservoirId is null && bedId is { } bid)
+            reservoirId = await db.Beds.Where(b => b.Id == bid).Select(b => b.ReservoirId).FirstOrDefaultAsync(ct);
+        return new Placement(bedId, plantId, reservoirId);
     }
 
-    private static bool LimitApplies(SafetyLimit l, Actuator a, Guid? bedId, Guid? plantId)
+    private static bool IsDoser(Actuator a) => ActuatorRoles.IsDosing(a.Role) || a.Kind == ActuatorKinds.FertilizerDoser;
+
+    private static bool LimitApplies(SafetyLimit l, Actuator a, Placement p)
     {
         if (!l.Enabled) return false;
         var scopeMatch = l.ScopeType switch
         {
             Data.ScopeTypes.Global => true,
             Data.ScopeTypes.Garden => l.ScopeId == a.GardenId,
-            Data.ScopeTypes.Bed => bedId is not null && l.ScopeId == bedId,
-            Data.ScopeTypes.Plant => plantId is not null && l.ScopeId == plantId,
+            Data.ScopeTypes.Bed => p.BedId is not null && l.ScopeId == p.BedId,
+            Data.ScopeTypes.Plant => p.PlantId is not null && l.ScopeId == p.PlantId,
+            Data.ScopeTypes.Reservoir => p.ReservoirId is not null && l.ScopeId == p.ReservoirId,
             Data.ScopeTypes.Device => l.ScopeId == a.DeviceId,
             Data.ScopeTypes.Actuator => l.ScopeId == a.Id,
             _ => false,
@@ -38,20 +44,32 @@ public sealed class SafetyService(SlopDbContext db)
         if (l.ActuatorKind is { Length: > 0 } kind) return kind == a.Kind;
         return l.LimitType switch
         {
-            SafetyLimitTypes.TankLowLockout => ActuatorKinds.IsWatering(a.Kind) || a.Kind == ActuatorKinds.FertilizerDoser,
+            SafetyLimitTypes.TankLowLockout => ActuatorKinds.IsWatering(a.Kind) || IsDoser(a),
             SafetyLimitTypes.MaxTemperatureCutoff => a.Kind is ActuatorKinds.Heater or ActuatorKinds.Light,
-            SafetyLimitTypes.MinTemperatureCutoff => ActuatorKinds.IsWatering(a.Kind),
-            SafetyLimitTypes.MaxDailyAmountMl => a.Kind == ActuatorKinds.FertilizerDoser,
-            SafetyLimitTypes.MaxRunSeconds or SafetyLimitTypes.MaxDailyRunSeconds => ActuatorKinds.IsWatering(a.Kind) || a.Kind == ActuatorKinds.FertilizerDoser,
+            SafetyLimitTypes.MinTemperatureCutoff => ActuatorKinds.IsWatering(a.Kind) && !ActuatorRoles.IsContinuous(a.Role),
+            SafetyLimitTypes.MaxDailyAmountMl or SafetyLimitTypes.MaxHourlyAmountMl or SafetyLimitTypes.MinSecondsBetweenDoses => IsDoser(a),
+            SafetyLimitTypes.MaxRunSeconds or SafetyLimitTypes.MaxDailyRunSeconds => ActuatorKinds.IsWatering(a.Kind) || IsDoser(a),
             _ => true,
         };
     }
 
     public async Task<List<SafetyLimit>> ApplicableLimitsAsync(Actuator a, CancellationToken ct)
     {
-        var (bedId, plantId) = await ResolvePlacementAsync(a, ct);
+        var placement = await ResolvePlacementAsync(a, ct);
         var all = await db.SafetyLimits.AsNoTracking().Where(l => l.Enabled).ToListAsync(ct);
-        return all.Where(l => LimitApplies(l, a, bedId, plantId)).ToList();
+        return all.Where(l => LimitApplies(l, a, placement)).ToList();
+    }
+
+    /// <summary>Dosers on a reservoir need its circulation (or, for DWC, air) pump running so doses mix instead of pooling.</summary>
+    public async Task<Guid?> RequiredRunningActuatorAsync(Actuator a, CancellationToken ct)
+    {
+        if (!ActuatorRoles.IsDosing(a.Role)) return null;
+        var reservoirId = (await ResolvePlacementAsync(a, ct)).ReservoirId;
+        if (reservoirId is null) return null;
+        var pumps = await db.Actuators.AsNoTracking()
+            .Where(x => x.ReservoirId == reservoirId && x.Enabled && (x.Role == ActuatorRoles.CirculationPump || x.Role == ActuatorRoles.AirPump))
+            .ToListAsync(ct);
+        return (pumps.FirstOrDefault(x => x.Role == ActuatorRoles.CirculationPump) ?? pumps.FirstOrDefault())?.Id;
     }
 
     public async Task<ActuatorSafety> ResolveAsync(Actuator a, CancellationToken ct)
@@ -60,6 +78,7 @@ public sealed class SafetyService(SlopDbContext db)
         int? MinInt(string type) => limits.Where(l => l.LimitType == type).Select(l => (int?)(int)Math.Floor(l.Value)).Min();
         double? MinDouble(string type) => limits.Where(l => l.LimitType == type).Select(l => (double?)l.Value).Min();
         int? MaxInt(string type) => limits.Where(l => l.LimitType == type).Select(l => (int?)(int)Math.Ceiling(l.Value)).Max();
+        var continuous = ActuatorRoles.IsContinuous(a.Role);
 
         var interlocks = limits
             .Where(l => SafetyLimitTypes.Interlocks.Contains(l.LimitType) && l.ChannelId is not null)
@@ -68,11 +87,14 @@ public sealed class SafetyService(SlopDbContext db)
             .ToList();
 
         return new ActuatorSafety(
-            MinInt(SafetyLimitTypes.MaxRunSeconds),
-            MinInt(SafetyLimitTypes.MaxDailyRunSeconds),
-            MaxInt(SafetyLimitTypes.MinSecondsBetweenRuns),
+            continuous ? null : MinInt(SafetyLimitTypes.MaxRunSeconds),
+            continuous ? null : MinInt(SafetyLimitTypes.MaxDailyRunSeconds),
+            continuous ? null : MaxInt(SafetyLimitTypes.MinSecondsBetweenRuns),
             MinDouble(SafetyLimitTypes.MaxDailyAmountMl),
-            interlocks);
+            interlocks,
+            MinDouble(SafetyLimitTypes.MaxHourlyAmountMl),
+            ActuatorRoles.IsDosing(a.Role) ? MaxInt(SafetyLimitTypes.MinSecondsBetweenDoses) : null,
+            await RequiredRunningActuatorAsync(a, ct));
     }
 
     public static string Describe(SafetyLimit l) => l.LimitType switch
@@ -84,19 +106,22 @@ public sealed class SafetyService(SlopDbContext db)
         SafetyLimitTypes.MaxDailyRunSeconds => $"Max {l.Value} s per day",
         SafetyLimitTypes.MinSecondsBetweenRuns => $"At least {l.Value} s between runs",
         SafetyLimitTypes.MaxDailyAmountMl => $"Max {l.Value} ml per day",
+        SafetyLimitTypes.MaxHourlyAmountMl => $"Max {l.Value} ml per hour",
+        SafetyLimitTypes.MinSecondsBetweenDoses => $"Wait {l.Value} s between doses to the same reservoir (mixing)",
         _ => l.LimitType,
     };
 
     public async Task<List<StopScope>> ActiveStopsForAsync(Actuator a, CancellationToken ct)
     {
-        var (bedId, plantId) = await ResolvePlacementAsync(a, ct);
+        var p = await ResolvePlacementAsync(a, ct);
         var stops = await db.EmergencyStops.AsNoTracking().Where(s => s.Active).ToListAsync(ct);
         return stops.Where(s => s.ScopeType switch
         {
             Data.ScopeTypes.Global => true,
             Data.ScopeTypes.Garden => s.ScopeId == a.GardenId,
-            Data.ScopeTypes.Bed => bedId is not null && s.ScopeId == bedId,
-            Data.ScopeTypes.Plant => plantId is not null && s.ScopeId == plantId,
+            Data.ScopeTypes.Bed => p.BedId is not null && s.ScopeId == p.BedId,
+            Data.ScopeTypes.Plant => p.PlantId is not null && s.ScopeId == p.PlantId,
+            Data.ScopeTypes.Reservoir => p.ReservoirId is not null && s.ScopeId == p.ReservoirId,
             Data.ScopeTypes.Device => s.ScopeId == a.DeviceId,
             Data.ScopeTypes.Actuator => s.ScopeId == a.Id,
             _ => false,
@@ -183,6 +208,34 @@ public sealed class SafetyService(SlopDbContext db)
             var thisMl = d * rate / 60.0;
             if (usedMl + thisMl > maxMl + 1e-6)
                 return new SafetyDecision(false, $"Daily dose limit: {usedMl:0.#} ml used + {thisMl:0.#} ml > {maxMl} ml", null, notes);
+        }
+
+        if (ActuatorRoles.IsDosing(a.Role))
+        {
+            var thisMl = amountMl ?? (durationSec is { } dd && a.FlowRateMlPerMin is { } fr ? dd * fr / 60.0 : 0);
+            if (safety.MaxHourlyAmountMl is { } maxHour && a.FlowRateMlPerMin is { } rateH)
+            {
+                var hourAgo = DateTimeOffset.UtcNow.AddHours(-1);
+                var lastHour = await db.ActuatorRuns.AsNoTracking().Where(r => r.ActuatorId == a.Id && r.EndedAt >= hourAgo).ToListAsync(ct);
+                var usedHour = lastHour.Sum(r => r.AmountMl ?? r.DurationSec * rateH / 60.0);
+                if (usedHour + thisMl > maxHour + 1e-6)
+                    return new SafetyDecision(false, $"Hourly dose limit: {usedHour:0.#} ml in the last hour + {thisMl:0.#} ml > {maxHour} ml", null, notes);
+            }
+            if (safety.MinSecondsBetweenReservoirDoses is { } mix && (await ResolvePlacementAsync(a, ct)).ReservoirId is { } resId)
+            {
+                var since = DateTimeOffset.UtcNow.AddSeconds(-mix);
+                var dosers = await db.Actuators.AsNoTracking().Where(x => x.ReservoirId == resId && x.Role != null && x.Role.StartsWith("dose_"))
+                    .ToDictionaryAsync(x => x.Id, x => x.Role, ct);
+                var recent = await db.ActuatorRuns.AsNoTracking().Where(r => dosers.Keys.Contains(r.ActuatorId) && r.EndedAt >= since).ToListAsync(ct);
+                var blocking = recent.Where(r => ActuatorRoles.NeedsMixingWait(dosers[r.ActuatorId], a.Role)).MaxBy(r => r.EndedAt);
+                if (blocking is not null)
+                    return new SafetyDecision(false, $"Mixing wait: the last dose to this reservoir was {(DateTimeOffset.UtcNow - blocking.EndedAt).TotalSeconds:0} s ago (minimum {mix} s)", null, notes);
+            }
+            if (safety.RequiresActuatorOn is { } required && !await db.Actuators.AnyAsync(x => x.Id == required && x.IsOn, ct))
+            {
+                var name = await db.Actuators.Where(x => x.Id == required).Select(x => x.Name).FirstOrDefaultAsync(ct);
+                return new SafetyDecision(false, $"'{name}' must be running so the dose mixes into the reservoir", null, notes);
+            }
         }
 
         if (safety.Interlocks.Count > 0)

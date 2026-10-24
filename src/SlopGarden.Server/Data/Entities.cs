@@ -16,6 +16,7 @@ public interface ITargeted
     Guid GardenId { get; set; }
     Guid? BedId { get; set; }
     Guid? PlantId { get; set; }
+    Guid? ReservoirId { get; set; }
 }
 
 // ----------------------------------------------------------------------------- access
@@ -100,6 +101,8 @@ public class Garden : ITimestamped
     public string? ClimateNotes { get; set; }
     public string AiContext { get; set; } = "";
     public string AiAutonomy { get; set; } = "standing_approvals";
+    /// <summary>soil | soilless | hydroponic — used by beds that don't set their own.</summary>
+    public string DefaultGrowingMedium { get; set; } = "soil";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? ArchivedAt { get; set; }
@@ -121,6 +124,11 @@ public class Bed : ITimestamped
     public string? SoilNotes { get; set; }
     public string IrrigationType { get; set; } = "drip";
     public string SunExposure { get; set; } = "full_sun";
+    /// <summary>soil | soilless | hydroponic; null inherits the garden default.</summary>
+    public string? GrowingMedium { get; set; }
+    /// <summary>For hydroponic beds: nft, dwc, rdwc, ebb_flow, drip_recirculating, drip_to_waste, kratky, wick, aeroponic.</summary>
+    public string? HydroSystem { get; set; }
+    public Guid? ReservoirId { get; set; }
     public double? LayoutX { get; set; }
     public double? LayoutY { get; set; }
     public string AiContext { get; set; } = "";
@@ -199,6 +207,7 @@ public class CareTarget
     public string ScopeType { get; set; } = TargetTypes.Plant;
     public Guid? BedId { get; set; }
     public Guid? PlantId { get; set; }
+    public Guid? ReservoirId { get; set; }
     public string Metric { get; set; } = "";
     public double? MinValue { get; set; }
     public double? MaxValue { get; set; }
@@ -216,6 +225,7 @@ public class JournalEntry
     public Guid GardenId { get; set; }
     public Guid? BedId { get; set; }
     public Guid? PlantId { get; set; }
+    public Guid? ReservoirId { get; set; }
     public string Kind { get; set; } = "note";
     public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
     public double? Quantity { get; set; }
@@ -225,6 +235,23 @@ public class JournalEntry
     public string CreatedByType { get; set; } = ActorTypes.User;
     public Guid? CreatedById { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>A nutrient-solution tank feeding one or more hydroponic beds. Water-side sensors and pumps/dosers target it.</summary>
+public class Reservoir : ITimestamped
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid GardenId { get; set; }
+    public string Name { get; set; } = "";
+    public double? VolumeLiters { get; set; }
+    public DateTimeOffset? LastChangedAt { get; set; }
+    public int? ChangeIntervalDays { get; set; } = 14;
+    public double ToppedUpLitersSinceChange { get; set; }
+    public string AiContext { get; set; } = "";
+    public string Notes { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ArchivedAt { get; set; }
 }
 
 // ----------------------------------------------------------------------------- devices & plugins
@@ -400,6 +427,7 @@ public class Sensor : ITimestamped, ITargeted
     public Guid GardenId { get; set; }
     public Guid? BedId { get; set; }
     public Guid? PlantId { get; set; }
+    public Guid? ReservoirId { get; set; }
     public string Status { get; set; } = "ok";
     public string? LastError { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -454,6 +482,16 @@ public class Actuator : ITimestamped, ITargeted
     public Guid GardenId { get; set; }
     public Guid? BedId { get; set; }
     public Guid? PlantId { get; set; }
+    public Guid? ReservoirId { get; set; }
+    /// <summary>See <c>ActuatorRoles</c>: irrigation, circulation_pump, air_pump, dose_* …</summary>
+    public string? Role { get; set; }
+    /// <summary>Kept on by the device (NFT/DWC circulation and air pumps).</summary>
+    public bool ContinuousRun { get; set; }
+    public Guid? FlowChannelId { get; set; }
+    public double? FlowMinWhenOn { get; set; }
+    public int? FlowGraceSec { get; set; }
+    public double? FlowMaxWhenOff { get; set; }
+    public bool StopOnStall { get; set; } = true;
     public bool IsOn { get; set; }
     public double? Level { get; set; }
     public DateTimeOffset? StateSince { get; set; }
@@ -514,6 +552,7 @@ public class Camera : ITimestamped, ITargeted
     public Guid GardenId { get; set; }
     public Guid? BedId { get; set; }
     public Guid? PlantId { get; set; }
+    public Guid? ReservoirId { get; set; }
     public DateTimeOffset? LastFrameAt { get; set; }
     public string Status { get; set; } = "ok";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -693,6 +732,8 @@ public class AiProposal
     public Guid? TargetId { get; set; }
     public Guid? GardenId { get; set; }
     public string Risk { get; set; } = "low";
+    /// <summary>Whether "always allow" may be offered (never for dosing).</summary>
+    public bool AllowStanding { get; set; } = true;
     public string Status { get; set; } = ProposalStatuses.Pending;
     public Guid? DecidedBy { get; set; }
     public DateTimeOffset? DecidedAt { get; set; }

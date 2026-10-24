@@ -58,7 +58,7 @@ public sealed class ToolExecutor(
             {
                 var ctx = new ToolContext(services, db, actor, mode, ct) { ConversationId = conversationId, Reason = reason, Job = job };
                 var preview = await def.Preview!(ctx, input);
-                if (def.Routine && await MatchingStandingApprovalAsync(def, preview, args, ct) is { } standing)
+                if (def.Routine && preview.AllowStanding && await MatchingStandingApprovalAsync(def, preview, args, ct) is { } standing)
                 {
                     log.LogInformation("Standing approval {Id} covers {Tool}", standing.Id, def.Name);
                     return await RunAsync(def, input, actor, ToolMode.Approved, conversationId, null, reason, preview, ct, job);
@@ -158,6 +158,7 @@ public sealed class ToolExecutor(
             TargetId = preview.TargetId,
             GardenId = preview.GardenId,
             Risk = preview.Risk,
+            AllowStanding = def.Routine && preview.AllowStanding,
             ExpiresAt = DateTimeOffset.UtcNow.AddDays(7),
         };
         db.AiProposals.Add(p);
@@ -193,7 +194,7 @@ public sealed class ToolExecutor(
         db.Audit(approver, "ai.proposal.approved", p.ToolName, p.Id, new() { ["note"] = note, ["allowAlways"] = allowAlways });
         await db.SaveChangesAsync(ct);
 
-        var preview = new ProposalPreview(p.Title, p.TargetType, p.TargetId, p.GardenId, p.Risk, p.Changes);
+        var preview = new ProposalPreview(p.Title, p.TargetType, p.TargetId, p.GardenId, p.Risk, p.Changes, p.AllowStanding);
         try
         {
             var input = ToolRegistry.Deserialize(def, p.Arguments);
@@ -208,7 +209,7 @@ public sealed class ToolExecutor(
             p.Result = new JsonObject { ["error"] = ex.Message };
         }
 
-        if (allowAlways && def.Routine && p.Status == ProposalStatuses.Executed)
+        if (allowAlways && def.Routine && p.AllowStanding && p.Status == ProposalStatuses.Executed)
         {
             var constraints = new JsonObject();
             foreach (var (k, v) in p.Arguments)
@@ -229,7 +230,7 @@ public sealed class ToolExecutor(
 
         await db.SaveChangesAsync(ct);
         var resultText = p.Status == ProposalStatuses.Executed
-            ? $"**Approved** by {approver.Label} and applied: {p.Title}" + (allowAlways && def.Routine ? "\n\n_The AI may repeat this routine action within the same limits without asking._" : "")
+            ? $"**Approved** by {approver.Label} and applied: {p.Title}" + (allowAlways && def.Routine && p.AllowStanding ? "\n\n_The AI may repeat this routine action within the same limits without asking._" : "")
             : $"**Approved** by {approver.Label}, but applying it failed: {p.Result?["error"]}";
         await AppendEventAsync(p, resultText, ct);
         await live.All(LiveEvents.Proposal, new { proposal = p });

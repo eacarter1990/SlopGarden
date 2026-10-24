@@ -217,8 +217,15 @@ public sealed class DeviceHub(
         if (e.Severity is Severities.Warning or Severities.Critical)
         {
             var (targetType, targetId) = e.ActuatorId is { } aid ? ("actuator", aid) : e.SensorId is { } s2 ? ("sensor", s2) : ("device", DeviceId);
-            await notifications.CreateAsync(new NotificationRequest(device.GardenId, e.Severity, e.Category,
-                $"{device.Name}: {e.Category} event", e.Message, targetType, targetId, $"devevent:{targetId}:{e.Message}"), CancellationToken.None);
+            var title = e.Code switch
+            {
+                SafetyEventCodes.FlowStall => "No flow",
+                SafetyEventCodes.UnexpectedFlow => "Unexpected flow",
+                SafetyEventCodes.PumpNotRunning => "Pump not running",
+                _ => $"{device.Name}: {e.Category} event",
+            };
+            var dedupe = e.Code is { Length: > 0 } code ? Background.HydroWatchdog.DedupeKey(code, targetId) : $"devevent:{targetId}:{e.Message}";
+            await notifications.CreateAsync(new NotificationRequest(device.GardenId, e.Severity, e.Category, title, e.Message, targetType, targetId, dedupe), CancellationToken.None);
         }
     }
 

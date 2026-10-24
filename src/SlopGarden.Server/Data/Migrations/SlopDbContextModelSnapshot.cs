@@ -34,6 +34,10 @@ namespace SlopGarden.Server.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("bed_id");
 
+                    b.Property<bool>("ContinuousRun")
+                        .HasColumnType("boolean")
+                        .HasColumnName("continuous_run");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -50,6 +54,22 @@ namespace SlopGarden.Server.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("failsafe_state");
+
+                    b.Property<Guid?>("FlowChannelId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("flow_channel_id");
+
+                    b.Property<int?>("FlowGraceSec")
+                        .HasColumnType("integer")
+                        .HasColumnName("flow_grace_sec");
+
+                    b.Property<double?>("FlowMaxWhenOff")
+                        .HasColumnType("double precision")
+                        .HasColumnName("flow_max_when_off");
+
+                    b.Property<double?>("FlowMinWhenOn")
+                        .HasColumnType("double precision")
+                        .HasColumnName("flow_min_when_on");
 
                     b.Property<double?>("FlowRateMlPerMin")
                         .HasColumnType("double precision")
@@ -90,6 +110,14 @@ namespace SlopGarden.Server.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("plugin_id");
 
+                    b.Property<Guid?>("ReservoirId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reservoir_id");
+
+                    b.Property<string>("Role")
+                        .HasColumnType("text")
+                        .HasColumnName("role");
+
                     b.Property<string>("Settings")
                         .IsRequired()
                         .HasColumnType("jsonb")
@@ -103,6 +131,10 @@ namespace SlopGarden.Server.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("status");
+
+                    b.Property<bool>("StopOnStall")
+                        .HasColumnType("boolean")
+                        .HasColumnName("stop_on_stall");
 
                     b.Property<string>("TargetType")
                         .IsRequired()
@@ -127,6 +159,9 @@ namespace SlopGarden.Server.Data.Migrations
 
                     b.HasIndex("PlantId")
                         .HasDatabaseName("ix_actuators_plant_id");
+
+                    b.HasIndex("ReservoirId")
+                        .HasDatabaseName("ix_actuators_reservoir_id");
 
                     b.ToTable("actuators", (string)null);
                 });
@@ -373,6 +408,10 @@ namespace SlopGarden.Server.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<bool>("AllowStanding")
+                        .HasColumnType("boolean")
+                        .HasColumnName("allow_standing");
 
                     b.Property<string>("Arguments")
                         .IsRequired()
@@ -659,6 +698,14 @@ namespace SlopGarden.Server.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("garden_id");
 
+                    b.Property<string>("GrowingMedium")
+                        .HasColumnType("text")
+                        .HasColumnName("growing_medium");
+
+                    b.Property<string>("HydroSystem")
+                        .HasColumnType("text")
+                        .HasColumnName("hydro_system");
+
                     b.Property<string>("IrrigationType")
                         .IsRequired()
                         .HasColumnType("text")
@@ -691,6 +738,10 @@ namespace SlopGarden.Server.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("notes");
 
+                    b.Property<Guid?>("ReservoirId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reservoir_id");
+
                     b.Property<string>("SoilNotes")
                         .HasColumnType("text")
                         .HasColumnName("soil_notes");
@@ -717,6 +768,9 @@ namespace SlopGarden.Server.Data.Migrations
 
                     b.HasIndex("GardenId")
                         .HasDatabaseName("ix_beds_garden_id");
+
+                    b.HasIndex("ReservoirId")
+                        .HasDatabaseName("ix_beds_reservoir_id");
 
                     b.ToTable("beds", (string)null);
                 });
@@ -778,6 +832,10 @@ namespace SlopGarden.Server.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("plugin_id");
 
+                    b.Property<Guid?>("ReservoirId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reservoir_id");
+
                     b.Property<string>("Settings")
                         .IsRequired()
                         .HasColumnType("jsonb")
@@ -811,6 +869,9 @@ namespace SlopGarden.Server.Data.Migrations
 
                     b.HasIndex("PlantId")
                         .HasDatabaseName("ix_cameras_plant_id");
+
+                    b.HasIndex("ReservoirId")
+                        .HasDatabaseName("ix_cameras_reservoir_id");
 
                     b.ToTable("cameras", (string)null);
                 });
@@ -851,6 +912,10 @@ namespace SlopGarden.Server.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("rationale");
 
+                    b.Property<Guid?>("ReservoirId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reservoir_id");
+
                     b.Property<string>("ScopeType")
                         .IsRequired()
                         .HasColumnType("text")
@@ -883,11 +948,14 @@ namespace SlopGarden.Server.Data.Migrations
                     b.HasIndex("PlantId")
                         .HasDatabaseName("ix_care_targets_plant_id");
 
-                    b.HasIndex("ScopeType", "BedId", "PlantId", "Metric")
-                        .IsUnique()
-                        .HasDatabaseName("ix_care_targets_scope_type_bed_id_plant_id_metric");
+                    b.HasIndex("ReservoirId")
+                        .HasDatabaseName("ix_care_targets_reservoir_id");
 
-                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("ScopeType", "BedId", "PlantId", "Metric"), false);
+                    b.HasIndex("ScopeType", "BedId", "PlantId", "ReservoirId", "Metric")
+                        .IsUnique()
+                        .HasDatabaseName("ix_care_targets_scope_type_bed_id_plant_id_reservoir_id_metric");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("ScopeType", "BedId", "PlantId", "ReservoirId", "Metric"), false);
 
                     b.ToTable("care_targets", (string)null);
                 });
@@ -1583,6 +1651,11 @@ namespace SlopGarden.Server.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("DefaultGrowingMedium")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("default_growing_medium");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasColumnType("text")
@@ -1761,6 +1834,10 @@ namespace SlopGarden.Server.Data.Migrations
                     b.Property<double?>("Quantity")
                         .HasColumnType("double precision")
                         .HasColumnName("quantity");
+
+                    b.Property<Guid?>("ReservoirId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reservoir_id");
 
                     b.Property<string>("Unit")
                         .HasColumnType("text")
@@ -2507,6 +2584,69 @@ namespace SlopGarden.Server.Data.Migrations
                     b.ToTable("readings", (string)null);
                 });
 
+            modelBuilder.Entity("SlopGarden.Server.Data.Reservoir", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AiContext")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("ai_context");
+
+                    b.Property<DateTimeOffset?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("archived_at");
+
+                    b.Property<int?>("ChangeIntervalDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("change_interval_days");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("GardenId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("garden_id");
+
+                    b.Property<DateTimeOffset?>("LastChangedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_changed_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("notes");
+
+                    b.Property<double>("ToppedUpLitersSinceChange")
+                        .HasColumnType("double precision")
+                        .HasColumnName("topped_up_liters_since_change");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<double?>("VolumeLiters")
+                        .HasColumnType("double precision")
+                        .HasColumnName("volume_liters");
+
+                    b.HasKey("Id")
+                        .HasName("pk_reservoirs");
+
+                    b.HasIndex("GardenId")
+                        .HasDatabaseName("ix_reservoirs_garden_id");
+
+                    b.ToTable("reservoirs", (string)null);
+                });
+
             modelBuilder.Entity("SlopGarden.Server.Data.SafetyLimit", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2822,6 +2962,10 @@ namespace SlopGarden.Server.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("read_interval_sec");
 
+                    b.Property<Guid?>("ReservoirId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reservoir_id");
+
                     b.Property<string>("Settings")
                         .IsRequired()
                         .HasColumnType("jsonb")
@@ -2855,6 +2999,9 @@ namespace SlopGarden.Server.Data.Migrations
 
                     b.HasIndex("PlantId")
                         .HasDatabaseName("ix_sensors_plant_id");
+
+                    b.HasIndex("ReservoirId")
+                        .HasDatabaseName("ix_sensors_reservoir_id");
 
                     b.ToTable("sensors", (string)null);
                 });
@@ -3049,6 +3196,12 @@ namespace SlopGarden.Server.Data.Migrations
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_actuators_plants_plant_id");
 
+                    b.HasOne("SlopGarden.Server.Data.Reservoir", null)
+                        .WithMany()
+                        .HasForeignKey("ReservoirId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_actuators_reservoirs_reservoir_id");
+
                     b.Navigation("Device");
                 });
 
@@ -3102,6 +3255,12 @@ namespace SlopGarden.Server.Data.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_beds_gardens_garden_id");
 
+                    b.HasOne("SlopGarden.Server.Data.Reservoir", null)
+                        .WithMany()
+                        .HasForeignKey("ReservoirId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_beds_reservoirs_reservoir_id");
+
                     b.Navigation("Garden");
                 });
 
@@ -3133,6 +3292,12 @@ namespace SlopGarden.Server.Data.Migrations
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_cameras_plants_plant_id");
 
+                    b.HasOne("SlopGarden.Server.Data.Reservoir", null)
+                        .WithMany()
+                        .HasForeignKey("ReservoirId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_cameras_reservoirs_reservoir_id");
+
                     b.Navigation("Device");
                 });
 
@@ -3149,6 +3314,12 @@ namespace SlopGarden.Server.Data.Migrations
                         .HasForeignKey("PlantId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .HasConstraintName("fk_care_targets_plants_plant_id");
+
+                    b.HasOne("SlopGarden.Server.Data.Reservoir", null)
+                        .WithMany()
+                        .HasForeignKey("ReservoirId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_care_targets_reservoirs_reservoir_id");
                 });
 
             modelBuilder.Entity("SlopGarden.Server.Data.ChatConversation", b =>
@@ -3293,6 +3464,16 @@ namespace SlopGarden.Server.Data.Migrations
                         .HasConstraintName("fk_readings_sensor_channels_channel_id");
                 });
 
+            modelBuilder.Entity("SlopGarden.Server.Data.Reservoir", b =>
+                {
+                    b.HasOne("SlopGarden.Server.Data.Garden", null)
+                        .WithMany()
+                        .HasForeignKey("GardenId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_reservoirs_gardens_garden_id");
+                });
+
             modelBuilder.Entity("SlopGarden.Server.Data.SafetyLimit", b =>
                 {
                     b.HasOne("SlopGarden.Server.Data.SensorChannel", null)
@@ -3355,6 +3536,12 @@ namespace SlopGarden.Server.Data.Migrations
                         .HasForeignKey("PlantId")
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_sensors_plants_plant_id");
+
+                    b.HasOne("SlopGarden.Server.Data.Reservoir", null)
+                        .WithMany()
+                        .HasForeignKey("ReservoirId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_sensors_reservoirs_reservoir_id");
 
                     b.Navigation("Device");
                 });

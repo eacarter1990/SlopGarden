@@ -58,7 +58,12 @@ public sealed class DeviceConfigService(SlopDbContext db, SafetyService safety, 
         foreach (var a in actuators)
         {
             var s = await safety.ResolveAsync(a, ct);
-            actuatorConfigs.Add(new ActuatorConfig(a.Id, a.Name, a.Kind, a.PluginId, a.Settings, a.Enabled, a.FailsafeState, a.FlowRateMlPerMin, s));
+            var placement = await safety.ResolvePlacementAsync(a, ct);
+            var flowWatch = a.FlowChannelId is { } fc
+                ? new FlowWatch(fc, a.FlowMinWhenOn ?? 0.2, a.FlowGraceSec ?? 20, a.FlowMaxWhenOff, a.StopOnStall)
+                : null;
+            actuatorConfigs.Add(new ActuatorConfig(a.Id, a.Name, a.Kind, a.PluginId, a.Settings, a.Enabled, a.FailsafeState, a.FlowRateMlPerMin, s,
+                a.Role, placement.ReservoirId, a.ContinuousRun, flowWatch));
             var stops = await safety.ActiveStopsForAsync(a, ct);
             if (stops.Count > 0)
             {

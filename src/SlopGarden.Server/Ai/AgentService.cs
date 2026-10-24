@@ -265,6 +265,9 @@ public sealed class AgentService(IServiceScopeFactory scopes, LiveNotifier live,
             - trigger_emergency_stop is immediate and needs no approval: use it only for real danger (flooding, overheating, runaway pump).
             - Base decisions on plant type needs (crop profile + care targets), current readings, indoor/outdoor, season, daylight and location, and the user's AI-context notes.
             - Use capture_camera_image when visual inspection would help (only stills; no video).
+            - Hydroponic beds have no soil: never reason about soil moisture there. Manage their reservoir instead (EC, pH, water temperature, level, flow, dissolved oxygen) and respect the system type (list_hydro_systems).
+            - Nutrient and pH dosing always needs the user's approval: propose small doses (a few ml) with run_actuator action=dose, one adjustment at a time, and wait for mixing before proposing another. Never dose while the circulation pump is off. When EC is too high, suggest topping up with plain water (log_reservoir_event top_up) instead of dosing.
+            - A flow stall or a continuous pump that is off is urgent in NFT, aeroponic and DWC systems: tell the user immediately.
             - Prefer IDs from the snapshot below; call tools to get anything that's missing or stale.
             - Answer in concise Markdown (short paragraphs, lists, small tables). Use metric units unless asked otherwise.
             """);
@@ -291,14 +294,15 @@ public sealed class AgentService(IServiceScopeFactory scopes, LiveNotifier live,
         var sb = new StringBuilder();
         var g = o.Garden;
         var e = o.Environment;
-        sb.AppendLine($"Garden '{g.Name}' id={g.Id} env={g.Environment} tz={g.TimezoneId} loc={(g.Latitude is null ? "unknown" : $"{g.Latitude:0.##},{g.Longitude:0.##} {g.LocationLabel}")} autonomy={g.AiAutonomy}");
+        sb.AppendLine($"Garden '{g.Name}' id={g.Id} env={g.Environment} tz={g.TimezoneId} loc={(g.Latitude is null ? "unknown" : $"{g.Latitude:0.##},{g.Longitude:0.##} {g.LocationLabel}")} autonomy={g.AiAutonomy} default_medium={g.DefaultGrowingMedium}");
         sb.AppendLine($"Now: {e.LocalTime} ({e.DayOfWeek}), season={e.Season}, daylight={e.DaylightHours?.ToString("0.#") ?? "?"}h, sunrise={e.Sunrise ?? "?"}, sunset={e.Sunset ?? "?"}");
         if (!string.IsNullOrWhiteSpace(g.AiContext)) sb.AppendLine($"Owner notes: {g.AiContext}");
         static string R(IEnumerable<LatestReading> rs) => string.Join("; ", rs.Select(r => $"{r.Metric}={(r.Value is { } v ? v.ToString("0.#") : "n/a")}{r.Unit} [ch {r.ChannelId}]"));
         if (o.GardenReadings.Count > 0) sb.AppendLine($"Garden-level readings: {R(o.GardenReadings)}");
         foreach (var b in o.Beds)
         {
-            sb.AppendLine($"- Bed '{b.Bed.Name}' id={b.Bed.Id} kind={b.Bed.Kind} sun={b.Bed.SunExposure} irrigation={b.Bed.IrrigationType}{(b.Bed.AiContext.Length > 0 ? $" notes=\"{b.Bed.AiContext}\"" : "")}");
+            var hydro = b.Medium == "hydroponic" ? $" system={b.HydroSystem ?? "unspecified"} reservoir={b.ReservoirId?.ToString() ?? "none"}" : $" irrigation={b.Bed.IrrigationType}";
+            sb.AppendLine($"- Bed '{b.Bed.Name}' id={b.Bed.Id} medium={b.Medium} kind={b.Bed.Kind} sun={b.Bed.SunExposure}{hydro}{(b.Bed.AiContext.Length > 0 ? $" notes=\"{b.Bed.AiContext}\"" : "")}");
             if (b.Readings.Count > 0) sb.AppendLine($"  bed readings: {R(b.Readings)}");
             foreach (var p in b.Plants)
             {
@@ -306,6 +310,17 @@ public sealed class AgentService(IServiceScopeFactory scopes, LiveNotifier live,
                 sb.AppendLine($"  • Plant '{p.Plant.Name}' id={p.Plant.Id} profile={p.Plant.ProfileName ?? "none"} x{p.Plant.Quantity} stage={p.Plant.Stage}{(p.Plant.PlantedAt is { } d ? $" planted={d:yyyy-MM-dd}" : "")}{(targets.Length > 0 ? $" targets: {targets}" : "")}{(p.Plant.AiContext.Length > 0 ? $" notes=\"{p.Plant.AiContext}\"" : "")}");
                 if (p.Readings.Count > 0) sb.AppendLine($"    readings: {R(p.Readings)}");
             }
+        }
+        foreach (var r in o.Reservoirs)
+        {
+            var targets = string.Join(", ", r.Targets.Select(t => $"{t.Metric} {t.Min:0.##}-{t.Max:0.##} ({t.Source})"));
+            var acts = string.Join("; ", r.Actuators.Select(a => $"'{a.Name}' id={a.Id} {a.Role ?? a.Kind} {(a.IsOn ? "ON" : "off")}{(a.ContinuousRun ? " continuous" : "")}"));
+            sb.AppendLine($"- Reservoir '{r.Name}' id={r.Id} {r.VolumeLiters:0.#}L feeds [{string.Join(", ", r.Beds.Select(b => b.Name))}], changed {(r.DaysSinceChange is { } d ? $"{d:0.#} days ago" : "never")} (every {r.ChangeIntervalDays} d){(r.ChangeDue ? " CHANGE DUE" : "")}, topped up {r.ToppedUpLitersSinceChange:0.#} L since");
+            if (r.Readings.Count > 0) sb.AppendLine($"  readings: {R(r.Readings)}");
+            if (targets.Length > 0) sb.AppendLine($"  targets: {targets}");
+            if (acts.Length > 0) sb.AppendLine($"  pumps/dosers: {acts}");
+            if (r.DosedSinceChange.Count > 0) sb.AppendLine($"  dosed since change: {string.Join(", ", r.DosedSinceChange.Select(x => $"{x.Name} {x.AmountMl:0.#} ml"))}");
+            if (r.Alerts.Count > 0) sb.AppendLine($"  ALERTS: {string.Join("; ", r.Alerts)}");
         }
         if (o.Actuators.Count > 0)
             sb.AppendLine("Actuators: " + string.Join("; ", o.Actuators.Select(a => $"'{a.Name}' id={a.Id} {a.Kind} {(a.IsOn ? "ON" : "off")} → {a.TargetType}{(a.Enabled ? "" : " (disabled)")}")));

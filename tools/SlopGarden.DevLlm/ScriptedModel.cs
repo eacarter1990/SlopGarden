@@ -83,6 +83,9 @@ public static class ScriptedModel
             return Call("get_garden_overview", new JsonObject(), "Let me look at the garden first.");
         if (overview is null) return new ScriptedReply("I couldn't read the garden overview." + Footer, []);
 
+        if (Has(lower, "reservoir", "nutrient", "hydro", "nft", " ph", "ph ", " ec", "ec ", "dose", "pump", "flow rate", "no flow", "flow stall"))
+            return Reservoir(overview, results);
+
         if (Has(lower, "photo", "picture", "camera", "look at", "see the", "image"))
         {
             var cam = (overview["cameras"] as JsonArray ?? []).FirstOrDefault();
@@ -169,6 +172,83 @@ public static class ScriptedModel
 
     private static double? MoistureOf(JsonNode? readings) =>
         (readings as JsonArray ?? []).Where(r => r?["metric"]?.ToString() == "soil_moisture_pct" && r["value"] is not null).Select(r => (double?)r!["value"]!.GetValue<double>()).FirstOrDefault();
+
+    private static double? ReadingOf(JsonNode? reservoir, string metric) =>
+        (reservoir?["readings"] as JsonArray ?? []).Where(r => r?["metric"]?.ToString() == metric && r["value"] is not null).Select(r => (double?)r!["value"]!.GetValue<double>()).FirstOrDefault();
+
+    private static (double? Min, double? Max) TargetOf(JsonNode? reservoir, string metric)
+    {
+        var t = (reservoir?["targets"] as JsonArray ?? []).FirstOrDefault(x => x?["metric"]?.ToString() == metric);
+        return (t?["min"]?.GetValue<double?>(), t?["max"]?.GetValue<double?>());
+    }
+
+    private static JsonNode? Doser(JsonNode reservoir, string role) =>
+        (reservoir["actuators"] as JsonArray ?? []).FirstOrDefault(a => a?["role"]?.ToString() == role);
+
+    /// <summary>Hydroponic reservoir check: flow problems first, then pH, then EC. Doses are always proposals.</summary>
+    private static ScriptedReply Reservoir(JsonNode overview, Dictionary<string, JsonNode?> results)
+    {
+        var reservoirs = overview["reservoirs"] as JsonArray ?? [];
+        if (reservoirs.Count == 0) return new ScriptedReply("There's no hydroponic reservoir set up yet. Create one in **Garden → Reservoirs** and point a bed's growing medium to *Hydroponic*." + Footer, []);
+        var res = reservoirs.FirstOrDefault(r => (r?["alerts"] as JsonArray)?.Count > 0) ?? reservoirs[0]!;
+        var name = res!["name"]?.ToString();
+        var volume = res["volumeLiters"]?.GetValue<double?>() ?? 50;
+        var alerts = (res["alerts"] as JsonArray ?? []).Select(a => a?.ToString() ?? "").ToList();
+
+        var proposed = results.Where(r => r.Key == "run_actuator").Select(r => r.Value).ToList();
+        if (proposed.Count > 0)
+        {
+            var failed = proposed.FirstOrDefault(r => r?["status"]?.ToString() == "error");
+            if (failed is not null) return new ScriptedReply($"I couldn't propose that dose: {failed["error"]}" + Footer, []);
+            return new ScriptedReply($"I've proposed the dose above for **{name}**. Dosing always needs your approval. After it runs, give the reservoir about 10 minutes to mix before I check again." + Footer, []);
+        }
+
+        var flowAlert = alerts.FirstOrDefault(a => a.Contains("flow stall") || a.Contains("should run continuously"));
+        if (flowAlert is not null)
+            return new ScriptedReply($"🚨 **{name}: {flowAlert}.** In NFT and aeroponic systems roots can dry out quickly. Check the pump, the intake filter and the reservoir level now. Use the emergency stop if water is leaking." + Footer, []);
+
+        var ph = ReadingOf(res, "ph");
+        var (phMin, phMax) = TargetOf(res, "ph");
+        if (ph is { } p && phMax is { } hi && p > hi && Doser(res, "dose_ph_down") is { } down)
+        {
+            var ml = Math.Clamp(Math.Round((p - ((phMin ?? hi) + hi) / 2) / 0.4 * volume / 10, MidpointRounding.AwayFromZero), 1, 8);
+            return new ScriptedReply($"pH in **{name}** is **{p:0.00}**, above the {phMin}–{hi} target.", [new ScriptedCall("run_actuator", new JsonObject
+            {
+                ["actuatorId"] = down["id"]?.ToString(), ["action"] = "dose", ["amountMl"] = ml,
+                ["reason"] = $"pH {p:0.00} is above the {hi} maximum; high pH locks out iron and manganese. {ml} ml pH Down in {volume:0} L should bring it back toward {((phMin ?? hi) + hi) / 2:0.0}. Re-check after mixing.",
+            })]);
+        }
+        if (ph is { } p2 && phMin is { } lo && p2 < lo && Doser(res, "dose_ph_up") is { } up)
+        {
+            var ml = Math.Clamp(Math.Round((((phMax ?? lo) + lo) / 2 - p2) / 0.4 * volume / 10, MidpointRounding.AwayFromZero), 1, 8);
+            return new ScriptedReply($"pH in **{name}** is **{p2:0.00}**, below the {lo}–{phMax} target.", [new ScriptedCall("run_actuator", new JsonObject
+            {
+                ["actuatorId"] = up["id"]?.ToString(), ["action"] = "dose", ["amountMl"] = ml,
+                ["reason"] = $"pH {p2:0.00} is below the {lo} minimum. {ml} ml pH Up in {volume:0} L should lift it toward the middle of the range. Re-check after mixing.",
+            })]);
+        }
+
+        var ec = ReadingOf(res, "ec_ms_cm");
+        var (ecMin, ecMax) = TargetOf(res, "ec_ms_cm");
+        if (ec is { } e && ecMin is { } emin && e < emin && Doser(res, "dose_nutrient_a") is { } a && Doser(res, "dose_nutrient_b") is { } b)
+        {
+            var ml = Math.Clamp(Math.Round((emin + 0.1 - e) / 0.1 * 0.15 * volume * 2, MidpointRounding.AwayFromZero) / 2, 2, 10);
+            var why = $"EC {e:0.00} mS/cm is below the {emin} minimum, so the plants are underfed. {ml} ml each of part A and B in {volume:0} L raises EC by roughly {ml / volume / 0.15 * 0.1:0.0#}.";
+            return new ScriptedReply($"EC in **{name}** is **{e:0.00} mS/cm**, below the {emin}–{ecMax} target.", [
+                new ScriptedCall("run_actuator", new JsonObject { ["actuatorId"] = a["id"]?.ToString(), ["action"] = "dose", ["amountMl"] = ml, ["reason"] = why }),
+                new ScriptedCall("run_actuator", new JsonObject { ["actuatorId"] = b["id"]?.ToString(), ["action"] = "dose", ["amountMl"] = ml, ["reason"] = why + " Part B follows part A in the same mixing window." }),
+            ]);
+        }
+        if (ec is { } e2 && ecMax is { } emax && e2 > emax)
+        {
+            var liters = Math.Round(volume * (e2 - emax) / e2, 0);
+            return new ScriptedReply($"EC in **{name}** is **{e2:0.00} mS/cm**, above the {ecMin}–{emax} target. That usually means the plants drank more water than nutrients. I don't dose for this: top up with about **{liters:0} L of plain water** (pH-adjusted), then log it with *Log top-up* on the reservoir page." + Footer, []);
+        }
+
+        var temp = ReadingOf(res, "water_temperature_c");
+        var level = ReadingOf(res, "water_level_pct");
+        return new ScriptedReply($"**{name}** looks good: pH {ph:0.00}, EC {ec:0.00} mS/cm, water {temp:0.#} °C, level {level:0} %. Solution changed {res["daysSinceChange"]} days ago (every {res["changeIntervalDays"]} days)." + Footer, []);
+    }
 
     /// <summary>The plant furthest below its soil-moisture minimum, its bed, and the valve/pump serving it.</summary>
     public static (JsonNode? Plant, JsonNode? Bed, JsonNode? Actuator, double Value, double Min) Driest(JsonNode overview)
