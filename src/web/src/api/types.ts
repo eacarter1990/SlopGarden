@@ -27,6 +27,46 @@ export interface Garden {
   climateNotes?: string | null
   aiContext: string
   aiAutonomy: string
+  defaultGrowingMedium: GrowingMedium
+}
+
+export type GrowingMedium = 'soil' | 'soilless' | 'hydroponic'
+
+export interface HydroSystemInfo {
+  id: string
+  label: string
+  pumpPattern: 'continuous' | 'timed' | 'passive'
+  description: string
+  keyMetrics: string[]
+  guidance: string
+}
+
+export interface ReservoirTarget {
+  metric: string
+  min?: number | null
+  max?: number | null
+  source: string
+}
+
+export interface ReservoirStatus {
+  id: string
+  gardenId: string
+  name: string
+  volumeLiters?: number | null
+  lastChangedAt?: string | null
+  changeIntervalDays?: number | null
+  daysSinceChange?: number | null
+  changeDue: boolean
+  toppedUpLitersSinceChange: number
+  aiContext: string
+  notes: string
+  readings: LatestReading[]
+  targets: ReservoirTarget[]
+  actuators: ActuatorBrief[]
+  beds: { id: string; name: string; hydroSystem?: string | null }[]
+  dosedSinceChange: { actuatorId: string; name: string; role?: string | null; amountMl: number }[]
+  alerts: string[]
+  aiActive: boolean
 }
 
 export interface Bed {
@@ -47,6 +87,9 @@ export interface Bed {
   aiContext: string
   notes: string
   plantCount: number
+  growingMedium?: GrowingMedium | null
+  hydroSystem?: string | null
+  reservoirId?: string | null
 }
 
 export interface Plant {
@@ -86,6 +129,8 @@ export interface PlantProfile {
   soilTempMinC?: number | null
   phMin?: number | null
   phMax?: number | null
+  ecMin?: number | null
+  ecMax?: number | null
   daysToMaturityMin?: number | null
   daysToMaturityMax?: number | null
   spacingCm?: number | null
@@ -127,6 +172,9 @@ export interface BedOverview {
   plants: PlantOverview[]
   readings: LatestReading[]
   aiActive: boolean
+  medium: GrowingMedium
+  hydroSystem?: string | null
+  reservoirId?: string | null
 }
 
 export interface ActuatorBrief {
@@ -140,6 +188,9 @@ export interface ActuatorBrief {
   bedId?: string | null
   plantId?: string | null
   deviceId: string
+  reservoirId?: string | null
+  role?: string | null
+  continuousRun?: boolean
 }
 
 export interface CameraBrief {
@@ -208,6 +259,7 @@ export interface GardenOverview {
   garden: Garden
   environment: EnvironmentContext
   beds: BedOverview[]
+  reservoirs: ReservoirStatus[]
   gardenReadings: LatestReading[]
   actuators: ActuatorBrief[]
   cameras: CameraBrief[]
@@ -264,6 +316,7 @@ export interface Sensor {
   status: string
   lastError?: string | null
   channels: Channel[]
+  reservoirId?: string | null
 }
 
 export interface Actuator {
@@ -284,6 +337,14 @@ export interface Actuator {
   isOn: boolean
   stateSince?: string | null
   status: string
+  reservoirId?: string | null
+  role?: string | null
+  continuousRun: boolean
+  flowChannelId?: string | null
+  flowMinWhenOn?: number | null
+  flowGraceSec?: number | null
+  flowMaxWhenOff?: number | null
+  stopOnStall: boolean
 }
 
 export interface Camera {
@@ -410,6 +471,7 @@ export interface Proposal {
   targetType: string
   targetId?: string | null
   risk: string
+  allowStanding?: boolean
   status: string
   decidedAt?: string | null
   decisionNote?: string | null

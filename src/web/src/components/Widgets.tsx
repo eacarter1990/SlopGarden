@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useLiveEvent } from '../api/live'
-import type { Bed, CareRange, JsonSchema, LatestReading, Plant } from '../api/types'
+import type { Bed, CareRange, JsonSchema, LatestReading, Plant, ReservoirStatus } from '../api/types'
 import { ago, fmtValue, metricLabel, readingTone, toneColor } from '../format'
 
 /** Camera "feed": the latest frame, refreshed whenever the device uploads a new one, at the resolution this view needs. */
@@ -101,24 +101,29 @@ export interface TargetValue {
   targetType: string
   bedId?: string | null
   plantId?: string | null
+  reservoirId?: string | null
 }
 
 /** Sensors, actuators and cameras target the whole garden, a bed, or a single plant. */
 export function TargetPicker({ value, onChange }: { value: TargetValue; onChange: (v: TargetValue) => void }) {
   const { data: beds } = useQuery({ queryKey: ['beds'], queryFn: () => api.op<Bed[]>('list_beds') })
   const { data: plants } = useQuery({ queryKey: ['plants'], queryFn: () => api.op<Plant[]>('list_plants') })
+  const { data: reservoirs } = useQuery({ queryKey: ['reservoirs'], queryFn: () => api.op<ReservoirStatus[]>('list_reservoirs') })
   const bedName = (id: string) => beds?.find((b) => b.id === id)?.name ?? ''
   return (
     <Group grow align="flex-start">
       <Select
         label="Targets"
-        data={[{ value: 'garden', label: 'Whole garden' }, { value: 'bed', label: 'A bed' }, { value: 'plant', label: 'A single plant' }]}
+        data={[{ value: 'garden', label: 'Whole garden' }, { value: 'bed', label: 'A bed' }, { value: 'plant', label: 'A single plant' }, { value: 'reservoir', label: 'A reservoir (hydroponics)' }]}
         value={value.targetType}
-        onChange={(t) => onChange({ targetType: t ?? 'garden', bedId: null, plantId: null })}
+        onChange={(t) => onChange({ targetType: t ?? 'garden', bedId: null, plantId: null, reservoirId: null })}
         allowDeselect={false}
       />
       {value.targetType === 'bed' && (
         <Select label="Bed" data={(beds ?? []).map((b) => ({ value: b.id, label: b.name }))} value={value.bedId ?? null} onChange={(b) => onChange({ ...value, bedId: b })} searchable />
+      )}
+      {value.targetType === 'reservoir' && (
+        <Select label="Reservoir" data={(reservoirs ?? []).map((r) => ({ value: r.id, label: r.name }))} value={value.reservoirId ?? null} onChange={(r) => onChange({ ...value, reservoirId: r })} searchable />
       )}
       {value.targetType === 'plant' && (
         <Select

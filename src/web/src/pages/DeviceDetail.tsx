@@ -1,17 +1,17 @@
-import { Alert, Badge, Button, Card, Grid, Group, NumberInput, Select, Stack, Table, Text, TextInput } from '@mantine/core'
+import { ActionIcon, Alert, Badge, Button, Card, Grid, Group, NumberInput, Select, SimpleGrid, Stack, Switch, Table, Text, TextInput } from '@mantine/core'
 import { modals } from '@mantine/modals'
-import { IconAlertTriangle, IconPlus } from '@tabler/icons-react'
+import { IconAlertTriangle, IconPencil, IconPlus } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { api } from '../api/client'
-import type { DeviceDetail, DevicePlugin, DiscoveredHardware, PluginComponent } from '../api/types'
+import type { Actuator, DeviceDetail, DevicePlugin, DiscoveredHardware, PluginComponent, Sensor } from '../api/types'
 import { useAuth } from '../auth'
 import { ActuatorControl } from '../components/ActuatorControl'
 import { EmergencyStopButton } from '../components/EmergencyStopButton'
 import { useSave } from '../components/Forms'
 import { PageTitle, ReadingPill, SchemaForm, TargetPicker, TrustBadge, type TargetValue } from '../components/Widgets'
-import { ago, metricLabels, titleCase, when } from '../format'
+import { ago, metricLabels, roleLabels, titleCase, when } from '../format'
 import { usePageEntity } from '../pageContext'
 
 const actuatorKinds = ['pump', 'valve', 'light', 'heater', 'fan', 'fertilizer_doser', 'mister', 'other']
@@ -75,6 +75,59 @@ function ComponentForm({ deviceId, plugins }: { deviceId: string; plugins: Devic
   )
 }
 
+/** Role, continuous run, flow watchdog and target of an actuator (hydroponic pumps and dosers). */
+function ActuatorEditForm({ a }: { a: Actuator }) {
+  const save = useSave()
+  const { data: sensors } = useQuery({ queryKey: ['sensors'], queryFn: () => api.op<Sensor[]>('list_sensors') })
+  const flowChannels = (sensors ?? []).flatMap((s) => s.channels.filter((c) => c.metric === 'flow_l_min').map((c) => ({ value: c.id, label: `${s.name} (${c.lastValue ?? '–'} L/min)` })))
+  const [v, setV] = useState({
+    name: a.name, kind: a.kind, role: a.role ?? null, continuousRun: a.continuousRun, flowChannelId: a.flowChannelId ?? null, flowMinWhenOn: a.flowMinWhenOn ?? 0.5,
+    flowGraceSec: a.flowGraceSec ?? 20, flowMaxWhenOff: a.flowMaxWhenOff ?? '', stopOnStall: a.stopOnStall, flowRateMlPerMin: a.flowRateMlPerMin ?? '',
+  })
+  const [target, setTarget] = useState<TargetValue>({ targetType: a.targetType, bedId: a.bedId, plantId: a.plantId, reservoirId: a.reservoirId })
+  const set = (k: string) => (x: unknown) => setV((s) => ({ ...s, [k]: x }))
+  const dosing = v.role?.startsWith('dose_') || v.kind === 'fertilizer_doser'
+  return (
+    <Stack>
+      <SimpleGrid cols={2}>
+        <TextInput label="Name" value={v.name} onChange={(e) => set('name')(e.currentTarget.value)} />
+        <Select label="Kind" data={actuatorKinds.map((k) => ({ value: k, label: titleCase(k) }))} value={v.kind} onChange={(k) => set('kind')(k ?? v.kind)} />
+      </SimpleGrid>
+      <Select label="Role" clearable data={Object.entries(roleLabels).map(([value, label]) => ({ value, label }))} value={v.role} onChange={(r) => setV((s) => ({ ...s, role: r, continuousRun: r === 'circulation_pump' || r === 'air_pump' ? true : s.continuousRun }))}
+        description="Circulation and air pumps run 24/7 and skip watering run limits; dosers are always approval-only for the AI." />
+      <TargetPicker value={target} onChange={setTarget} />
+      <Switch label="Run continuously (24/7) — kept on by the device" checked={v.continuousRun} onChange={(e) => set('continuousRun')(e.currentTarget.checked)} />
+      {dosing && <NumberInput label="Flow rate (ml/min)" description="Needed to dose by ml; measure it by running the doser into a measuring cup for 60 s" value={v.flowRateMlPerMin} onChange={set('flowRateMlPerMin')} min={0} />}
+      {!dosing && (
+        <Card withBorder padding="sm">
+          <Text fw={600} size="sm" mb={4}>Flow watchdog</Text>
+          <Text size="xs" c="dimmed" mb="xs">Detects a stopped pump, clog or empty reservoir (on but no flow) and leaks or stuck valves (off but flow).</Text>
+          <Select label="Flow sensor" clearable data={flowChannels} value={v.flowChannelId} onChange={set('flowChannelId')} placeholder={flowChannels.length ? 'Choose a flow channel' : 'No flow sensors configured'} />
+          {v.flowChannelId && (
+            <SimpleGrid cols={3} mt="xs">
+              <NumberInput label="Min flow when on (L/min)" decimalScale={2} value={v.flowMinWhenOn} onChange={set('flowMinWhenOn')} />
+              <NumberInput label="Grace (s)" value={v.flowGraceSec} onChange={set('flowGraceSec')} min={1} />
+              <NumberInput label="Max flow when off" decimalScale={2} value={v.flowMaxWhenOff} onChange={set('flowMaxWhenOff')} placeholder="off" />
+            </SimpleGrid>
+          )}
+          {v.flowChannelId && <Switch mt="xs" label="Switch the pump off on a stall (protects it from running dry)" checked={v.stopOnStall} onChange={(e) => set('stopOnStall')(e.currentTarget.checked)} />}
+        </Card>
+      )}
+      <Group justify="flex-end">
+        <Button onClick={async () => {
+          await save('update_actuator', {
+            actuatorId: a.id, name: v.name, kind: v.kind, role: v.role ?? undefined, continuousRun: v.continuousRun, flowChannelId: v.flowChannelId ?? undefined,
+            flowMinWhenOn: v.flowChannelId ? Number(v.flowMinWhenOn) : undefined, flowGraceSec: v.flowChannelId ? Number(v.flowGraceSec) : undefined,
+            flowMaxWhenOff: v.flowMaxWhenOff === '' ? undefined : Number(v.flowMaxWhenOff), stopOnStall: v.stopOnStall,
+            flowRateMlPerMin: v.flowRateMlPerMin === '' ? undefined : Number(v.flowRateMlPerMin), ...target,
+          }, 'Actuator saved')
+          modals.closeAll()
+        }}>Save actuator</Button>
+      </Group>
+    </Stack>
+  )
+}
+
 export function DeviceDetailPage() {
   const { id } = useParams()
   const { canWrite, isAdmin } = useAuth()
@@ -133,7 +186,15 @@ export function DeviceDetailPage() {
             </Card>
             <Card>
               <Text fw={650} mb="xs">Actuators ({d.actuators.length})</Text>
-              <Stack gap={8}>{d.actuators.map((a) => <ActuatorControl key={a.id} a={a} />)}</Stack>
+              <Stack gap={8}>
+                {d.actuators.map((a) => (
+                  <Group key={a.id} gap={4} wrap="nowrap">
+                    <div style={{ flex: 1, minWidth: 0 }}><ActuatorControl a={a} /></div>
+                    {a.role && <Badge size="xs" variant="light" color="blue">{roleLabels[a.role] ?? a.role}</Badge>}
+                    {canWrite && <ActionIcon size="sm" variant="subtle" aria-label={`Edit ${a.name}`} onClick={() => modals.open({ title: `Edit ${a.name}`, size: 'lg', children: <ActuatorEditForm a={a} /> })}><IconPencil size={14} /></ActionIcon>}
+                  </Group>
+                ))}
+              </Stack>
             </Card>
             <Card>
               <Text fw={650} mb="xs">Cameras ({d.cameras.length})</Text>
