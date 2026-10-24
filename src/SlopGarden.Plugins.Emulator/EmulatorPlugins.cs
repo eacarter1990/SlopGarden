@@ -102,7 +102,8 @@ public sealed class EmulatorCameraPlugin : ICameraPlugin
         public async ValueTask<CameraFrame> CaptureAsync(int? width, int? height, CancellationToken cancellationToken)
         {
             var (data, contentType) = await api.GetSnapshotAsync(cameraId, width, height, cancellationToken);
-            return new CameraFrame(data, contentType, width ?? 1280, height ?? 720);
+            var size = ImageSize.TryRead(data);
+            return new CameraFrame(data, contentType, size?.Width ?? width ?? 0, size?.Height ?? height ?? 0);
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;

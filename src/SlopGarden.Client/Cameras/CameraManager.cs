@@ -75,7 +75,18 @@ public sealed class CameraManager(
             _reporter.Event(EventSeverities.Warning, EventCategories.Camera, $"Capture requested for unknown or disabled camera {request.CameraId}", cameraId: request.CameraId);
             return;
         }
-        await runner.CaptureAndUploadAsync(request.Width ?? runner.Config.CaptureWidth, request.Height ?? runner.Config.CaptureHeight, request.RequestId, ct);
+        var (width, height) = RequestedSize(request.Width, request.Height, runner.Config.CaptureWidth, runner.Config.CaptureHeight);
+        await runner.CaptureAndUploadAsync(width, height, request.RequestId, ct);
+    }
+
+    /// <summary>Fills a missing requested dimension from the configured aspect ratio, so a width-only request is not cropped.</summary>
+    internal static (int Width, int Height) RequestedSize(int? width, int? height, int configWidth, int configHeight)
+    {
+        if (width is > 0 && height is > 0) return (width.Value, height.Value);
+        if (configWidth <= 0 || configHeight <= 0) return (width ?? configWidth, height ?? configHeight);
+        if (width is > 0) return (width.Value, Math.Max(1, (int)Math.Round(width.Value * (double)configHeight / configWidth)));
+        if (height is > 0) return (Math.Max(1, (int)Math.Round(height.Value * (double)configWidth / configHeight)), height.Value);
+        return (configWidth, configHeight);
     }
 
     private static bool Same(CameraConfig a, CameraConfig b) =>
