@@ -4,11 +4,22 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UserSecretsId>dotnet-SlopGarden.Client-98fa276a-361e-4bbb-99de-bb07d12d7277</UserSecretsId>
+    <AssemblyName>slopgarden-client</AssemblyName>
+    <RootNamespace>SlopGarden.Client</RootNamespace>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishSingleFile Condition="'$(RuntimeIdentifier)' != ''">true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Cronos" Version="0.13.0" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.13" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.13" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="10.0.13" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.13" />
   </ItemGroup>
 
   <ItemGroup>
@@ -16,5 +27,9 @@
     <ProjectReference Include="..\SlopGarden.Contracts\SlopGarden.Contracts.csproj" />
     <ProjectReference Include="..\SlopGarden.Plugins.Emulator\SlopGarden.Plugins.Emulator.csproj" />
     <ProjectReference Include="..\SlopGarden.Plugins.Hardware\SlopGarden.Plugins.Hardware.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SlopGarden.Client.Tests" />
   </ItemGroup>
 </Project>
