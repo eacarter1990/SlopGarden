@@ -188,4 +188,117 @@ public sealed class GardenSimulatorTests
         Assert.Contains(scenario.Couplings, c => c.ActuatorId == "tomato-valve" && c.SensorId == "tomato-soil-moisture" && c.RatePerMinute > 0);
         Assert.Contains(scenario.Cameras, c => c.Id == "tomato-cam");
     }
+
+    [Fact]
+    public void While_on_coupling_drives_the_sensor_only_while_the_actuator_runs()
+    {
+        var sim = Create(
+            [Sensor("flow", new SignalModel { Type = SignalModelTypes.Constant, Value = 0, Floor = 0 })],
+            [new ActuatorDefinition { Id = "pump", Name = "Pump", Kind = "pump" }],
+            [new CouplingDefinition { ActuatorId = "pump", SensorId = "flow", Mode = CouplingModes.WhileOn, Value = 3.2 }]);
+
+        Assert.Equal(0, sim.ReadValue("flow").Value);
+        sim.SetActuatorState("pump", true, null, "test");
+        Assert.Equal(3.2, sim.ReadValue("flow").Value, 6);
+        sim.AdvanceSimulated(600);
+        Assert.Equal(3.2, sim.TrueValue("flow"), 6);
+        sim.SetActuatorState("pump", true, 0.5, "test");
+        Assert.Equal(1.6, sim.TrueValue("flow"), 6);
+        sim.SetActuatorState("pump", false, null, "test");
+        Assert.Equal(0, sim.ReadValue("flow").Value);
+    }
+
+    [Fact]
+    public void While_on_reading_includes_the_sensor_noise()
+    {
+        var sim = Create(
+            [Sensor("flow", new SignalModel { Type = SignalModelTypes.Constant, Value = 0, Floor = 0 }, noise: 0.1)],
+            [new ActuatorDefinition { Id = "pump", Name = "Pump", Kind = "pump" }],
+            [new CouplingDefinition { ActuatorId = "pump", SensorId = "flow", Mode = CouplingModes.WhileOn, Value = 3.2 }]);
+        sim.SetActuatorState("pump", true, null, "test");
+        var reads = Enumerable.Range(0, 50).Select(_ => sim.ReadValue("flow").Value).ToList();
+        Assert.True(reads.Distinct().Count() > 10);
+        Assert.InRange(reads.Average(), 3.1, 3.3);
+    }
+
+    [Fact]
+    public void Stalled_actuator_reports_on_but_its_couplings_are_inactive()
+    {
+        var sim = Create(
+            [
+                Sensor("flow", new SignalModel { Type = SignalModelTypes.Constant, Value = 0, Floor = 0 }),
+                Sensor("ec", new SignalModel { Type = SignalModelTypes.Drying, Start = 1.5, RatePerHour = 0 }),
+            ],
+            [
+                new ActuatorDefinition { Id = "pump", Name = "Pump", Kind = "pump" },
+                new ActuatorDefinition { Id = "doser", Name = "Doser", Kind = "fertilizer_doser" },
+            ],
+            [
+                new CouplingDefinition { ActuatorId = "pump", SensorId = "flow", Mode = CouplingModes.WhileOn, Value = 3.2 },
+                new CouplingDefinition { ActuatorId = "doser", SensorId = "ec", RatePerMinute = 2 },
+            ]);
+        sim.SetActuatorState("pump", true, null, "test");
+        sim.SetActuatorState("doser", true, null, "test");
+
+        var view = sim.SetActuatorFault("pump", stalled: true);
+        sim.SetActuatorFault("doser", stalled: true);
+        Assert.True(view.On);
+        Assert.True(view.Stalled);
+        Assert.True(sim.GetActuator("pump").Stalled);
+        Assert.Equal(0, sim.ReadValue("flow").Value);
+        sim.AdvanceSimulated(60);
+        Assert.Equal(1.5, sim.TrueValue("ec"), 6);
+
+        sim.SetActuatorFault("pump", stalled: false);
+        sim.SetActuatorFault("doser", stalled: false);
+        Assert.False(sim.GetActuator("pump").Stalled);
+        Assert.Equal(3.2, sim.ReadValue("flow").Value, 6);
+        sim.AdvanceSimulated(30);
+        Assert.Equal(2.5, sim.TrueValue("ec"), 6);
+        Assert.Throws<KeyNotFoundException>(() => sim.SetActuatorFault("nope", true));
+    }
+
+    [Fact]
+    public void Default_scenario_includes_the_hydroponic_rack_without_changing_existing_ids()
+    {
+        var sim = new GardenSimulator(DefaultScenario.Create(), _time, TimeZoneInfo.Utc, new Random(3));
+        var sensors = sim.ListSensors().ToDictionary(s => s.Id);
+        foreach (var id in new[] { "tomato-soil-moisture", "basil-soil-moisture", "lettuce-soil-moisture", "greenhouse-air-temperature", "water-tank-level" })
+            Assert.Contains(id, sensors.Keys);
+        Assert.Equal("ec_ms_cm", sensors["hydro-ec"].Metric);
+        Assert.Equal("ph", sensors["hydro-ph"].Metric);
+        Assert.Equal("water_temperature_c", sensors["hydro-water-temperature"].Metric);
+        Assert.Equal("water_level_pct", sensors["hydro-reservoir-level"].Metric);
+        Assert.Equal("flow_l_min", sensors["hydro-flow"].Metric);
+        Assert.Equal("dissolved_oxygen_mg_l", sensors["hydro-dissolved-oxygen"].Metric);
+        var actuators = sim.ListActuators().ToDictionary(a => a.Id);
+        Assert.Equal("pump", actuators["nft-pump"].Kind);
+        Assert.Equal("pump", actuators["air-pump"].Kind);
+        foreach (var id in new[] { "doser-nutrient-a", "doser-nutrient-b", "doser-ph-down", "doser-ph-up", "fertilizer-doser" })
+            Assert.Equal("fertilizer_doser", actuators[id].Kind);
+        Assert.Contains(sim.ListCameras(), c => c.Id == "hydro-cam" && c.Image == "nft-rack.jpg");
+        Assert.Contains(sim.ListCameras(), c => c.Id == "lettuce-cam");
+
+        Assert.Equal(0, sim.TrueValue("hydro-flow"));
+        sim.SetActuatorState("nft-pump", true, null, "test");
+        Assert.Equal(3.2, sim.TrueValue("hydro-flow"), 6);
+
+        var ec = sim.TrueValue("hydro-ec");
+        sim.SetActuatorState("doser-nutrient-a", true, null, "test");
+        sim.AdvanceSimulated(15);
+        sim.SetActuatorState("doser-nutrient-a", false, null, "test");
+        Assert.InRange(sim.TrueValue("hydro-ec") - ec, 0.49, 0.51);
+
+        var ph = sim.TrueValue("hydro-ph");
+        sim.SetActuatorState("doser-ph-down", true, null, "test");
+        sim.AdvanceSimulated(10);
+        Assert.InRange(sim.TrueValue("hydro-ph") - ph, -0.26, -0.24);
+    }
+
+    [Fact]
+    public void Bundled_nft_rack_image_is_embedded()
+    {
+        var names = typeof(GardenSimulator).Assembly.GetManifestResourceNames();
+        Assert.Contains(names, n => n.EndsWith("nft-rack.jpg", StringComparison.Ordinal));
+    }
 }

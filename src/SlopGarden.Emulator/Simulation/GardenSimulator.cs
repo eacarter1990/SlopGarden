@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 namespace SlopGarden.Emulator.Simulation;
@@ -12,7 +13,8 @@ public sealed record SensorValue(string Id, double Value, string Metric, string 
 
 public sealed record ActuatorHistoryEntry(DateTimeOffset Time, bool On, double? Level, string? Source);
 
-public sealed record ActuatorView(string Id, string Name, string Kind, bool On, double? Level, DateTimeOffset Since, IReadOnlyList<ActuatorHistoryEntry> History);
+/// <param name="Stalled">Fault injection: the actuator reports on but has no physical effect (dead pump, clog).</param>
+public sealed record ActuatorView(string Id, string Name, string Kind, bool On, double? Level, DateTimeOffset Since, bool Stalled, IReadOnlyList<ActuatorHistoryEntry> History);
 
 public sealed record CameraView(string Id, string Name, string Image, bool CustomImage, string SnapshotUrl);
 
@@ -134,7 +136,7 @@ public sealed class GardenSimulator
         }
         foreach (var c in _couplings)
         {
-            if (!_actuators.TryGetValue(c.ActuatorId, out var a) || !a.On || !_sensors.TryGetValue(c.SensorId, out var s)) continue;
+            if (c.Mode == CouplingModes.WhileOn || !IsActive(c, out var a) || !_sensors.TryGetValue(c.SensorId, out var s)) continue;
             var delta = c.RatePerMinute * dt / 60 * Math.Clamp(a.Level ?? 1, 0, 1);
             if (s.Definition.Model.Type == SignalModelTypes.Sine) s.Offset += delta;
             else s.State += delta;
@@ -170,7 +172,23 @@ public sealed class GardenSimulator
         {
             v = s.State;
         }
+        if (WhileOnValue(s) is { } driven) v = driven;
         return Math.Clamp(v, m.Floor ?? double.NegativeInfinity, Math.Max(m.Floor ?? double.NegativeInfinity, m.Ceiling ?? double.PositiveInfinity));
+    }
+
+    private bool IsActive(CouplingDefinition c, [NotNullWhen(true)] out ActuatorRuntime? actuator) =>
+        _actuators.TryGetValue(c.ActuatorId, out actuator) && actuator.On && !actuator.Stalled;
+
+    /// <summary>Sum of the values of the sensor's active <c>while_on</c> couplings, or null when none is active.</summary>
+    private double? WhileOnValue(SensorRuntime s)
+    {
+        double? sum = null;
+        foreach (var c in _couplings)
+        {
+            if (c.Mode != CouplingModes.WhileOn || !string.Equals(c.SensorId, s.Definition.Id, StringComparison.OrdinalIgnoreCase) || !IsActive(c, out var a)) continue;
+            sum = (sum ?? 0) + (c.Value ?? 0) * Math.Clamp(a.Level ?? 1, 0, 1);
+        }
+        return sum;
     }
 
     private double CurrentValue(SensorRuntime s, DateTimeOffset now)
@@ -313,8 +331,24 @@ public sealed class GardenSimulator
         }
     }
 
+    /// <summary>Injects or clears a stall: the actuator keeps reporting its state, but its couplings stop working.</summary>
+    public ActuatorView SetActuatorFault(string id, bool stalled)
+    {
+        lock (_gate)
+        {
+            var a = GetActuatorRuntime(id);
+            if (a.Stalled != stalled)
+            {
+                a.Stalled = stalled;
+                a.History.Add(new ActuatorHistoryEntry(_time.GetUtcNow(), a.On, a.Level, stalled ? "fault: stalled" : "fault cleared"));
+                if (a.History.Count > MaxHistory) a.History.RemoveRange(0, a.History.Count - MaxHistory);
+            }
+            return ViewOf(a, includeHistory: false);
+        }
+    }
+
     private static ActuatorView ViewOf(ActuatorRuntime a, bool includeHistory) =>
-        new(a.Definition.Id, a.Definition.Name, a.Definition.Kind, a.On, a.Level, a.Since, includeHistory ? a.History.ToList() : []);
+        new(a.Definition.Id, a.Definition.Name, a.Definition.Kind, a.On, a.Level, a.Since, a.Stalled, includeHistory ? a.History.ToList() : []);
 
     public IReadOnlyList<CameraView> ListCameras()
     {
@@ -419,6 +453,7 @@ public sealed class GardenSimulator
         public bool On { get; set; }
         public double? Level { get; set; }
         public DateTimeOffset Since { get; set; } = since;
+        public bool Stalled { get; set; }
         public List<ActuatorHistoryEntry> History { get; } = [];
     }
 
