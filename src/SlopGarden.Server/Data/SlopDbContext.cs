@@ -75,6 +75,16 @@ public class SlopDbContext(DbContextOptions<SlopDbContext> options) : DbContext(
         }
     }
 
+    /// <summary>PostgreSQL timestamptz only accepts UTC offsets; clients and cron may hand us local offsets.</summary>
+    protected override void ConfigureConventions(ModelConfigurationBuilder c)
+    {
+        c.Properties<DateTimeOffset>().HaveConversion<UtcConverter>();
+        c.Properties<DateTimeOffset?>().HaveConversion<UtcConverter>();
+    }
+
+    private sealed class UtcConverter() : Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTimeOffset, DateTimeOffset>(
+        v => v.ToUniversalTime(), v => v);
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.Entity<User>(e =>
