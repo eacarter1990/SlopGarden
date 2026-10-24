@@ -3,9 +3,11 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging.Abstractions;
 using SlopGarden.Client.Cli;
 using SlopGarden.Client.Plugins;
+using SlopGarden.Client.Tests.Integration;
 using SlopGarden.Client.Tests.TestSupport;
 using SlopGarden.Contracts;
 using SlopGarden.Plugins.Abstractions;
+using Xunit.Abstractions;
 
 namespace SlopGarden.Client.Tests.Plugins;
 
@@ -13,16 +15,24 @@ public sealed class PluginLoaderTests : IDisposable
 {
     private const string SampleId = "http-json-sensor";
 
+    private readonly ITestOutputHelper _output;
     private readonly string _root = Wait.TempDir("plugins");
     private readonly string _pluginDir;
 
-    public PluginLoaderTests()
+    public PluginLoaderTests(ITestOutputHelper output)
+    {
+        _output = output;
+        _pluginDir = CopySample(_root);
+    }
+
+    private static string CopySample(string root)
     {
         var source = Path.Combine(AppContext.BaseDirectory, "sample-plugin");
         Assert.True(File.Exists(Path.Combine(source, "plugin.json")), $"sample plugin was not staged into {source}");
-        _pluginDir = Path.Combine(_root, SampleId);
-        Directory.CreateDirectory(_pluginDir);
-        foreach (var file in Directory.EnumerateFiles(source)) File.Copy(file, Path.Combine(_pluginDir, Path.GetFileName(file)));
+        var dir = Path.Combine(root, SampleId);
+        Directory.CreateDirectory(dir);
+        foreach (var file in Directory.EnumerateFiles(source)) File.Copy(file, Path.Combine(dir, Path.GetFileName(file)));
+        return dir;
     }
 
     public void Dispose()
@@ -92,6 +102,21 @@ public sealed class PluginLoaderTests : IDisposable
         Assert.IsAssignableFrom<ISensorPlugin>(sensor);
         var channels = sensor.DescribeChannels(new JsonObject { ["metric"] = Metrics.AirTemperatureC, ["unit"] = "°C" });
         Assert.Equal(Metrics.AirTemperatureC, Assert.Single(channels).Metric);
+    }
+
+    [Fact]
+    public async Task Loaded_sample_plugin_reads_a_value_over_http()
+    {
+        await using var emulator = await EmulatorHost.StartAsync(_output);
+        emulator.Simulator.SetOverride("water-tank-level", 42.5, durationSec: null);
+        var plugin = Load().FindSensor(SampleId)!;
+        var settings = new JsonObject { ["url"] = new Uri(emulator.Url, "api/sensors/water-tank-level/value").ToString(), ["path"] = "$.value" };
+
+        await using var sensor = plugin.Create(new PluginContext(Guid.NewGuid(), "Tank via HTTP", settings, Configs.EmptyServices, NullLogger.Instance));
+        var reading = Assert.Single(await sensor.ReadAsync(CancellationToken.None));
+
+        Assert.Equal(42.5, reading.Value);
+        Assert.Throws<ArgumentException>(() => plugin.Create(new PluginContext(Guid.NewGuid(), "x", new JsonObject { ["url"] = "ftp://nope" }, Configs.EmptyServices, NullLogger.Instance)));
     }
 
     [Fact]
