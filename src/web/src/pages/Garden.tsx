@@ -98,12 +98,12 @@ export function GardenPage() {
             <Group justify="space-between">
               <Anchor component={Link} to={`/beds/${b.id}`} fw={700} c="inherit">{b.name}</Anchor>
               <Group gap={4}>
-                <Badge variant="filled" color={(b.growingMedium ?? o.garden.defaultGrowingMedium) === 'hydroponic' ? 'blue' : (b.growingMedium ?? o.garden.defaultGrowingMedium) === 'soilless' ? 'grape' : 'green'}>
+                <Badge variant="outline" color="gray">
                   {mediumLabels[b.growingMedium ?? o.garden.defaultGrowingMedium]}{b.growingMedium ? '' : ' (default)'}
                 </Badge>
-                {b.hydroSystem && (b.growingMedium ?? o.garden.defaultGrowingMedium) === 'hydroponic' && <Badge variant="light" color="blue">{systems?.find((s) => s.id === b.hydroSystem)?.label ?? b.hydroSystem}</Badge>}
-                <Badge variant="light">{titleCase(b.kind)}</Badge>
-                <Badge variant="light" color="yellow">{titleCase(b.sunExposure)}</Badge>
+                {b.hydroSystem && (b.growingMedium ?? o.garden.defaultGrowingMedium) === 'hydroponic' && <Badge variant="outline" color="gray">{systems?.find((s) => s.id === b.hydroSystem)?.label ?? b.hydroSystem}</Badge>}
+                <Badge variant="outline" color="gray">{titleCase(b.kind)}</Badge>
+                <Badge variant="outline" color="gray">{titleCase(b.sunExposure)}</Badge>
                 {canWrite && <ActionIcon variant="subtle" onClick={() => openBedForm(o.garden.id, b, o.garden.defaultGrowingMedium)}><IconPencil size={16} /></ActionIcon>}
               </Group>
             </Group>
@@ -161,7 +161,7 @@ export function GardenPage() {
                 <Table.Td>{p.phMin}–{p.phMax}</Table.Td>
                 <Table.Td>{p.ecMin != null ? `${p.ecMin}–${p.ecMax}` : '–'}</Table.Td>
                 <Table.Td>{p.daysToMaturityMin}–{p.daysToMaturityMax}</Table.Td>
-                <Table.Td><Badge size="xs" variant="light" color={p.createdByType === 'ai' ? 'violet' : 'gray'}>{p.isBuiltin ? 'built-in' : p.createdByType}</Badge></Table.Td>
+                <Table.Td data-label="Source"><Badge size="xs" variant="light" color="gray">{p.isBuiltin ? 'built-in' : p.createdByType}</Badge></Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>

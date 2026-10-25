@@ -7,7 +7,7 @@ import { api } from '../api/client'
 import type { ChannelSeries } from '../api/types'
 import { metricLabel } from '../format'
 
-const colors = ['green.6', 'blue.6', 'orange.6', 'grape.6', 'teal.6', 'red.6']
+const colors = ['green.7', 'ink.7', 'yellow.8', 'gray.6']
 
 /** History of one sensor's channels, bucketed server-side. */
 export function ReadingsChart({ sensorId, channelId, height = 200, target }: { sensorId?: string; channelId?: string; height?: number; target?: { min?: number | null; max?: number | null } }) {
@@ -30,8 +30,8 @@ export function ReadingsChart({ sensorId, channelId, height = 200, target }: { s
   )
   const chartData = [...rows.values()].sort((a, b) => String(a.time).localeCompare(String(b.time))).map((r) => ({ ...r, label: dayjs(r.time as string).format(Number(hours) > 24 ? 'MMM D HH:mm' : 'HH:mm') }))
   const refs = [
-    ...(target?.min != null ? [{ y: target.min, label: `min ${target.min}`, color: 'orange.5' }] : []),
-    ...(target?.max != null ? [{ y: target.max, label: `max ${target.max}`, color: 'blue.4' }] : []),
+    ...(target?.min != null ? [{ y: target.min, label: `min ${target.min}`, color: 'red.5' }] : []),
+    ...(target?.max != null ? [{ y: target.max, label: `max ${target.max}`, color: 'red.5' }] : []),
   ]
   return (
     <Stack gap={4}>

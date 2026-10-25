@@ -125,12 +125,12 @@ export function SafetyPage() {
           <Table.Tbody>
             {(limits ?? []).map((l) => (
               <Table.Tr key={l.id}>
-                <Table.Td><Text size="sm" fw={600}>{limitTypes[l.limitType]?.label ?? l.limitType}</Text>{l.notes && <Text size="xs" c="dimmed">{l.notes}</Text>}</Table.Td>
-                <Table.Td fw={700}>{l.operator === 'gt' ? '> ' : l.operator === 'lt' ? '< ' : ''}{l.value} {limitTypes[l.limitType]?.unit}</Table.Td>
-                <Table.Td>{titleCase(l.scopeType)} {l.scopeId && `· ${name(l.scopeType, l.scopeId)}`}{l.actuatorKind && <Badge size="xs" ml={4} variant="light">{l.actuatorKind}</Badge>}</Table.Td>
-                <Table.Td fz="xs">{channelName(l.channelId) ?? '—'}</Table.Td>
-                <Table.Td><Badge size="xs" variant="light" color={l.createdByType === 'ai' ? 'violet' : 'gray'}>{l.createdByType}</Badge></Table.Td>
-                <Table.Td><Switch size="xs" checked={l.enabled} disabled={!canWrite} onChange={(e) => save('set_safety_limit', { limitId: l.id, enabled: e.currentTarget.checked })} /></Table.Td>
+                <Table.Td data-label="Limit"><Text size="sm" fw={600}>{limitTypes[l.limitType]?.label ?? l.limitType}</Text>{l.notes && <Text size="xs" c="dimmed">{l.notes}</Text>}</Table.Td>
+                <Table.Td data-label="Value" fw={700}>{l.operator === 'gt' ? '> ' : l.operator === 'lt' ? '< ' : ''}{l.value} {limitTypes[l.limitType]?.unit}</Table.Td>
+                <Table.Td data-label="Scope">{titleCase(l.scopeType)} {l.scopeId && `· ${name(l.scopeType, l.scopeId)}`}{l.actuatorKind && <Badge size="xs" ml={4} variant="light">{l.actuatorKind}</Badge>}</Table.Td>
+                <Table.Td data-label="Watches" fz="xs">{channelName(l.channelId) ?? '—'}</Table.Td>
+                <Table.Td data-label="Source"><Badge size="xs" variant="light" color="gray">{l.createdByType}</Badge></Table.Td>
+                <Table.Td data-label="On"><Switch size="xs" checked={l.enabled} disabled={!canWrite} onChange={(e) => save('set_safety_limit', { limitId: l.id, enabled: e.currentTarget.checked })} /></Table.Td>
                 <Table.Td>{canWrite && <ActionIcon variant="subtle" color="red" onClick={() => save('delete_safety_limit', { limitId: l.id }, 'Removed')}><IconTrash size={16} /></ActionIcon>}</Table.Td>
               </Table.Tr>
             ))}

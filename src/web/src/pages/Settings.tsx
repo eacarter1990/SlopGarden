@@ -218,10 +218,10 @@ function AssignmentRow({ a, providers, onSaved, disabled }: { a: AiSettings['ass
   const [ctx, setCtx] = useState<number | string>(a.contextMessageLimit)
   return (
     <Table.Tr>
-      <Table.Td>{jobLabels[a.job] ?? a.job}</Table.Td>
-      <Table.Td><Select size="xs" data={providers.map((p) => ({ value: p.id, label: p.name }))} value={providerId} onChange={setProviderId} disabled={disabled} /></Table.Td>
-      <Table.Td><TextInput size="xs" value={model} onChange={(e) => setModel(e.currentTarget.value)} disabled={disabled} /></Table.Td>
-      <Table.Td><NumberInput size="xs" w={80} value={ctx} onChange={setCtx} min={4} max={200} disabled={disabled} /></Table.Td>
+      <Table.Td data-label="Job">{jobLabels[a.job] ?? a.job}</Table.Td>
+      <Table.Td data-label="Provider"><Select size="xs" data={providers.map((p) => ({ value: p.id, label: p.name }))} value={providerId} onChange={setProviderId} disabled={disabled} /></Table.Td>
+      <Table.Td data-label="Model"><TextInput size="xs" value={model} onChange={(e) => setModel(e.currentTarget.value)} disabled={disabled} /></Table.Td>
+      <Table.Td data-label="Context messages"><NumberInput size="xs" w={80} value={ctx} onChange={setCtx} min={4} max={200} disabled={disabled} /></Table.Td>
       <Table.Td>{!disabled && <Button size="xs" variant="light" disabled={!providerId || !model} onClick={async () => { await act(() => api.put(`/api/settings/ai/assignments/${a.job}`, { providerId, model, contextMessageLimit: Number(ctx) })); onSaved() }}>Save</Button>}</Table.Td>
     </Table.Tr>
   )

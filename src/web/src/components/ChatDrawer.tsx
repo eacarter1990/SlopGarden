@@ -7,16 +7,16 @@ import { api } from '../api/client'
 import type { Conversation } from '../api/types'
 import { ChatView } from './ChatView'
 
-/** Side-panel assistant available on every page. */
-export function ChatDrawer({ onClose }: { onClose: () => void }) {
+/** Side-panel assistant available on every page, and in the walk on a phone. */
+export function ChatDrawer({ onClose, embedded }: { onClose?: () => void; embedded?: boolean }) {
   const [convId, setConvId] = useState<string | undefined>()
   const navigate = useNavigate()
   const { data: conversations } = useQuery({ queryKey: ['conversations'], queryFn: () => api.get<Conversation[]>('/api/chat/conversations') })
 
   return (
     <Stack gap={0} h="100%">
-      <Group justify="space-between" px="sm" py={8} style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }} wrap="nowrap">
-        <Text fw={650} size="sm">Assistant</Text>
+      <Group className="sg-drawer-head" justify="space-between" px="sm" py={8} wrap="nowrap">
+        <Text className="sg-serif" fw={560} size="lg">Assistant</Text>
         <Group gap={4} wrap="nowrap">
           <Select
             size="xs"
@@ -34,7 +34,7 @@ export function ChatDrawer({ onClose }: { onClose: () => void }) {
           <Tooltip label="Open full page">
             <ActionIcon variant="subtle" onClick={() => navigate(convId ? `/assistant/${convId}` : '/assistant')}><IconArrowsMaximize size={16} /></ActionIcon>
           </Tooltip>
-          <ActionIcon variant="subtle" onClick={onClose} aria-label="Close"><IconX size={16} /></ActionIcon>
+          {!embedded && onClose && <ActionIcon variant="subtle" onClick={onClose} aria-label="Close assistant"><IconX size={16} /></ActionIcon>}
         </Group>
       </Group>
       <div style={{ flex: 1, minHeight: 0 }}>

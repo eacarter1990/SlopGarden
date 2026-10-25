@@ -80,13 +80,13 @@ export function AutomationPage() {
           <Table.Tbody>
             {(data ?? []).map(({ schedule: s, actuatorName, nextRuns }) => (
               <Table.Tr key={s.id}>
-                <Table.Td fw={600}>{s.name}</Table.Td>
-                <Table.Td><Badge variant="light" color={s.kind === 'actuator' ? 'blue' : s.kind === 'ai_review' ? 'violet' : 'gray'}>{s.kind}</Badge></Table.Td>
-                <Table.Td ff="monospace" fz="xs">{s.cron}<Text size="xs" c="dimmed">{s.timezoneId}</Text></Table.Td>
-                <Table.Td fz="sm">{s.kind === 'actuator' ? `${actuatorName} for ${s.durationSec}s` : String(s.payload?.prompt ?? '').slice(0, 60)}</Table.Td>
-                <Table.Td fz="sm">{s.enabled ? when(nextRuns[0]) : '—'}</Table.Td>
-                <Table.Td><Badge size="xs" variant="light" color={s.createdByType === 'ai' ? 'violet' : 'gray'}>{s.createdByType}</Badge></Table.Td>
-                <Table.Td><Switch size="xs" checked={s.enabled} disabled={!canWrite} onChange={(e) => save('update_schedule', { scheduleId: s.id, enabled: e.currentTarget.checked })} /></Table.Td>
+                <Table.Td data-label="Name" fw={600}>{s.name}</Table.Td>
+                <Table.Td data-label="Kind"><Badge variant="light" color="gray">{s.kind === 'ai_review' ? 'AI review' : s.kind.replaceAll('_', ' ')}</Badge></Table.Td>
+                <Table.Td data-label="When" ff="monospace" fz="xs">{s.cron}<Text size="xs" c="dimmed">{s.timezoneId}</Text></Table.Td>
+                <Table.Td data-label="What" fz="sm">{s.kind === 'actuator' ? `${actuatorName} for ${s.durationSec}s` : String(s.payload?.prompt ?? '').slice(0, 80)}</Table.Td>
+                <Table.Td data-label="Next run" fz="sm">{s.enabled ? when(nextRuns[0]) : '—'}</Table.Td>
+                <Table.Td data-label="By"><Badge size="xs" variant="light" color="gray">{s.createdByType}</Badge></Table.Td>
+                <Table.Td data-label="On"><Switch size="xs" checked={s.enabled} disabled={!canWrite} onChange={(e) => save('update_schedule', { scheduleId: s.id, enabled: e.currentTarget.checked })} /></Table.Td>
                 <Table.Td>{canWrite && <ActionIcon variant="subtle" color="red" onClick={() => save('delete_schedule', { scheduleId: s.id }, 'Deleted')}><IconTrash size={16} /></ActionIcon>}</Table.Td>
               </Table.Tr>
             ))}

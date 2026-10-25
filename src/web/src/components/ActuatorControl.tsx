@@ -46,13 +46,13 @@ export function ActuatorControl({ a }: { a: Brief }) {
   return (
     <Group justify="space-between" wrap="nowrap" gap="xs" align="center">
       <Group gap={6} wrap="nowrap" style={{ minWidth: 0, flex: '1 1 auto' }}>
-        <Icon size={16} style={{ flex: '0 0 auto' }} color={a.isOn ? 'var(--mantine-color-blue-6)' : 'var(--mantine-color-gray-5)'} />
-        <Text size="sm" truncate>{a.name}</Text>
-        {a.continuousRun && <Badge size="xs" variant="light" color="blue" style={{ flexShrink: 0 }}>24/7</Badge>}
+        <Icon size={16} style={{ flex: '0 0 auto' }} color={a.isOn ? 'var(--sg-moss)' : 'var(--sg-ink-soft)'} />
+        <Text size="sm" style={{ minWidth: 0 }}>{a.name}</Text>
+        {a.continuousRun && <Badge size="xs" variant="light" color="gray" style={{ flexShrink: 0 }}>24/7</Badge>}
       </Group>
       <Group gap={4} wrap="nowrap" style={{ flex: '0 0 auto' }}>
         <Tooltip label={a.stateSince ? `since ${ago(a.stateSince)}` : 'no state reported yet'}>
-          <Badge size="sm" color={a.isOn ? 'blue' : 'gray'} variant={a.isOn ? 'filled' : 'light'} style={{ flexShrink: 0 }}>{a.isOn ? 'ON' : 'off'}</Badge>
+          <Badge size="sm" color={a.isOn ? 'green' : 'gray'} variant={a.isOn ? 'filled' : 'light'} style={{ flexShrink: 0 }}>{a.isOn ? 'On' : 'Off'}</Badge>
         </Tooltip>
         {canWrite && a.enabled && (
           <Menu withinPortal position="bottom-end">

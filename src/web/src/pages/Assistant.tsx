@@ -18,14 +18,14 @@ export function AssistantPage() {
       <Grid.Col span={{ base: 12, md: 3 }} h="100%">
         <Card h="100%" padding="xs">
           <Stack h="100%" gap="xs">
-            <Button leftSection={<IconPlus size={16} />} onClick={() => navigate('/assistant')} variant="light" color="violet">New conversation</Button>
+            <Button leftSection={<IconPlus size={16} />} onClick={() => navigate('/assistant')} variant="light">New conversation</Button>
             <Text size="xs" c="dimmed" px={4}>Chat history is kept permanently; only recent messages are sent to the model.</Text>
             <ScrollArea style={{ flex: 1 }}>
               {(conversations ?? []).map((c) => (
                 <NavLink
                   key={c.id}
                   active={c.id === id}
-                  color="violet"
+                  color="dark"
                   label={<Text size="sm" truncate>{c.title}</Text>}
                   description={ago(c.updatedAt)}
                   leftSection={<IconMessage size={16} />}

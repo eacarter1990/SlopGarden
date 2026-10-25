@@ -1,4 +1,4 @@
-import { Alert, Button, Center, Collapse, NumberInput, Paper, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core'
+import { Alert, Button, Collapse, NumberInput, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core'
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../auth'
@@ -42,14 +42,14 @@ export function LoginPage({ needsSetup }: { needsSetup: boolean }) {
   }
 
   return (
-    <Center h="100vh" style={{ background: 'linear-gradient(135deg, var(--mantine-color-green-9), var(--mantine-color-teal-7))' }}>
-      <Paper p="xl" shadow="xl" radius="lg" style={{ width: 'min(380px, calc(100vw - 32px))' }}>
+    <div className="sg-login">
+      <div className="sg-login-card">
         <form onSubmit={submit}>
           <Stack>
-            <Stack gap={4} align="center">
-              <img src="/favicon.svg" width={52} height={52} alt="" />
-              <Title order={2}>SlopGarden</Title>
-              <Text c="dimmed" size="sm" ta="center">{needsSetup ? 'Create the first Admin account for this server.' : 'AI-run garden automation'}</Text>
+            <Stack gap={4}>
+              <img src="/favicon.svg" width={40} height={40} alt="" />
+              <Title order={2} className="sg-serif" fw={560}>SlopGarden</Title>
+              <Text c="dimmed" size="sm">{needsSetup ? 'Create the first Admin account for this server.' : 'The garden, on this network.'}</Text>
             </Stack>
             {error && <Alert color="red">{error}</Alert>}
             <TextInput label="Username" value={username} onChange={(e) => setUsername(e.currentTarget.value)} required autoFocus />
@@ -89,7 +89,7 @@ export function LoginPage({ needsSetup }: { needsSetup: boolean }) {
             <Button type="submit" loading={busy} fullWidth>{needsSetup ? 'Create Admin' : 'Sign in'}</Button>
           </Stack>
         </form>
-      </Paper>
-    </Center>
+      </div>
+    </div>
   )
 }

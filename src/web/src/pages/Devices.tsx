@@ -207,19 +207,19 @@ export function DevicesPage() {
           <Table.Tbody>
             {others.map((d) => (
               <Table.Tr key={d.id}>
-                <Table.Td><Anchor component={Link} to={`/devices/${d.id}`} fw={600}>{d.name}</Anchor><Text size="xs" c="dimmed">{d.ipAddress}</Text></Table.Td>
-                <Table.Td>
+                <Table.Td data-label="Device"><Anchor component={Link} to={`/devices/${d.id}`} fw={600}>{d.name}</Anchor><Text size="xs" c="dimmed">{d.ipAddress}</Text></Table.Td>
+                <Table.Td data-label="Status">
                   <Group gap={4}>
                     <Badge color={d.isOnline ? 'green' : 'gray'} variant={d.isOnline ? 'filled' : 'light'}>{d.isOnline ? 'online' : 'offline'}</Badge>
                     {d.status !== 'approved' && <Badge color="red" variant="light">{d.status}</Badge>}
                   </Group>
                 </Table.Td>
-                <Table.Td><Text size="sm">{d.os}</Text><Text size="xs" c="dimmed">{d.architecture} · v{d.clientVersion}</Text></Table.Td>
-                <Table.Td>
+                <Table.Td data-label="Platform"><Text size="sm">{d.os}</Text><Text size="xs" c="dimmed">{d.architecture} · v{d.clientVersion}</Text></Table.Td>
+                <Table.Td data-label="Config">
                   <Badge variant="light" color={d.appliedConfigVersion === d.desiredConfigVersion ? 'green' : 'yellow'}>v{d.appliedConfigVersion ?? '–'} / v{d.desiredConfigVersion}</Badge>
                   {d.configErrors.length > 0 && <Text size="xs" c="red">{d.configErrors.length} error(s)</Text>}
                 </Table.Td>
-                <Table.Td>
+                <Table.Td data-label="Update">
                   <Stack gap={4}>
                     {d.updateAvailable ? <Badge color="yellow">update available</Badge> : <Badge color="gray" variant="light">{d.updateStatus || 'current'}</Badge>}
                     {d.updateError && <Text size="xs" c="red">{d.updateError}</Text>}
@@ -249,7 +249,7 @@ export function DevicesPage() {
                     {isAdmin && <Button size="xs" variant="subtle" color="red" onClick={() => remove(d)}>Remove</Button>}
                   </Stack>
                 </Table.Td>
-                <Table.Td>{ago(d.lastSeenAt)}{d.bufferedReadings > 0 && <Text size="xs" c="dimmed">{d.bufferedReadings} buffered</Text>}</Table.Td>
+                <Table.Td data-label="Last seen">{ago(d.lastSeenAt)}{d.bufferedReadings > 0 && <Text size="xs" c="dimmed">{d.bufferedReadings} buffered</Text>}</Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
