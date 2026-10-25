@@ -254,6 +254,12 @@ public sealed class DeviceRegistry(
             row.ActuatorKind = item.ActuatorKind;
             row.ReportedAt = DateTimeOffset.UtcNow;
         }
+        if (report.Complete != false)
+        {
+            var seen = report.Items.Select(i => (i.PluginId, i.Address)).ToHashSet();
+            foreach (var gone in existing.Where(e => e.AdoptedComponentId is null && !seen.Contains((e.PluginId, e.Address))))
+                db.DiscoveredHardware.Remove(gone);
+        }
         await db.SaveChangesAsync(ct);
         await live.Changed("devices");
     }

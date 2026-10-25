@@ -152,6 +152,42 @@ public sealed class Ds18b20Tests : IDisposable
     }
 }
 
+public sealed class V4l2DiscoveryTests
+{
+    [Fact]
+    public void Usb_webcam_capture_node_is_suggested_and_metadata_is_not()
+    {
+        var root = Wait.TempDir("v4l");
+        try
+        {
+            WriteNode(root, "video0", "uvcvideo", "0", "HD Webcam: HD Webcam");
+            WriteNode(root, "video1", "uvcvideo", "1", "HD Webcam: HD Webcam");
+            WriteNode(root, "video2", "unicam", "0", "unicam");
+            var found = V4l2Devices.List(root);
+            var one = Assert.Single(found);
+            Assert.Equal(V4l2CameraPlugin.Id, one.PluginId);
+            Assert.Equal(PluginKinds.Camera, one.Kind);
+            Assert.Equal("/dev/video0", one.Address);
+            Assert.Equal("HD Webcam", one.SuggestedName);
+            Assert.Equal("/dev/video0", one.SuggestedSettings["device"]!.GetValue<string>());
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    private static void WriteNode(string root, string node, string driver, string index, string name)
+    {
+        var dir = Path.Combine(root, node);
+        var device = Path.Combine(dir, "device");
+        Directory.CreateDirectory(device);
+        File.WriteAllText(Path.Combine(dir, "index"), index);
+        File.WriteAllText(Path.Combine(dir, "name"), name);
+        Directory.CreateSymbolicLink(Path.Combine(device, "driver"), driver);
+    }
+}
+
 public sealed class OtherHardwareTests
 {
     [Theory]

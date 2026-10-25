@@ -166,7 +166,7 @@ export function DeviceDetailPage() {
             {unadopted.length > 0 && (
               <Card style={{ borderColor: 'var(--mantine-color-teal-4)' }}>
                 <Text fw={650} mb={4}>Discovered hardware ({unadopted.length})</Text>
-                <Text size="xs" c="dimmed" mb="xs">Found by the device's plugins. Add them and choose which bed or plant they belong to — or ask the assistant to set them up.</Text>
+                <Text size="xs" c="dimmed" mb="xs">The client keeps looking. A plugin reports hardware it can use, such as a USB webcam or a temperature probe. Add it and choose the bed or plant. A bare GPIO pin is not detected.</Text>
                 <Table fz="sm">
                   <Table.Tbody>
                     {unadopted.map((h) => (

@@ -80,6 +80,7 @@ public static class ClientHost
         services.AddSingleton<ActuatorSupervisor>();
         services.AddSingleton<DeviceRuntime>();
         services.AddSingleton<HardwareDiscoveryRunner>();
+        services.AddHostedService<HardwareWatch>();
         services.AddSingleton<ServerDiscovery>();
         services.AddSingleton<MdnsAgent>();
         services.AddSingleton<RegistrationClient>();

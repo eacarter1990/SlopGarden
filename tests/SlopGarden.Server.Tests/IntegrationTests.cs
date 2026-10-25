@@ -194,6 +194,24 @@ public class DeviceAndSafetyTests(ServerFixture f) : IClassFixture<ServerFixture
     }
 
     [Fact]
+    public async Task Unplugged_hardware_leaves_the_discovered_list_unless_the_scan_failed()
+    {
+        var admin = await f.LoginAsync();
+        await using var dev = await DeviceHarness.OnboardAsync(f, admin, "hw-unplug");
+        DiscoveredHardwareItem Item(string name, string address) =>
+            new("emulator-sensor", PluginKinds.Sensor, address, name, new JsonObject { ["sensorId"] = name },
+                [new DiscoveredChannel("value", Metrics.SoilMoisturePct, "%")], null);
+        await dev.Hub.InvokeAsync(DeviceHubMethods.ReportDiscoveredHardware, new DiscoveredHardwareReport([Item("Soil", "a"), Item("Light", "b")], true));
+        await dev.Hub.InvokeAsync(DeviceHubMethods.ReportDiscoveredHardware, new DiscoveredHardwareReport([Item("Soil", "a")], false));
+        var kept = await admin.Op("list_discovered_hardware", new { deviceId = dev.DeviceId });
+        Assert.Equal(2, kept.AsArray().Count);
+
+        await dev.Hub.InvokeAsync(DeviceHubMethods.ReportDiscoveredHardware, new DiscoveredHardwareReport([Item("Soil", "a")], true));
+        var left = await admin.Op("list_discovered_hardware", new { deviceId = dev.DeviceId });
+        Assert.Equal("Soil", Assert.Single(left.AsArray())!["suggestedName"]!.ToString());
+    }
+
+    [Fact]
     public async Task Roles_are_enforced()
     {
         var viewer = await f.LoginAsync("viewer", "demo-password");

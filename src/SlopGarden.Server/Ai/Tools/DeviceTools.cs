@@ -386,7 +386,7 @@ public static class DeviceTools
             (ctx, i) => Task.FromResult(new ProposalPreview($"Add device at {i.Address}", "device", null, null, "medium", [])),
             minRole: Roles.Admin, aiAllowed: false);
 
-        r.Read<DeviceIdInput, List<DiscoveredHardware>>("list_discovered_hardware", Category, "Hardware a device found (I²C scan, 1-Wire probes, emulator inventory) that can be adopted as sensors/actuators/cameras.",
+        r.Read<DeviceIdInput, List<DiscoveredHardware>>("list_discovered_hardware", Category, "Hardware a device found that a loaded plugin can use (USB webcam, I²C sensor, 1-Wire probe, emulator inventory). It can be adopted as a sensor, actuator, or camera.",
             async (ctx, i) => await DiscoveredWithAdoptionAsync(ctx, i.DeviceId));
 
         r.Mutate<AdoptHardwareInput, AdoptResult>("adopt_discovered_hardware", Category,
