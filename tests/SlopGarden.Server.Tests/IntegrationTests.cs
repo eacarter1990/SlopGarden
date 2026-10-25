@@ -163,6 +163,37 @@ public class DeviceAndSafetyTests(ServerFixture f) : IClassFixture<ServerFixture
     }
 
     [Fact]
+    public async Task Adopted_discovered_hardware_leaves_the_discovered_list()
+    {
+        var admin = await f.LoginAsync();
+        await using var dev = await DeviceHarness.OnboardAsync(f, admin, "hw-adopt");
+        var report = new DiscoveredHardwareReport([
+            new DiscoveredHardwareItem("emulator-sensor", PluginKinds.Sensor, "http://emu/api/sensors/soil", "Soil", new JsonObject { ["sensorId"] = "soil" },
+                [new DiscoveredChannel("value", Metrics.SoilMoisturePct, "%")], null),
+            new DiscoveredHardwareItem("emulator-actuator", PluginKinds.Actuator, "http://emu/api/actuators/valve", "Valve", new JsonObject { ["actuatorId"] = "valve" }, [], ActuatorKinds.Valve),
+            new DiscoveredHardwareItem("emulator-actuator", PluginKinds.Actuator, "http://emu/api/actuators/pump", "Pump", new JsonObject { ["actuatorId"] = "pump" }, [], ActuatorKinds.Pump),
+        ]);
+        await dev.Hub.InvokeAsync(DeviceHubMethods.ReportDiscoveredHardware, report);
+        JsonNode Item(JsonNode detail, string name) => detail["discovered"]!.AsArray().Single(h => h!["suggestedName"]!.ToString() == name)!;
+
+        var discovered = await admin.Op("get_device", new { deviceId = dev.DeviceId });
+        foreach (var name in new[] { "Soil", "Valve" })
+            await admin.Op("adopt_discovered_hardware", new { discoveredId = Item(discovered, name)["id"]!.ToString(), targetType = "garden" });
+        var pump = await admin.Op("create_actuator", new { deviceId = dev.DeviceId, name = "NFT pump", kind = "pump", role = "circulation_pump", pluginId = "emulator-actuator", settings = new { actuatorId = "pump" }, targetType = "garden" });
+        await dev.Hub.InvokeAsync(DeviceHubMethods.ReportDiscoveredHardware, report);
+
+        var detail = await admin.Op("get_device", new { deviceId = dev.DeviceId });
+        Assert.All(detail["discovered"]!.AsArray(), h => Assert.NotNull(h!["adoptedComponentId"]));
+        Assert.Equal(pump["id"]!.ToString(), Item(detail, "Pump")["adoptedComponentId"]!.ToString());
+        Assert.Single(detail["sensors"]!.AsArray());
+        Assert.Equal(2, detail["actuators"]!.AsArray().Count);
+
+        await admin.Op("delete_actuator", new { actuatorId = Item(detail, "Valve")["adoptedComponentId"]!.ToString() });
+        var listed = await admin.Op("list_discovered_hardware", new { deviceId = dev.DeviceId });
+        Assert.Null(listed.AsArray().Single(h => h!["suggestedName"]!.ToString() == "Valve")!["adoptedComponentId"]);
+    }
+
+    [Fact]
     public async Task Roles_are_enforced()
     {
         var viewer = await f.LoginAsync("viewer", "demo-password");
