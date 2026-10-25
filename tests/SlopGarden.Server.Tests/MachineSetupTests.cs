@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Builder;
 using SlopGarden.Contracts;
+using SlopGarden.Server.Infrastructure;
 using SlopGarden.Server.Services;
 
 namespace SlopGarden.Server.Tests;
@@ -34,6 +36,118 @@ public class MachineSetupTests
         Assert.Contains("network_mode: host", client);
         Assert.DoesNotContain("postgres", client, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("slopgarden-server", client);
+    }
+
+    [Fact]
+    public void Windows_services_start_automatically_and_removal_deletes_them()
+    {
+        var server = MachineServices.Install(ServiceRole.Server, ServicePlatform.Windows,
+            @"C:\Program Files\SlopGarden\Server\SlopGarden.Server.exe", null, null, "http://192.168.1.20:5080", "s3cret");
+        Assert.Equal("windows-service", server.Manager);
+        Assert.Equal("SlopGardenServer", server.Name);
+        Assert.Contains(server.Activate, c => string.Join(' ', c.Arguments).Contains("start= auto") && c.Arguments.Contains("SlopGardenServer"));
+        Assert.Contains(server.Activate, c => c.Arguments is ["sc.exe", "start", "SlopGardenServer"]);
+        Assert.Contains(server.Stop, c => c.Arguments is ["sc.exe", "delete", "SlopGardenServer"]);
+        Assert.Contains(server.Prepare, c => c.Arguments.Contains("SlopGardenClient") && c.IgnoreFailure);
+        Assert.DoesNotContain(server.Activate.SelectMany(c => c.Arguments), a => a.Contains("s3cret"));
+        Assert.Contains("s3cret", server.Files[0].Contents);
+        Assert.Contains("http://192.168.1.20:5080", server.Files[0].Contents);
+
+        var client = MachineServices.Install(ServiceRole.Client, ServicePlatform.Windows,
+            @"C:\Program Files\SlopGarden\Client\slopgarden-client.exe", "http://192.168.1.20:5080", "Greenhouse Pi", null, "");
+        Assert.Equal("SlopGardenClient", client.Name);
+        var create = string.Join(' ', client.Activate[0].Arguments);
+        Assert.Contains("start= auto", create);
+        Assert.Contains("run", create);
+        Assert.Contains(client.Stop, c => c.Arguments is ["sc.exe", "delete", "SlopGardenClient"]);
+        Assert.Contains(client.Prepare, c => c.Arguments.Contains("SlopGardenServer"));
+    }
+
+    [Fact]
+    public void Systemd_units_are_enabled_at_boot_and_can_be_stopped()
+    {
+        var server = MachineServices.Install(ServiceRole.Server, ServicePlatform.Linux,
+            "/opt/slopgarden-server/SlopGarden.Server", null, null, "http://192.168.1.20:5080", "s3cret");
+        Assert.Equal("systemd", server.Manager);
+        Assert.Equal("/etc/systemd/system/slopgarden-server.service", server.UnitPath);
+        Assert.Contains("WantedBy=multi-user.target", server.UnitBody);
+        Assert.Contains("Type=notify", server.UnitBody);
+        Assert.Contains("Restart=always", server.UnitBody);
+        Assert.Contains("ExecStart=/opt/slopgarden-server/SlopGarden.Server", server.UnitBody);
+        Assert.Contains(server.Activate, c => c.Arguments is ["systemctl", "enable", "slopgarden-server"]);
+        Assert.Contains(server.Activate, c => c.Arguments is ["systemctl", "restart", "slopgarden-server"]);
+        Assert.Contains(server.Stop, c => c.Arguments is ["systemctl", "disable", "--now", "slopgarden-server"]);
+        Assert.Contains(server.Prepare, c => c.Arguments is ["systemctl", "disable", "--now", "slopgarden-client"]);
+        Assert.DoesNotContain("docker", server.UnitBody, StringComparison.OrdinalIgnoreCase);
+
+        var client = MachineServices.Install(ServiceRole.Client, ServicePlatform.Linux,
+            "/opt/slopgarden-client/slopgarden-client", "http://192.168.1.20:5080", "Greenhouse Pi", null, "");
+        Assert.Contains("User=slopgarden", client.UnitBody);
+        Assert.Contains("ExecStart=/opt/slopgarden-client/slopgarden-client run", client.UnitBody);
+        Assert.Contains("http://192.168.1.20:5080", client.Files[0].Contents);
+        Assert.Contains(client.Activate, c => c.Arguments is ["systemctl", "enable", "slopgarden-client"]);
+        Assert.Contains(client.Stop, c => c.Arguments is ["systemctl", "disable", "--now", "slopgarden-client"]);
+        Assert.Contains(client.Prepare, c => c.Arguments.Contains("slopgarden-server"));
+    }
+
+    [Fact]
+    public void Launchd_services_load_at_boot_and_removal_unloads_them()
+    {
+        var server = MachineServices.Install(ServiceRole.Server, ServicePlatform.MacOs,
+            "/usr/local/slopgarden-server/SlopGarden.Server", null, null, null, "s3cret");
+        Assert.Equal("launchd", server.Manager);
+        Assert.Equal("com.slopgarden.server", server.Name);
+        Assert.Contains("<key>RunAtLoad</key>", server.UnitBody);
+        Assert.Contains("<key>KeepAlive</key>", server.UnitBody);
+        Assert.Contains("<true/>", server.UnitBody);
+        Assert.Contains("/Library/LaunchDaemons/com.slopgarden.server.plist", server.UnitPath);
+        Assert.Contains(server.Activate, c => c.Arguments is ["launchctl", "bootstrap", "system", "/Library/LaunchDaemons/com.slopgarden.server.plist"]);
+        Assert.Contains(server.Activate, c => c.Arguments is ["launchctl", "enable", "system/com.slopgarden.server"]);
+        Assert.Contains(server.Activate, c => c.Arguments is ["launchctl", "kickstart", "-k", "system/com.slopgarden.server"]);
+        Assert.Contains(server.Stop, c => c.Arguments is ["launchctl", "bootout", "system/com.slopgarden.server"]);
+        Assert.Contains(server.Prepare, c => c.Arguments.Contains("system/com.slopgarden.client"));
+
+        var client = MachineServices.Install(ServiceRole.Client, ServicePlatform.MacOs,
+            "/usr/local/slopgarden-client/slopgarden-client", "http://192.168.1.20:5080", "Greenhouse Mac", null, "");
+        Assert.Equal("com.slopgarden.client", client.Name);
+        Assert.Contains("<string>run</string>", client.UnitBody);
+        Assert.Contains("http://192.168.1.20:5080", client.Files[0].Contents);
+    }
+
+    [Fact]
+    public void Systemd_units_pass_systemd_analyze_verify()
+    {
+        const string analyze = "/usr/bin/systemd-analyze";
+        Assert.True(File.Exists(analyze), "systemd-analyze is required to check the unit files.");
+        foreach (var plan in new[]
+        {
+            MachineServices.Install(ServiceRole.Server, ServicePlatform.Linux, "/bin/true", null, null, null, "s3cret"),
+            MachineServices.Install(ServiceRole.Client, ServicePlatform.Linux, "/bin/true", "http://127.0.0.1:5080", "Test", null, ""),
+        })
+        {
+            var path = Path.Combine(Path.GetTempPath(), plan.Name + ".service");
+            File.WriteAllText(path, plan.UnitBody);
+            try
+            {
+                var start = new System.Diagnostics.ProcessStartInfo(analyze, $"verify {path}") { RedirectStandardError = true, RedirectStandardOutput = true };
+                using var process = System.Diagnostics.Process.Start(start)!;
+                var error = process.StandardError.ReadToEnd() + process.StandardOutput.ReadToEnd();
+                process.WaitForExit();
+                Assert.True(process.ExitCode == 0, error);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    [Fact]
+    public void Server_service_hooks_load_on_linux()
+    {
+        var builder = WebApplication.CreateBuilder();
+        MachineHost.Configure(builder.Host);
+        using var host = builder.Build();
     }
 
     [Fact]

@@ -12,26 +12,26 @@ cd SlopGarden
 docker compose up -d --build
 ```
 
-Or download **SlopGarden Setup** from the GitHub release for your machine and open it. It is a desktop app, not a page in your browser. Each release on `main` includes:
+Or download the single server installer from the GitHub release and run it. PostgreSQL needs to be running already. The installer registers the server as a service that starts when the machine boots.
 
 | Machine | File |
 |---|---|
-| Windows 64-bit | `SlopGardenSetup-*-win-x64.zip` |
-| Windows ARM | `SlopGardenSetup-*-win-arm64.zip` |
-| macOS Intel | `SlopGardenSetup-*-mac-x64.zip` |
-| macOS Apple silicon | `SlopGardenSetup-*-mac-arm64.zip` |
-| Linux 64-bit | `SlopGardenSetup-*-linux-x64.tar.gz` |
-| Linux ARM64, including a Raspberry Pi | `SlopGardenSetup-*-linux-arm64.tar.gz` |
+| Windows 64-bit | `SlopGardenServer-*-win-x64.msi` |
+| Windows ARM | `SlopGardenServer-*-win-arm64.msi` |
+| macOS Intel | `SlopGardenServer-*-osx-x64.dmg` |
+| macOS Apple silicon | `SlopGardenServer-*-osx-arm64.dmg` |
+| Linux 64-bit | `SlopGardenServer-*-linux-x64.sh` |
+| Linux ARM64, including a Raspberry Pi | `SlopGardenServer-*-linux-arm64.sh` |
 
-The macOS builds are not notarized. The first time, right-click the app and choose Open.
+On Linux, `sudo ./SlopGardenServer-linux-x64.sh --public-url http://192.168.1.20:5080` installs `slopgarden-server` and enables it. `--uninstall` removes that service. On macOS, open the DMG and run **Install SlopGarden Server**. On Windows, install the MSI. It creates the `SlopGardenServer` service with automatic start, and uninstalling the MSI removes that service.
 
-The app asks whether this machine is the server or a client and starts only that. Server setup starts PostgreSQL and the web app. Client setup asks for a display name and looks for the server on the LAN (mDNS and UDP). It asks you to type an address only if that search finds nothing. From an existing server, **Devices → Set up a machine by SSH** asks for the display name and uses that server's own address. A client-only machine can also use `docker compose -f docker-compose.client.yml up -d`.
+Client setup is separate. From an existing server, **Devices → Set up a machine by SSH** asks for the display name and uses that server's own address. A client-only machine can also use `docker compose -f docker-compose.client.yml up -d`.
 
 Open <http://localhost:5080>.
 
 1. **First run.** The page asks for the Admin username and password (at least 8 characters). That is the only account created. There is no demo user and no demo password.
 2. **Database.** Compose starts PostgreSQL next to the server and the server applies the latest schema on startup. To use a database you already run, open **Use a different PostgreSQL database** on that first page, enter the host, port, database, username, and password, and save. The server restarts onto that database, then you create the Admin. You can also set `POSTGRES_PASSWORD` before `docker compose up` if you only want a different password for the bundled database.
-3. **Approve a client.** Start a client (below), or from the server open **Devices → Set up a machine by SSH**, enter the host, and confirm the host key. The login is not kept and is not visible to the AI. The machine still shows up as pending. An Admin clicks **Approve**. Until then it cannot read or change the garden. That machine needs Docker and an SSH login. A machine without SSH can run the setup app itself and choose Client.
+3. **Approve a client.** Start a client (below), or from the server open **Devices → Set up a machine by SSH**, enter the host, and confirm the host key. The login is not kept and is not visible to the AI. The machine still shows up as pending. An Admin clicks **Approve**. Until then it cannot read or change the garden. That machine needs Docker and an SSH login.
 4. **OpenAI key.** **Settings → AI models.** Add a provider, base URL `https://api.openai.com/v1`, and paste the API key. The key is stored encrypted. The same form is where LM Studio, Ollama, and other OpenAI-compatible servers go. Leave the key empty for a local server that does not need one.
 5. **Discord.** **Settings → Notification channels.** Add a Discord webhook URL. Browser notifications are already on.
 6. **Search.** **Settings → AI models**, in **Web search for the AI**. On `api.openai.com` the assistant uses OpenAI's own web search with the key from step 4. For anything else, pick SearXNG, Tavily, or Brave and enter that provider's key in the same form. Keys are not built into the server.
@@ -102,10 +102,7 @@ The assistant cannot approve or revoke devices, manage users or personal access 
 ```bash
 dotnet run --project src/SlopGarden.Server
 dotnet test
-cd setup-app && npm install && npm start
 ```
-
-`npm start` opens the setup window and uses the .NET helper from source. The downloadable apps are produced by the release workflow.
 
 The first visit still creates the Admin. `scripts/run-demo.sh` is a local demo with a seeded garden and a scripted model. It sets `SlopGarden__SeedDemo=true` and is not part of the install above.
 

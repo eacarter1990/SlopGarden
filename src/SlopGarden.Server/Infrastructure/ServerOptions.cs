@@ -43,7 +43,7 @@ public sealed class ServerOptions
     /// <summary>Optional published client image. Empty until an Admin sets it (or these two are both set).</summary>
     public string ClientReleaseVersion { get; set; } = "";
     public string ClientReleaseImage { get; set; } = "";
-    /// <summary>GitHub repository whose releases publish the server image, the client image, and the setup app.</summary>
+    /// <summary>GitHub repository whose releases publish the server image, the client image, and the server installer.</summary>
     public string GitHubRepository { get; set; } = "eacarter1990/SlopGarden";
     public string InitialAdminUsername { get; set; } = "admin";
     public string InitialAdminPassword { get; set; } = "";

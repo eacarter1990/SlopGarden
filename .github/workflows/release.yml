@@ -45,24 +45,12 @@ jobs:
           tags: |
             ghcr.io/${{ steps.meta.outputs.owner }}/slopgarden-client:${{ steps.meta.outputs.version }}
             ghcr.io/${{ steps.meta.outputs.owner }}/slopgarden-client:latest
-  setup:
+  server-linux:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - rid: linux-x64
-            flags: --linux --x64
-          - rid: linux-arm64
-            flags: --linux --arm64
-          - rid: win-x64
-            flags: --win --x64
-          - rid: win-arm64
-            flags: --win --arm64
-          - rid: osx-x64
-            flags: --mac --x64
-          - rid: osx-arm64
-            flags: --mac --arm64
+        rid: [linux-x64, linux-arm64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -71,31 +59,85 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Publish the setup helper
-        run: dotnet publish tools/SlopGarden.Setup/SlopGarden.Setup.csproj -c Release -r ${{ matrix.rid }} -o setup-app/helper -p:DebugType=none -p:DebugSymbols=false
-      - name: Package the desktop app
-        working-directory: setup-app
+      - name: Publish the server
+        run: dotnet publish src/SlopGarden.Server/SlopGarden.Server.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o publish -p:DebugType=none -p:DebugSymbols=false
+      - name: Pack one shell installer
         run: |
-          npm ci
-          npx electron-builder ${{ matrix.flags }} --publish never -c.extraMetadata.version=0.2.${{ github.run_number }}
+          version="0.2.${GITHUB_RUN_NUMBER}"
+          scripts/pack-server-linux.sh publish "SlopGardenServer-${version}-${{ matrix.rid }}.sh"
       - uses: actions/upload-artifact@v4
         with:
-          name: setup-${{ matrix.rid }}
-          # electron-builder also writes unpacked app directories. Those are not release files.
-          path: |
-            setup-app/dist/*.zip
-            setup-app/dist/*.tar.gz
+          name: server-${{ matrix.rid }}
+          path: SlopGardenServer-*.sh
+          if-no-files-found: error
+
+  server-windows:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [win-x64, win-arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Publish the server
+        run: dotnet publish src/SlopGarden.Server/SlopGarden.Server.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o publish -p:DebugType=none -p:DebugSymbols=false
+      - name: Install WiX
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          Add-Content $env:GITHUB_PATH "$env:USERPROFILE\.dotnet\tools"
+      - name: Pack one MSI
+        shell: bash
+        run: |
+          version="0.2.${GITHUB_RUN_NUMBER}"
+          scripts/pack-server-msi.sh publish "SlopGardenServer-${version}-${{ matrix.rid }}.msi" "$version"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server-${{ matrix.rid }}
+          path: SlopGardenServer-*.msi
+          if-no-files-found: error
+
+  server-macos:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [osx-x64, osx-arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Publish the server
+        run: dotnet publish src/SlopGarden.Server/SlopGarden.Server.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o publish -p:DebugType=none -p:DebugSymbols=false
+      - name: Pack one DMG
+        run: |
+          version="0.2.${GITHUB_RUN_NUMBER}"
+          scripts/pack-server-dmg.sh publish "SlopGardenServer-${version}-${{ matrix.rid }}.dmg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server-${{ matrix.rid }}
+          path: SlopGardenServer-*.dmg
           if-no-files-found: error
 
   release:
-    needs: [publish, setup]
+    needs: [publish, server-linux, server-windows, server-macos]
     runs-on: ubuntu-latest
     steps:
       # gh release create shells out to git for the repo and the commit to tag.
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          pattern: setup-*
+          pattern: server-*
           path: setup-dist
           merge-multiple: true
       - name: Cut a release
@@ -106,13 +148,13 @@ jobs:
           notes=$(cat <<EOF
           Server and client images for linux/amd64 and linux/arm64 are on GHCR as \`${version}\` and \`latest\`.
 
-          SlopGarden Setup is the desktop app in the files below (Windows x64 and ARM, macOS Intel and Apple silicon, Linux x64 and ARM64). The macOS builds are not notarized: right-click the app and choose Open the first time.
+          The server installer is one file. Linux is a shell script (`sudo ./SlopGardenServer-*-linux-*.sh`). Windows is an MSI that installs the SlopGardenServer service and starts it automatically. macOS is a DMG; open it and run Install SlopGarden Server. The macOS build is not notarized. Uninstalling removes that service. Docker Compose is unchanged.
           EOF
           )
           shopt -s nullglob
-          files=(setup-dist/*.zip setup-dist/*.tar.gz)
+          files=(setup-dist/*.sh setup-dist/*.msi setup-dist/*.dmg)
           if (( ${#files[@]} == 0 )); then
-            echo "No setup archives in setup-dist (refusing to upload directories)." >&2
+            echo "No server installers in setup-dist." >&2
             exit 1
           fi
           gh release create "v${version}" "${files[@]}" \
