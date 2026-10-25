@@ -71,22 +71,22 @@ function CareTargets({ d }: { d: PlantDetail }) {
         <Table.Tbody>
           {d.careTargets.map((t) => (
             <Table.Tr key={t.id}>
-              <Table.Td>{metricLabel(t.metric)}</Table.Td>
-              <Table.Td fw={600}>{t.minValue ?? '…'} – {t.maxValue ?? '…'}</Table.Td>
-              <Table.Td><Badge size="xs" color={t.source === 'ai' ? 'violet' : 'blue'} variant="light">{t.source}</Badge>{t.rationale && <Text size="xs" c="dimmed">{t.rationale}</Text>}</Table.Td>
+              <Table.Td data-label="Metric">{metricLabel(t.metric)}</Table.Td>
+              <Table.Td data-label="Range" fw={600}>{t.minValue ?? '…'} – {t.maxValue ?? '…'}</Table.Td>
+              <Table.Td data-label="Source"><Badge size="xs" color="gray" variant="light">{t.source}</Badge>{t.rationale && <Text size="xs" c="dimmed">{t.rationale}</Text>}</Table.Td>
             </Table.Tr>
           ))}
           {profileRows.filter(([m]) => !d.careTargets.some((t) => t.metric === m)).map(([m, lo, hi]) => (
             <Table.Tr key={m as string}>
-              <Table.Td>{metricLabel(m as string)}</Table.Td>
-              <Table.Td>{(lo as number) ?? '…'} – {(hi as number) ?? '…'}</Table.Td>
-              <Table.Td><Badge size="xs" color="gray" variant="light">profile</Badge></Table.Td>
+              <Table.Td data-label="Metric">{metricLabel(m as string)}</Table.Td>
+              <Table.Td data-label="Range">{(lo as number) ?? '…'} – {(hi as number) ?? '…'}</Table.Td>
+              <Table.Td data-label="Source"><Badge size="xs" color="gray" variant="light">profile</Badge></Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>
       </Table>
       {canWrite && (
-        <Group mt="sm" align="flex-end" gap="xs">
+        <Group mt="sm" align="flex-end" gap="xs" wrap="wrap">
           <Select size="xs" w={170} data={targetMetrics.map((m) => ({ value: m, label: metricLabel(m) }))} value={metric} onChange={setMetric} />
           <NumberInput size="xs" w={80} placeholder="min" value={min} onChange={setMin} />
           <NumberInput size="xs" w={80} placeholder="max" value={max} onChange={setMax} />
@@ -107,7 +107,7 @@ function Journal({ d }: { d: PlantDetail }) {
     <Card>
       <Text fw={650} mb="xs">Journal</Text>
       {canWrite && (
-        <Group gap="xs" align="flex-end" mb="sm">
+        <Group gap="xs" align="flex-end" mb="sm" wrap="wrap">
           <Select size="xs" w={140} data={['observation', 'note', 'harvest', 'fertilized', 'pruned', 'pest', 'disease', 'watered']} value={kind} onChange={setKind} />
           {kind === 'harvest' && <NumberInput size="xs" w={90} placeholder="grams" value={qty} onChange={setQty} />}
           <TextInput size="xs" style={{ flex: 1 }} placeholder="What happened?" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
@@ -116,7 +116,7 @@ function Journal({ d }: { d: PlantDetail }) {
       )}
       <Timeline bulletSize={14} lineWidth={2}>
         {d.recentJournal.map((j) => (
-          <Timeline.Item key={j.id} color={j.createdByType === 'ai' ? 'violet' : 'green'} title={<Text size="sm" fw={600}>{j.kind}{j.quantity ? ` · ${j.quantity} ${j.unit ?? ''}` : ''}</Text>}>
+          <Timeline.Item key={j.id} color={j.createdByType === 'ai' ? 'dark' : 'green'} title={<Text size="sm" fw={600}>{j.kind}{j.quantity ? ` · ${j.quantity} ${j.unit ?? ''}` : ''}</Text>}>
             <Text size="sm">{j.notes}</Text>
             <Text size="xs" c="dimmed">{when(j.occurredAt)} · by {j.createdByType}</Text>
           </Timeline.Item>
@@ -151,15 +151,15 @@ export function PlantPage() {
           </>
         }
       />
+      {d.cameras.map((c) => (
+        <Card key={c.id} padding={0}>
+          <CameraImage cameraId={c.id} width={1100} alt={c.name} />
+          <Group justify="space-between" p="xs" wrap="wrap"><Text size="sm" fw={600}>{c.name}</Text><Text size="xs" c="dimmed">frame {ago(c.lastFrameAt)} · every {c.frameIntervalSec}s</Text></Group>
+        </Card>
+      ))}
       <Grid>
         <Grid.Col span={{ base: 12, lg: 7 }}>
           <Stack>
-            {d.cameras.map((c) => (
-              <Card key={c.id} padding={0}>
-                <CameraImage cameraId={c.id} width={900} alt={c.name} />
-                <Group justify="space-between" p="xs"><Text size="sm" fw={600}>{c.name}</Text><Text size="xs" c="dimmed">frame {ago(c.lastFrameAt)} · every {c.frameIntervalSec}s</Text></Group>
-              </Card>
-            ))}
             {[...d.sensors].sort((a, b) => (a.targetType === "plant" ? 0 : 1) - (b.targetType === "plant" ? 0 : 1) || a.name.localeCompare(b.name)).map((s) => (
               <Card key={s.id}>
                 <Group justify="space-between" mb="xs">
@@ -185,13 +185,13 @@ export function PlantPage() {
               <Card>
                 <Text fw={650}>{d.profile.commonName} needs</Text>
                 <Text size="sm" c="dimmed" mb="xs">{d.profile.description}</Text>
-                <SimpleGrid cols={2} spacing={4}>
-                  <Text size="sm">💧 Water: {d.profile.waterNeed}</Text>
-                  <Text size="sm">☀ Light: {d.profile.lightHoursMin}–{d.profile.lightHoursMax} h</Text>
-                  <Text size="sm">🌡 Air: {d.profile.airTempMinC}–{d.profile.airTempMaxC} °C</Text>
-                  <Text size="sm">⏱ Maturity: {d.profile.daysToMaturityMin}–{d.profile.daysToMaturityMax} d</Text>
+                <SimpleGrid cols={{ base: 1, xs: 2 }} spacing={4}>
+                  <Text size="sm">Water · {d.profile.waterNeed}</Text>
+                  <Text size="sm">Light · {d.profile.lightHoursMin}–{d.profile.lightHoursMax} h</Text>
+                  <Text size="sm">Air · {d.profile.airTempMinC}–{d.profile.airTempMaxC} °C</Text>
+                  <Text size="sm">Maturity · {d.profile.daysToMaturityMin}–{d.profile.daysToMaturityMax} d</Text>
                 </SimpleGrid>
-                {d.profile.fertilizerNotes && <Text size="xs" mt="xs">🧪 {d.profile.fertilizerNotes}</Text>}
+                {d.profile.fertilizerNotes && <Text size="xs" mt="xs">Fertilizer · {d.profile.fertilizerNotes}</Text>}
               </Card>
             )}
             <Journal d={d} />

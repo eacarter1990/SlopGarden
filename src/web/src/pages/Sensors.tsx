@@ -64,7 +64,7 @@ function SensorRow({ s, targetLabel }: { s: Sensor; targetLabel: string }) {
   const [open, setOpen] = useState(false)
   return (
     <Card>
-      <Group justify="space-between" wrap="nowrap" align="flex-start" gap="xs">
+      <Group justify="space-between" wrap="wrap" align="flex-start" gap="xs">
         <div style={{ minWidth: 0, flex: '1 1 auto' }}>
           <Group gap={6} wrap="wrap">
             <Text fw={650}>{s.name}</Text>
@@ -87,11 +87,11 @@ function SensorRow({ s, targetLabel }: { s: Sensor; targetLabel: string }) {
             <Table.Tbody>
               {s.channels.map((c) => (
                 <Table.Tr key={c.id}>
-                  <Table.Td>{metricLabel(c.metric)} <Text span c="dimmed">({c.key})</Text></Table.Td>
-                  <Table.Td>{fmtValue(c.lastRawValue)}</Table.Td>
-                  <Table.Td><Badge size="xs" variant="light" color={c.calibrationStatus === 'uncalibrated' ? 'gray' : c.calibrationStatus === 'ai_calibrated' ? 'violet' : 'green'}>{c.calibration?.type ?? 'none'} · {c.calibrationStatus}</Badge></Table.Td>
-                  <Table.Td><NumberInput size="xs" w={90} disabled={!canWrite} defaultValue={c.alertLow ?? ''} onBlur={(e) => e.currentTarget.value !== String(c.alertLow ?? '') && save('update_sensor_channel', { channelId: c.id, alertLow: Number(e.currentTarget.value) })} /></Table.Td>
-                  <Table.Td><NumberInput size="xs" w={90} disabled={!canWrite} defaultValue={c.alertHigh ?? ''} onBlur={(e) => e.currentTarget.value !== String(c.alertHigh ?? '') && save('update_sensor_channel', { channelId: c.id, alertHigh: Number(e.currentTarget.value) })} /></Table.Td>
+                  <Table.Td data-label="Channel">{metricLabel(c.metric)} <Text span c="dimmed">({c.key})</Text></Table.Td>
+                  <Table.Td data-label="Raw">{fmtValue(c.lastRawValue)}</Table.Td>
+                  <Table.Td data-label="Calibration"><Badge size="xs" variant="light" color={c.calibrationStatus === 'uncalibrated' ? 'gray' : 'green'}>{c.calibration?.type ?? 'none'} · {c.calibrationStatus.replaceAll('_', ' ')}</Badge></Table.Td>
+                  <Table.Td data-label="Alert low"><NumberInput size="xs" w={90} disabled={!canWrite} defaultValue={c.alertLow ?? ''} onBlur={(e) => e.currentTarget.value !== String(c.alertLow ?? '') && save('update_sensor_channel', { channelId: c.id, alertLow: Number(e.currentTarget.value) })} /></Table.Td>
+                  <Table.Td data-label="Alert high"><NumberInput size="xs" w={90} disabled={!canWrite} defaultValue={c.alertHigh ?? ''} onBlur={(e) => e.currentTarget.value !== String(c.alertHigh ?? '') && save('update_sensor_channel', { channelId: c.id, alertHigh: Number(e.currentTarget.value) })} /></Table.Td>
                   <Table.Td>{canWrite && <Button size="xs" variant="light" leftSection={<IconAdjustments size={14} />} onClick={() => modals.open({ title: `Calibrate ${s.name}`, size: 'lg', children: <CalibrationWizard sensor={s} channel={c} /> })}>Calibrate</Button>}</Table.Td>
                 </Table.Tr>
               ))}

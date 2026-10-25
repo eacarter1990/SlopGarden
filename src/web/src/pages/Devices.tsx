@@ -1,4 +1,4 @@
-import { Alert, Anchor, Badge, Button, Card, Group, NumberInput, PasswordInput, Select, SimpleGrid, Stack, Switch, Table, Text, Textarea, TextInput } from '@mantine/core'
+import { Alert, Anchor, Badge, Button, Card, Group, NumberInput, PasswordInput, Select, Stack, Switch, Table, Text, Textarea, TextInput } from '@mantine/core'
 import { modals } from '@mantine/modals'
 import { notifications } from '@mantine/notifications'
 import { IconAlertTriangle, IconCheck, IconWifi, IconX } from '@tabler/icons-react'
@@ -11,6 +11,13 @@ import { useAuth } from '../auth'
 import { useSave } from '../components/Forms'
 import { PageTitle } from '../components/Widgets'
 import { ago } from '../format'
+
+function splitImage(image: string) {
+  const at = image.lastIndexOf(':')
+  const slash = image.lastIndexOf('/')
+  if (at <= slash) return { repo: image, version: '—' }
+  return { repo: image.slice(0, at), version: image.slice(at + 1) }
+}
 
 export function DevicesPage() {
   const { isAdmin } = useAuth()
@@ -52,16 +59,94 @@ export function DevicesPage() {
     }
   }
 
+  const roster = (
+    <>
+      {pending.length > 0 && (
+        <Card style={{ borderColor: 'rgba(210, 74, 36, 0.45)' }}>
+          <Text className="sg-serif" fz={22} fw={560} mb="xs">Waiting for approval ({pending.length})</Text>
+          <div className="sg-stack">
+            {pending.map((d) => (
+              <div key={d.id} className="sg-record sg-record-wide">
+                <div>
+                  <Text fw={650}>{d.hostname}</Text>
+                  <Text size="xs" c="dimmed">{d.os} {d.architecture} · client {d.clientVersion} · via {d.discoveredVia} · {d.ipAddress}</Text>
+                  <Text size="xs" c="dimmed">Found {ago(d.createdAt)}</Text>
+                </div>
+                <div>
+                  {d.unsignedPlugins > 0 && <Badge color="orange" variant="light" leftSection={<IconAlertTriangle size={12} />}>{d.unsignedPlugins} unsigned plugin(s)</Badge>}
+                </div>
+                {isAdmin ? (
+                  <Group gap="xs">
+                    <Button size="xs" leftSection={<IconCheck size={14} />} onClick={() => save('approve_device', { deviceId: d.id }, 'Device approved; credential issued')}>Approve</Button>
+                    <Button size="xs" variant="light" color="gray" leftSection={<IconX size={14} />} onClick={() => save('reject_device', { deviceId: d.id }, 'Rejected')}>Reject</Button>
+                    <Button size="xs" variant="subtle" color="red" onClick={() => remove(d)}>Remove</Button>
+                  </Group>
+                ) : (
+                  <Text size="xs" c="dimmed">An Admin must approve</Text>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+      <Card>
+        <Text className="sg-serif" fz={22} fw={560} mb="sm">On this network</Text>
+        <div className="sg-stack">
+          {others.map((d) => (
+            <div key={d.id} className="sg-record sg-record-wide">
+              <div>
+                <Anchor component={Link} to={`/devices/${d.id}`} fw={650} c="inherit">{d.name}</Anchor>
+                <Text size="xs" c="dimmed">{d.ipAddress} · {d.os} {d.architecture} · v{d.clientVersion}</Text>
+                <Text size="xs" c="dimmed">Last seen {ago(d.lastSeenAt)}{d.bufferedReadings > 0 ? ` · ${d.bufferedReadings} buffered` : ''}</Text>
+              </div>
+              <Group gap={6}>
+                <Badge color={d.isOnline ? 'green' : 'gray'} variant={d.isOnline ? 'filled' : 'light'}>{d.isOnline ? 'online' : 'offline'}</Badge>
+                {d.status !== 'approved' && <Badge color="red" variant="light">{d.status}</Badge>}
+                <Badge variant="light" color={d.appliedConfigVersion === d.desiredConfigVersion ? 'green' : 'yellow'}>config v{d.appliedConfigVersion ?? '–'} / v{d.desiredConfigVersion}</Badge>
+                {d.canSelfUpdate === false ? <Badge color="gray" variant="light">not a container</Badge> : d.updateAvailable ? <Badge color="yellow">update available</Badge> : <Badge color="gray" variant="light">{d.updateStatus || 'current'}</Badge>}
+                {d.configErrors.length > 0 && <Text size="xs" c="red">{d.configErrors.length} error(s)</Text>}
+                {d.canSelfUpdate !== false && d.updateError && <Text size="xs" c="red">{d.updateError}</Text>}
+              </Group>
+              <Stack gap={6}>
+                {d.canSelfUpdate === false && <Text size="xs" c="dimmed">This device is a program on its machine, not a container, so an image cannot be installed from here.</Text>}
+                {isAdmin && d.status === 'approved' && d.canSelfUpdate !== false && (
+                  <Group gap="xs">
+                    <Button size="xs" variant="light" disabled={!d.updateAvailable && !releases?.version} onClick={async () => {
+                      try {
+                        const r = await api.post<{ message: string }>(`/api/devices/${d.id}/update`)
+                        notifications.show({ color: 'green', message: r.message })
+                        qc.invalidateQueries({ queryKey: ['devices'] })
+                      } catch (e) { notifications.show({ color: 'red', message: (e as Error).message }) }
+                    }}>Update</Button>
+                    <Switch size="xs" label="Auto" aria-label={`Auto-update ${d.name}`} checked={!!d.autoUpdate} onChange={async (e) => {
+                      try {
+                        await api.put(`/api/devices/${d.id}/auto-update`, { enabled: e.currentTarget.checked })
+                        qc.invalidateQueries({ queryKey: ['devices'] })
+                      } catch (err) { notifications.show({ color: 'red', message: (err as Error).message }) }
+                    }} />
+                  </Group>
+                )}
+                {isAdmin && <Button size="xs" variant="subtle" color="red" onClick={() => remove(d)}>Remove</Button>}
+              </Stack>
+            </div>
+          ))}
+        </div>
+        {devices?.length === 0 && <Alert mt="sm">No devices yet. Start the SlopGarden client on a Pi (or the emulator-backed client) on the same network.</Alert>}
+      </Card>
+    </>
+  )
+
   return (
     <Stack>
       <PageTitle title="Devices" subtitle="SlopGarden clients on your network. New clients are found by UDP broadcast, mDNS, or by IP, and stay pending until an Admin approves them." />
+      {roster}
 
       {isAdmin && (
         <Card>
           <Text fw={650} mb={4}>Release</Text>
           <Text size="xs" c="dimmed" mb="xs">
             Updates install the server and client images from a GitHub release. Latest follows the newest release. Pick a version to stay on that one.
-            This server is running {releases?.running || '—'}. Auto-update does not change safety limits or AI approvals.
+            Auto-update does not change safety limits or AI approvals.
           </Text>
           <Group align="flex-end">
             <Select
@@ -97,10 +182,32 @@ export function DevicesPage() {
             }}>Update server</Button>
           </Group>
           {releases?.version ? (
-            <>
-              <Text size="xs" c="dimmed" mt="xs" style={{ overflowWrap: 'anywhere' }}>{releases.serverImage}</Text>
-              <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>{releases.clientImage}</Text>
-            </>
+            <Table mt="sm" fz="sm" verticalSpacing={6} horizontalSpacing="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Part</Table.Th>
+                  <Table.Th>Running</Table.Th>
+                  <Table.Th>Release</Table.Th>
+                  <Table.Th>Image</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {([
+                  ['Server', releases.running || '—', releases.serverImage],
+                  ['Client', [...new Set((devices ?? []).map((d) => d.clientVersion).filter(Boolean))].join(', ') || '—', releases.clientImage],
+                ] as const).map(([part, running, image]) => {
+                  const { repo, version } = splitImage(image)
+                  return (
+                    <Table.Tr key={part}>
+                      <Table.Td data-label="Part" fw={650}>{part}</Table.Td>
+                      <Table.Td data-label="Running">{running}</Table.Td>
+                      <Table.Td data-label="Release" fw={650}>{version}</Table.Td>
+                      <Table.Td data-label="Image" ff="monospace" fz="xs" style={{ overflowWrap: 'anywhere' }}>{repo}</Table.Td>
+                    </Table.Tr>
+                  )
+                })}
+              </Table.Tbody>
+            </Table>
           ) : (
             <Text size="xs" c={releases?.error ? 'orange' : 'dimmed'} mt="xs">{releases?.error || 'No GitHub releases published yet.'}</Text>
           )}
@@ -114,15 +221,14 @@ export function DevicesPage() {
           <Text size="xs" c="dimmed" mb="xs">
             Installs only the client on that machine and points it at this server. You choose a display name, then confirm the host key. The login is forgotten after the install, and the device stays pending until you approve it. The AI cannot see this login.
           </Text>
-          <TextInput label="Display name" placeholder="Greenhouse Pi" value={sshName} onChange={(e) => setSshName(e.currentTarget.value)} maw={360} />
-          <SimpleGrid cols={{ base: 1, sm: 3 }} mt="xs">
-            <TextInput label="Host" placeholder="192.168.1.50" value={sshHost} onChange={(e) => setSshHost(e.currentTarget.value)} />
-            <NumberInput label="Port" value={sshPort} onChange={setSshPort} min={1} max={65535} />
-            <TextInput label="Username" placeholder="pi" value={sshUser} onChange={(e) => setSshUser(e.currentTarget.value)} />
-          </SimpleGrid>
-          <PasswordInput label="Password" mt="xs" value={sshPassword} onChange={(e) => setSshPassword(e.currentTarget.value)} />
-          <Textarea label="Private key" placeholder="Optional. Paste a PEM key instead of a password." minRows={2} mt="xs" value={sshKey} onChange={(e) => setSshKey(e.currentTarget.value)} />
-          <Group mt="sm">
+          <div className="sg-form">
+          <TextInput label="Display name" placeholder="Greenhouse Pi" value={sshName} onChange={(e) => setSshName(e.currentTarget.value)} />
+          <TextInput label="Host" placeholder="192.168.1.50" value={sshHost} onChange={(e) => setSshHost(e.currentTarget.value)} />
+          <NumberInput label="Port" value={sshPort} onChange={setSshPort} min={1} max={65535} />
+          <TextInput label="Username" placeholder="pi" value={sshUser} onChange={(e) => setSshUser(e.currentTarget.value)} />
+          <PasswordInput label="Password" value={sshPassword} onChange={(e) => setSshPassword(e.currentTarget.value)} />
+          <Textarea label="Private key" description="Optional. Paste a PEM key instead of a password." minRows={2} value={sshKey} onChange={(e) => setSshKey(e.currentTarget.value)} />
+          <div className="sg-form-actions">
             <Button loading={sshBusy} disabled={!sshHost || !sshUser || (!sshPassword && !sshKey)} onClick={async () => {
               setSshBusy(true)
               setProbe(null)
@@ -148,13 +254,14 @@ export function DevicesPage() {
               } catch (e) { notifications.show({ color: 'red', message: (e as Error).message }) }
               finally { setSshBusy(false) }
             }}>Install client</Button>
-          </Group>
+          </div>
+          </div>
           {probe && (
             <Alert mt="sm" color={probe.dockerInstalled ? 'green' : 'orange'} title={probe.fingerprint}>
               {probe.detail} This client will be named {sshName || '…'} and will register with {probe.serverUrl}. Confirm this host key, then install.
             </Alert>
           )}
-          {sshLog && <Alert mt="sm" color="green" title="Installed">{sshLog} Approve the device when it appears below.</Alert>}
+          {sshLog && <Alert mt="sm" color="green" title="Installed">{sshLog} Approve the device when it appears in the list above.</Alert>}
         </Card>
       )}
 
@@ -168,94 +275,6 @@ export function DevicesPage() {
           </Group>
         </Card>
       )}
-
-      {pending.length > 0 && (
-        <Card style={{ borderColor: 'var(--mantine-color-orange-4)' }}>
-          <Text fw={650} mb="xs">Waiting for approval ({pending.length})</Text>
-          <Table>
-            <Table.Tbody>
-              {pending.map((d) => (
-                <Table.Tr key={d.id}>
-                  <Table.Td><Text fw={600}>{d.hostname}</Text><Text size="xs" c="dimmed">{d.os} {d.architecture} · client {d.clientVersion} · via {d.discoveredVia} · {d.ipAddress}</Text></Table.Td>
-                  <Table.Td>
-                    {d.unsignedPlugins > 0 && <Badge color="orange" variant="light" leftSection={<IconAlertTriangle size={12} />}>{d.unsignedPlugins} unsigned plugin(s)</Badge>}
-                  </Table.Td>
-                  <Table.Td>{ago(d.createdAt)}</Table.Td>
-                  <Table.Td>
-                    {isAdmin ? (
-                      <Group gap="xs" justify="flex-end">
-                        <Button size="xs" leftSection={<IconCheck size={14} />} onClick={() => save('approve_device', { deviceId: d.id }, 'Device approved; credential issued')}>Approve</Button>
-                        <Button size="xs" variant="light" color="gray" leftSection={<IconX size={14} />} onClick={() => save('reject_device', { deviceId: d.id }, 'Rejected')}>Reject</Button>
-                        <Button size="xs" variant="light" color="red" onClick={() => remove(d)}>Remove</Button>
-                      </Group>
-                    ) : (
-                      <Text size="xs" c="dimmed">An Admin must approve</Text>
-                    )}
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Card>
-      )}
-
-      <Card>
-        <Table highlightOnHover>
-          <Table.Thead>
-            <Table.Tr><Table.Th>Device</Table.Th><Table.Th>Status</Table.Th><Table.Th>Platform</Table.Th><Table.Th>Config</Table.Th><Table.Th>Update</Table.Th><Table.Th>Last seen</Table.Th></Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {others.map((d) => (
-              <Table.Tr key={d.id}>
-                <Table.Td><Anchor component={Link} to={`/devices/${d.id}`} fw={600}>{d.name}</Anchor><Text size="xs" c="dimmed">{d.ipAddress}</Text></Table.Td>
-                <Table.Td>
-                  <Group gap={4}>
-                    <Badge color={d.isOnline ? 'green' : 'gray'} variant={d.isOnline ? 'filled' : 'light'}>{d.isOnline ? 'online' : 'offline'}</Badge>
-                    {d.status !== 'approved' && <Badge color="red" variant="light">{d.status}</Badge>}
-                  </Group>
-                </Table.Td>
-                <Table.Td><Text size="sm">{d.os}</Text><Text size="xs" c="dimmed">{d.architecture} · v{d.clientVersion}</Text></Table.Td>
-                <Table.Td>
-                  <Badge variant="light" color={d.appliedConfigVersion === d.desiredConfigVersion ? 'green' : 'yellow'}>v{d.appliedConfigVersion ?? '–'} / v{d.desiredConfigVersion}</Badge>
-                  {d.configErrors.length > 0 && <Text size="xs" c="red">{d.configErrors.length} error(s)</Text>}
-                </Table.Td>
-                <Table.Td>
-                  <Stack gap={4}>
-                    {d.updateAvailable ? <Badge color="yellow">update available</Badge> : <Badge color="gray" variant="light">{d.updateStatus || 'current'}</Badge>}
-                    {d.updateError && <Text size="xs" c="red">{d.updateError}</Text>}
-                    {isAdmin && d.status === 'approved' && (
-                      <Group gap="xs">
-                        <Button size="xs" variant="light" disabled={!d.updateAvailable && !releases?.version} onClick={async () => {
-                          try {
-                            const r = await api.post<{ message: string }>(`/api/devices/${d.id}/update`)
-                            notifications.show({ color: 'green', message: r.message })
-                            qc.invalidateQueries({ queryKey: ['devices'] })
-                          } catch (e) { notifications.show({ color: 'red', message: (e as Error).message }) }
-                        }}>Update</Button>
-                        <Switch
-                          size="xs"
-                          label="Auto"
-                          aria-label={`Auto-update ${d.name}`}
-                          checked={!!d.autoUpdate}
-                          onChange={async (e) => {
-                            try {
-                              await api.put(`/api/devices/${d.id}/auto-update`, { enabled: e.currentTarget.checked })
-                              qc.invalidateQueries({ queryKey: ['devices'] })
-                            } catch (err) { notifications.show({ color: 'red', message: (err as Error).message }) }
-                          }}
-                        />
-                      </Group>
-                    )}
-                    {isAdmin && <Button size="xs" variant="subtle" color="red" onClick={() => remove(d)}>Remove</Button>}
-                  </Stack>
-                </Table.Td>
-                <Table.Td>{ago(d.lastSeenAt)}{d.bufferedReadings > 0 && <Text size="xs" c="dimmed">{d.bufferedReadings} buffered</Text>}</Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-        {devices?.length === 0 && <Alert mt="sm">No devices yet. Start the SlopGarden client on a Pi (or the emulator-backed client) on the same network.</Alert>}
-      </Card>
     </Stack>
   )
 }

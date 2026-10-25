@@ -1,6 +1,6 @@
-import { Badge, Button, Card, Checkbox, Group, Stack, Table, Text, Textarea, ThemeIcon } from '@mantine/core'
+import { Badge, Button, Card, Checkbox, Group, Stack, Table, Text, Textarea } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconCheck, IconSparkles, IconX } from '@tabler/icons-react'
+import { IconCheck, IconX } from '@tabler/icons-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../api/client'
@@ -9,8 +9,8 @@ import { useAuth } from '../auth'
 import { ago } from '../format'
 
 const statusColor: Record<string, string> = {
-  pending: 'violet',
-  approved: 'blue',
+  pending: 'red',
+  approved: 'green',
   executed: 'green',
   rejected: 'gray',
   failed: 'red',
@@ -54,20 +54,15 @@ export function ProposalCard({ proposal, onDecided }: { proposal: Proposal; onDe
   }
 
   return (
-    <Card withBorder radius="md" p="sm" style={{ borderColor: pending ? 'var(--mantine-color-violet-4)' : undefined, borderWidth: pending ? 2 : 1 }}>
+    <Card className="sg-proposal" data-pending={pending || undefined} withBorder radius="md" p="sm">
       <Stack gap={8}>
         <Group justify="space-between" wrap="nowrap" align="flex-start">
-          <Group gap={8} wrap="nowrap" align="flex-start">
-            <ThemeIcon size="md" radius="xl" color="violet" variant="light">
-              <IconSparkles size={16} />
-            </ThemeIcon>
-            <div>
-              <Text size="xs" c="dimmed" tt="uppercase" fw={600}>AI proposes</Text>
-              <Text fw={650} size="sm">{proposal.title}</Text>
-            </div>
-          </Group>
+          <div>
+            <Text size="xs" c="dimmed" tt="uppercase" fw={600}>Proposed</Text>
+            <Text fw={650} size="sm">{proposal.title}</Text>
+          </div>
           <Group gap={4} wrap="nowrap">
-            <Badge size="sm" variant="light" color={proposal.risk === 'high' ? 'red' : proposal.risk === 'medium' ? 'yellow' : 'teal'}>{proposal.risk} risk</Badge>
+            <Badge size="sm" variant="light" color={proposal.risk === 'high' ? 'red' : proposal.risk === 'medium' ? 'yellow' : 'gray'}>{proposal.risk} risk</Badge>
             <Badge size="sm" color={statusColor[proposal.status] ?? 'gray'}>{proposal.status}</Badge>
           </Group>
         </Group>
@@ -91,9 +86,9 @@ export function ProposalCard({ proposal, onDecided }: { proposal: Proposal; onDe
             <Table.Tbody>
               {proposal.changes.map((c, i) => (
                 <Table.Tr key={i}>
-                  <Table.Td ff="monospace">{c.field}</Table.Td>
-                  <Table.Td c="dimmed">{show(c.before)}</Table.Td>
-                  <Table.Td fw={600}>{show(c.after)}</Table.Td>
+                  <Table.Td data-label="Field" ff="monospace">{c.field}</Table.Td>
+                  <Table.Td data-label="Current" c="dimmed">{show(c.before)}</Table.Td>
+                  <Table.Td data-label="Proposed" fw={600}>{show(c.after)}</Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
@@ -118,7 +113,7 @@ export function ProposalCard({ proposal, onDecided }: { proposal: Proposal; onDe
               />
             )}
             <Group gap="xs">
-              <Button size="xs" color="green" leftSection={<IconCheck size={14} />} loading={busy === 'approve'} disabled={!!busy} onClick={() => decide(true)}>
+              <Button size="xs" leftSection={<IconCheck size={14} />} loading={busy === 'approve'} disabled={!!busy} onClick={() => decide(true)}>
                 Approve
               </Button>
               <Button size="xs" color="gray" variant="light" leftSection={<IconX size={14} />} loading={busy === 'reject'} disabled={!!busy} onClick={() => decide(false)}>

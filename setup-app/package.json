@@ -20,7 +20,7 @@
     "executableName": "slopgarden-setup",
     "directories": { "output": "dist" },
     "artifactName": "SlopGardenSetup-${version}-${os}-${arch}.${ext}",
-    "files": ["main.js", "preload.js", "index.html", "renderer.js"],
+    "files": ["main.js", "preload.js", "index.html", "renderer.js", "fonts/**"],
     "extraResources": [{ "from": "helper", "to": "helper" }],
     "linux": { "target": ["tar.gz"], "category": "Utility" },
     "win": { "target": ["zip"] },

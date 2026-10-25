@@ -23,7 +23,6 @@ function ReasonInput({ onChange }: { onChange: (v: string) => void }) {
 export function EmergencyStopButton({ scopeType, scopeId, label = 'Emergency stop', compact }: Props) {
   const { canWrite } = useAuth()
   const qc = useQueryClient()
-  if (!canWrite) return null
   const trigger = () => {
     let reason = ''
     modals.openConfirmModal({
@@ -43,8 +42,17 @@ export function EmergencyStopButton({ scopeType, scopeId, label = 'Emergency sto
     })
   }
   return (
-    <Button color="red" variant={compact ? 'filled' : 'light'} size={compact ? 'xs' : 'sm'} leftSection={<IconHandStop size={16} />} onClick={trigger} aria-label={label} px={compact ? 8 : undefined}>
-      {compact ? <Text span visibleFrom="sm">{label}</Text> : label}
+    <Button
+      className="sg-stop"
+      color="red"
+      variant="filled"
+      size={compact ? 'sm' : 'sm'}
+      leftSection={<IconHandStop size={16} />}
+      onClick={trigger}
+      disabled={!canWrite}
+      aria-label={label === 'Stop' ? 'Stop all' : label}
+    >
+      {compact ? <Text span>{label}</Text> : label}
     </Button>
   )
 }

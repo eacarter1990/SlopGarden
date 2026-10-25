@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../api/client'
 import { Markdown } from '../components/Markdown'
-import { PageTitle } from '../components/Widgets'
+import { PageTitle, Section } from '../components/Widgets'
 import { useGarden } from '../garden'
 
 interface Prediction {
@@ -71,25 +71,18 @@ export function ReportsPage() {
   return (
     <Stack>
       <PageTitle title="Growth reports" subtitle={garden ? garden.name : 'Select a garden'} />
-      <Card>
-        <Group justify="space-between" align="flex-end">
-          <Stack gap={6}>
-            <Text fw={650}>Schedule</Text>
-            <Text size="xs" c="dimmed">Daily at 07:00, Monday mornings, and the first of the month. Times use the garden's time zone.</Text>
+      <Section title="Schedule" hint="Daily at 07:00, Monday mornings, and the first of the month. Times use the garden's time zone." action={<Button loading={generate.isPending} onClick={() => generate.mutate()} disabled={!gardenId}>Generate now</Button>}>
             <Group>
               {(['daily', 'weekly', 'monthly'] as const).map((cadence) => (
                 <Switch
                   key={cadence}
-                  label={cadence}
+                  label={cadence === 'daily' ? 'Daily' : cadence === 'weekly' ? 'Weekly' : 'Monthly'}
                   checked={!!schedules?.some((s) => s.cadence === cadence && s.enabled)}
                   onChange={() => toggle.mutate(cadence)}
                 />
               ))}
             </Group>
-          </Stack>
-          <Button loading={generate.isPending} onClick={() => generate.mutate()} disabled={!gardenId}>Generate now</Button>
-        </Group>
-      </Card>
+      </Section>
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
         <Card>
           <Stack gap="xs">
@@ -101,7 +94,7 @@ export function ReportsPage() {
                 </Group>
               </Button>
             ))}
-            {reports?.length === 0 && <Text c="dimmed" size="sm">No reports yet.</Text>}
+            {reports?.length === 0 && <div className="sg-empty">No reports yet. Generate one, or turn on a schedule.</div>}
           </Stack>
         </Card>
         {selected && (

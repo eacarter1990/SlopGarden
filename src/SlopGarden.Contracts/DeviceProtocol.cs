@@ -110,7 +110,9 @@ public sealed record DeviceHello(
     int? AppliedConfigVersion,
     DeviceEnvironmentInfo Environment,
     IReadOnlyList<PluginInfo> Plugins,
-    int BufferedReadings);
+    int BufferedReadings,
+    /// <summary>False when this process is not a container that can replace itself. Null from an older client, which is still offered an update.</summary>
+    bool? CanSelfUpdate = null);
 
 public sealed record ReadingSample(Guid ChannelId, DateTimeOffset Time, double Value, double? RawValue, short Quality);
 

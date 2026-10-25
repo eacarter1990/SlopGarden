@@ -34,14 +34,12 @@ export function NotificationsPage() {
       <PageTitle
         title="Notifications"
         subtitle="Alerts, device events, safety blocks and AI proposals. Mute a plant or device once you know about an issue."
-        right={
-          <>
-            {perm !== 'granted' && typeof Notification !== 'undefined' && <Button variant="light" onClick={async () => setPerm(await Notification.requestPermission())}>Enable browser notifications</Button>}
-            <Switch label="Unread only" checked={unread} onChange={(e) => setUnread(e.currentTarget.checked)} />
-            <Button variant="light" onClick={() => save('mark_notifications_read', {}, 'All marked read')}>Mark all read</Button>
-          </>
-        }
       />
+      <Group className="sg-page-actions">
+        {perm !== 'granted' && typeof Notification !== 'undefined' && <Button variant="light" onClick={async () => setPerm(await Notification.requestPermission())}>Enable browser notifications</Button>}
+        <Switch label="Unread only" checked={unread} onChange={(e) => setUnread(e.currentTarget.checked)} />
+        <Button variant="light" onClick={() => save('mark_notifications_read', {}, 'All marked read')}>Mark all read</Button>
+      </Group>
       {(mutes ?? []).length > 0 && (
         <Card>
           <Text fw={650} mb="xs">Muted</Text>
@@ -81,7 +79,7 @@ export function NotificationsPage() {
           </Group>
         </Card>
       ))}
-      {data?.length === 0 && <Text c="dimmed">No notifications.</Text>}
+      {data?.length === 0 && <div className="sg-empty">{unread ? 'No unread notifications.' : 'No notifications yet.'}</div>}
     </Stack>
   )
 }

@@ -1,4 +1,4 @@
-import { Alert, Button, Center, Collapse, NumberInput, Paper, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core'
+import { Alert, Button, Collapse, NumberInput, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core'
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useAuth } from '../auth'
@@ -42,14 +42,14 @@ export function LoginPage({ needsSetup }: { needsSetup: boolean }) {
   }
 
   return (
-    <Center h="100vh" style={{ background: 'linear-gradient(135deg, var(--mantine-color-green-9), var(--mantine-color-teal-7))' }}>
-      <Paper p="xl" shadow="xl" radius="lg" style={{ width: 'min(380px, calc(100vw - 32px))' }}>
+    <div className="sg-login">
+      <div className="sg-login-card">
         <form onSubmit={submit}>
-          <Stack>
-            <Stack gap={4} align="center">
-              <img src="/favicon.svg" width={52} height={52} alt="" />
-              <Title order={2}>SlopGarden</Title>
-              <Text c="dimmed" size="sm" ta="center">{needsSetup ? 'Create the first Admin account for this server.' : 'AI-run garden automation'}</Text>
+          <Stack className="sg-form sg-form-stack" gap={0}>
+            <Stack gap={4}>
+              <img src="/favicon.svg" width={40} height={40} alt="" />
+              <Title order={2} className="sg-serif" fw={560}>SlopGarden</Title>
+              <Text c="dimmed" size="sm">{needsSetup ? 'Create the first Admin account for this server.' : 'The garden, on this network.'}</Text>
             </Stack>
             {error && <Alert color="red">{error}</Alert>}
             <TextInput label="Username" value={username} onChange={(e) => setUsername(e.currentTarget.value)} required autoFocus />
@@ -61,7 +61,7 @@ export function LoginPage({ needsSetup }: { needsSetup: boolean }) {
                   {showDb ? 'Hide database settings' : 'Use a different PostgreSQL database'}
                 </Button>
                 <Collapse expanded={showDb}>
-                  <Stack gap="xs">
+                  <div className="sg-form">
                     <Text size="xs" c="dimmed">Currently {db?.host ?? 'localhost'}:{db?.port ?? 5432}/{db?.database ?? 'slopgarden'}. A remote database is saved, then the server restarts and this page comes back so you can create the Admin. No demo account is created.</Text>
                     <TextInput label="Host" value={host} onChange={(e) => setHost(e.currentTarget.value)} />
                     <NumberInput label="Port" value={port} onChange={setPort} min={1} max={65535} />
@@ -82,14 +82,14 @@ export function LoginPage({ needsSetup }: { needsSetup: boolean }) {
                         setRestarting(false)
                       }
                     }}>Save database and restart</Button>
-                  </Stack>
+                  </div>
                 </Collapse>
               </Stack>
             )}
             <Button type="submit" loading={busy} fullWidth>{needsSetup ? 'Create Admin' : 'Sign in'}</Button>
           </Stack>
         </form>
-      </Paper>
-    </Center>
+      </div>
+    </div>
   )
 }

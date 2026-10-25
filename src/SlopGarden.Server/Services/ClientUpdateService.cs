@@ -57,6 +57,8 @@ public sealed class ClientUpdateService(
         var device = await db.Devices.FirstOrDefaultAsync(d => d.Id == deviceId, ct) ?? throw AppException.NotFound("Device");
         if (string.IsNullOrWhiteSpace(release.Version) || string.IsNullOrWhiteSpace(release.Image))
             throw AppException.Bad("Set the client version and container image before updating a device.");
+        if (device.CanSelfUpdate == false)
+            throw AppException.Bad("This device is running as a program, not a container, so the device list cannot install an image on it.");
         if (!manual && !ClientVersions.IsOutdated(device.ClientVersion, release.Version))
             return "already current";
         if (!device.IsOnline || connections.Get(device.Id) is not { } conn)
@@ -124,7 +126,7 @@ public sealed class ClientUpdateService(
                     $"{device.Name} is running {device.ClientVersion}. {release.Version} is published{(string.IsNullOrWhiteSpace(release.Image) ? "" : $" ({release.Image})")}.",
                     "device", device.Id, $"client-update:{device.Id}:{release.Version}"), ct);
             }
-            if (device.AutoUpdate && device.UpdateStatus != "updating" && device.IsOnline && connections.Get(device.Id) is { } conn
+            if (device.AutoUpdate && device.CanSelfUpdate != false && device.UpdateStatus != "updating" && device.IsOnline && connections.Get(device.Id) is { } conn
                 && !string.IsNullOrWhiteSpace(release.Image))
             {
                 device.UpdateStatus = "updating";

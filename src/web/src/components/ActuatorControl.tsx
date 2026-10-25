@@ -1,6 +1,5 @@
-import { ActionIcon, Badge, Group, Menu, Text, Tooltip } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconBulb, IconDroplet, IconFlame, IconPlayerPlay, IconPower, IconPropeller, IconTestPipe, IconToggleLeft } from '@tabler/icons-react'
+import { IconBulb, IconDroplet, IconFlame, IconPower, IconPropeller, IconTestPipe, IconToggleLeft } from '@tabler/icons-react'
 import { api } from '../api/client'
 import { useAuth } from '../auth'
 import { ago, isDoser } from '../format'
@@ -39,47 +38,52 @@ async function run(id: string, action: string, durationSec?: number, amountMl?: 
   }
 }
 
-/** Compact state + manual control for one actuator. Every command goes through the safety limits. */
+/** Name and live state only. Used where the person is looking, not operating. */
+export function ActuatorStatus({ a }: { a: Brief }) {
+  const Icon = actuatorIcon(a.kind)
+  const since = a.stateSince ? `since ${ago(a.stateSince)}` : 'no state reported yet'
+  return (
+    <div className="sg-actuator-status">
+      <Icon size={16} color={a.isOn ? 'var(--sg-moss)' : 'var(--sg-ink-soft)'} />
+      <span className="sg-actuator-name">{a.name}</span>
+      {a.continuousRun && <span className="sg-actuator-note">Always on</span>}
+      <span className={a.isOn ? 'sg-actuator-state is-on' : 'sg-actuator-state'} title={since}>
+        <span className="sg-dot" />
+        {a.isOn ? 'On' : 'Off'}
+      </span>
+    </div>
+  )
+}
+
+/** Status plus the run choices. Every command still goes through the safety limits. */
 export function ActuatorControl({ a }: { a: Brief }) {
   const { canWrite } = useAuth()
-  const Icon = actuatorIcon(a.kind)
+  const doses = isDoser(a)
+  const actions = doses
+    ? [
+        { label: '2 ml', go: () => run(a.id, 'dose', undefined, 2) },
+        { label: '5 ml', go: () => run(a.id, 'dose', undefined, 5) },
+        { label: '10 ml', go: () => run(a.id, 'dose', undefined, 10) },
+      ]
+    : [
+        { label: '15 s', go: () => run(a.id, 'pulse', 15) },
+        { label: '1 min', go: () => run(a.id, 'pulse', 60) },
+        { label: '5 min', go: () => run(a.id, 'pulse', 300) },
+        { label: 'Stay on', go: () => run(a.id, 'on') },
+      ]
   return (
-    <Group justify="space-between" wrap="nowrap" gap="xs" align="center">
-      <Group gap={6} wrap="nowrap" style={{ minWidth: 0, flex: '1 1 auto' }}>
-        <Icon size={16} style={{ flex: '0 0 auto' }} color={a.isOn ? 'var(--mantine-color-blue-6)' : 'var(--mantine-color-gray-5)'} />
-        <Text size="sm" truncate>{a.name}</Text>
-        {a.continuousRun && <Badge size="xs" variant="light" color="blue" style={{ flexShrink: 0 }}>24/7</Badge>}
-      </Group>
-      <Group gap={4} wrap="nowrap" style={{ flex: '0 0 auto' }}>
-        <Tooltip label={a.stateSince ? `since ${ago(a.stateSince)}` : 'no state reported yet'}>
-          <Badge size="sm" color={a.isOn ? 'blue' : 'gray'} variant={a.isOn ? 'filled' : 'light'} style={{ flexShrink: 0 }}>{a.isOn ? 'ON' : 'off'}</Badge>
-        </Tooltip>
-        {canWrite && a.enabled && (
-          <Menu withinPortal position="bottom-end">
-            <Menu.Target>
-              <ActionIcon size="sm" variant="light" aria-label={`Control ${a.name}`}><IconPlayerPlay size={14} /></ActionIcon>
-            </Menu.Target>
-            <Menu.Dropdown>
-              {isDoser(a) ? (
-                <>
-                  <Menu.Item onClick={() => run(a.id, 'dose', undefined, 2)}>Dose 2 ml</Menu.Item>
-                  <Menu.Item onClick={() => run(a.id, 'dose', undefined, 5)}>Dose 5 ml</Menu.Item>
-                  <Menu.Item onClick={() => run(a.id, 'dose', undefined, 10)}>Dose 10 ml</Menu.Item>
-                </>
-              ) : (
-                <>
-                  <Menu.Item onClick={() => run(a.id, 'pulse', 15)}>Run 15 s</Menu.Item>
-                  <Menu.Item onClick={() => run(a.id, 'pulse', 60)}>Run 1 min</Menu.Item>
-                  <Menu.Item onClick={() => run(a.id, 'pulse', 300)}>Run 5 min</Menu.Item>
-                  <Menu.Item onClick={() => run(a.id, 'on')}>Switch on</Menu.Item>
-                </>
-              )}
-              <Menu.Divider />
-              <Menu.Item leftSection={<IconPower size={14} />} color="red" onClick={() => run(a.id, 'off')}>Switch off</Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-        )}
-      </Group>
-    </Group>
+    <div className="sg-actuator">
+      <ActuatorStatus a={a} />
+      {canWrite && a.enabled && (
+        <div className="sg-actuator-actions" role="group" aria-label={`Control ${a.name}`}>
+          {actions.map((action) => (
+            <button key={action.label} type="button" className="sg-actuator-btn" onClick={action.go}>{action.label}</button>
+          ))}
+          <button type="button" className="sg-actuator-btn is-stop" onClick={() => run(a.id, 'off')}>
+            <IconPower size={13} /> Off
+          </button>
+        </div>
+      )}
+    </div>
   )
 }

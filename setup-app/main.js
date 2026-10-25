@@ -52,11 +52,12 @@ ipcMain.handle('client', (_event, body) => run([
 
 function createWindow() {
   const window = new BrowserWindow({
-    width: 560,
+    width: 720,
     height: 760,
+    minWidth: 420,
     show: false,
     autoHideMenuBar: true,
-    backgroundColor: '#1b4332',
+    backgroundColor: '#121a16',
     title: 'SlopGarden Setup',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

@@ -26,14 +26,12 @@ function ReservoirForm({ reservoir }: { reservoir?: ReservoirStatus }) {
   const [interval, setIntervalDays] = useState<number | string>(reservoir?.changeIntervalDays ?? 14)
   const [aiContext, setAiContext] = useState(reservoir?.aiContext ?? '')
   return (
-    <Stack>
+    <div className="sg-form">
       <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} required data-autofocus />
-      <Group grow>
-        <NumberInput label="Volume (L)" min={1} value={volume} onChange={setVolume} />
-        <NumberInput label="Change solution every (days)" min={1} value={interval} onChange={setIntervalDays} />
-      </Group>
-      <Textarea label="Notes for the AI" description="e.g. nutrient brand, A/B ratio, what pH Up/Down contain" autosize minRows={2} value={aiContext} onChange={(e) => setAiContext(e.currentTarget.value)} />
-      <Group justify="flex-end">
+      <NumberInput label="Volume" description="Litres" min={1} value={volume} onChange={setVolume} />
+      <NumberInput label="Change solution" description="Days between changes" min={1} value={interval} onChange={setIntervalDays} />
+      <Textarea label="Notes" description="Nutrient brand, A/B ratio, what pH Up and pH Down contain" autosize minRows={2} value={aiContext} onChange={(e) => setAiContext(e.currentTarget.value)} />
+      <div className="sg-form-actions">
         <Button
           disabled={!name}
           onClick={async () => {
@@ -44,8 +42,8 @@ function ReservoirForm({ reservoir }: { reservoir?: ReservoirStatus }) {
         >
           {reservoir ? 'Save reservoir' : 'Create reservoir'}
         </Button>
-      </Group>
-    </Stack>
+      </div>
+    </div>
   )
 }
 
@@ -62,10 +60,10 @@ export function reservoirReadings(r: ReservoirStatus): LatestReading[] {
 export function ReservoirCard({ r, compact }: { r: ReservoirStatus; compact?: boolean }) {
   const pumps = r.actuators.filter((a) => a.role === 'circulation_pump' || a.role === 'air_pump')
   return (
-    <Card padding={compact ? 'xs' : 'md'} radius="md" className={r.aiActive ? 'sg-ai-active' : undefined} bg={compact ? 'var(--mantine-color-blue-light)' : undefined}>
+    <Card padding={compact ? 'xs' : 'md'} radius="md" className={r.aiActive ? 'sg-ai-active' : undefined}>
       <Group justify="space-between" wrap="nowrap">
         <Group gap={6} wrap="nowrap">
-          <IconDroplets size={16} color="var(--mantine-color-blue-6)" />
+          <IconDroplets size={16} color="var(--sg-moss)" />
           <Anchor component={Link} to={`/reservoirs/${r.id}`} size="sm" fw={650} c="inherit">{r.name}</Anchor>
           {r.volumeLiters ? <Text size="xs" c="dimmed">{r.volumeLiters} L</Text> : null}
         </Group>
@@ -83,7 +81,7 @@ export function ReservoirCard({ r, compact }: { r: ReservoirStatus; compact?: bo
       {pumps.length > 0 && (
         <Group gap={6} mt={6}>
           {pumps.map((p) => (
-            <Badge key={p.id} size="sm" variant={p.isOn ? 'filled' : 'light'} color={p.isOn ? 'blue' : 'red'}>{p.name}: {p.isOn ? 'running' : 'OFF'}</Badge>
+            <Badge key={p.id} size="sm" variant="light" color={p.isOn ? 'green' : 'gray'}>{p.name} · {p.isOn ? 'on' : 'off'}</Badge>
           ))}
         </Group>
       )}

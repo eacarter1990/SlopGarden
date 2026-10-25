@@ -10,7 +10,7 @@ import { useAuth } from '../auth'
 import { ActuatorControl } from '../components/ActuatorControl'
 import { EmergencyStopButton } from '../components/EmergencyStopButton'
 import { useSave } from '../components/Forms'
-import { PageTitle, ReadingPill, SchemaForm, TargetPicker, TrustBadge, type TargetValue } from '../components/Widgets'
+import { CameraImage, PageTitle, ReadingPill, SchemaForm, TargetPicker, TrustBadge, type TargetValue } from '../components/Widgets'
 import { ago, metricLabels, roleLabels, titleCase, when } from '../format'
 import { usePageEntity } from '../pageContext'
 
@@ -181,13 +181,25 @@ export function DeviceDetailPage() {
                 </Table>
               </Card>
             )}
+            <Card padding={0}>
+              <Text fw={650} p="md" pb={0}>Cameras ({d.cameras.length})</Text>
+              {d.cameras.length === 0 && <Text size="sm" c="dimmed" p="md">No cameras on this device.</Text>}
+              <Stack gap="sm" p="md">
+                {d.cameras.map((c) => (
+                  <div key={c.id}>
+                    <CameraImage cameraId={c.id} width={720} alt={c.name} />
+                    <Text size="sm" mt={6}>{c.name} · {c.captureWidth}×{c.captureHeight} every {c.frameIntervalSec}s · last frame {ago(c.lastFrameAt)}</Text>
+                  </div>
+                ))}
+              </Stack>
+            </Card>
             <Card>
               <Text fw={650} mb="xs">Sensors ({d.sensors.length})</Text>
               <Stack gap="xs">
                 {d.sensors.map((s) => (
-                  <Group key={s.id} justify="space-between" wrap="nowrap" align="flex-start" gap="xs">
+                  <Group key={s.id} justify="space-between" wrap="wrap" align="flex-start" gap="xs">
                     <div style={{ minWidth: 0, flex: '1 1 auto' }}><Text size="sm" fw={600}>{s.name}</Text><Text size="xs" c="dimmed">{s.pluginId} · {s.targetType} · every {s.readIntervalSec}s</Text></div>
-                    <Group gap={6} wrap="nowrap" justify="flex-end" style={{ flex: '0 0 auto' }}>{s.channels.map((c) => <ReadingPill key={c.id} r={{ sensorId: s.id, sensorName: s.name, channelId: c.id, metric: c.metric, unit: c.unit, value: c.lastValue, at: c.lastValueAt }} />)}</Group>
+                    <Group gap={6} wrap="wrap" justify="flex-end">{s.channels.map((c) => <ReadingPill key={c.id} r={{ sensorId: s.id, sensorName: s.name, channelId: c.id, metric: c.metric, unit: c.unit, value: c.lastValue, at: c.lastValueAt }} />)}</Group>
                   </Group>
                 ))}
               </Stack>
@@ -198,15 +210,11 @@ export function DeviceDetailPage() {
                 {d.actuators.map((a) => (
                   <Group key={a.id} gap={4} wrap="nowrap">
                     <div style={{ flex: 1, minWidth: 0 }}><ActuatorControl a={a} /></div>
-                    {a.role && <Badge size="xs" variant="light" color="blue">{roleLabels[a.role] ?? a.role}</Badge>}
+                    {a.role && <Badge size="xs" variant="light" color="gray">{roleLabels[a.role] ?? a.role}</Badge>}
                     {canWrite && <ActionIcon size="sm" variant="subtle" aria-label={`Edit ${a.name}`} onClick={() => modals.open({ title: `Edit ${a.name}`, size: 'lg', children: <ActuatorEditForm a={a} /> })}><IconPencil size={14} /></ActionIcon>}
                   </Group>
                 ))}
               </Stack>
-            </Card>
-            <Card>
-              <Text fw={650} mb="xs">Cameras ({d.cameras.length})</Text>
-              {d.cameras.map((c) => <Text key={c.id} size="sm">{c.name} · {c.captureWidth}×{c.captureHeight} every {c.frameIntervalSec}s · last frame {ago(c.lastFrameAt)}</Text>)}
             </Card>
           </Stack>
         </Grid.Col>
@@ -217,17 +225,17 @@ export function DeviceDetailPage() {
               <Stack gap="xs">
                 {d.plugins.map((p) => (
                   <Card key={p.id} padding="xs" radius="md">
-                    <Group justify="space-between" wrap="nowrap">
+                    <Group justify="space-between" wrap="wrap" align="flex-start">
                       <div style={{ minWidth: 0 }}>
                         <Text size="sm" fw={600}>{p.displayName} <Text span size="xs" c="dimmed">v{p.version}</Text></Text>
                         <Text size="xs" c="dimmed" truncate>{p.pluginId} · {p.kinds.join(', ')} · {p.publisher ?? 'unknown publisher'}</Text>
                       </div>
-                      <Group gap={4} wrap="nowrap">
+                      <Group gap={4} wrap="wrap">
                         {p.catalogEntryId && <Badge size="xs" color="green">in catalog</Badge>}
                         <TrustBadge trust={p.trust} />
                       </Group>
                     </Group>
-                    {p.trust === 'unsigned' && <Text size="xs" c="orange" mt={4}>⚠ Unsigned plugin — its security can't be guaranteed.</Text>}
+                    {p.trust === 'unsigned' && <Text size="xs" c="orange" mt={4}>Unsigned plugin. Its security can't be guaranteed.</Text>}
                     <Text size="10px" c="dimmed" ff="monospace" style={{ overflowWrap: 'anywhere' }}>sha256 {p.sha256}</Text>
                   </Card>
                 ))}

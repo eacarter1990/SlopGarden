@@ -1,5 +1,5 @@
-import { ActionIcon, Avatar, Badge, Box, Code, Collapse, Group, Paper, ScrollArea, Stack, Text, Textarea, Tooltip, UnstyledButton } from '@mantine/core'
-import { IconArrowUp, IconChevronDown, IconChevronLeft, IconChevronRight, IconInfoCircle, IconRobot, IconSparkles, IconTool, IconUser } from '@tabler/icons-react'
+import { ActionIcon, Badge, Box, Code, Collapse, Group, Paper, ScrollArea, Stack, Text, Textarea, Tooltip, UnstyledButton } from '@mantine/core'
+import { IconArrowUp, IconChevronDown, IconChevronLeft, IconChevronRight, IconInfoCircle, IconTool } from '@tabler/icons-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api/client'
@@ -19,8 +19,10 @@ interface ChatEvent {
 }
 
 const routeNames: [string, string][] = [
-  ['/', 'Dashboard'], ['/garden', 'Garden'], ['/sensors', 'Sensors'], ['/devices', 'Devices'], ['/automation', 'Automation'], ['/safety', 'Safety'],
-  ['/assistant', 'Whole garden'], ['/approvals', 'Approvals'], ['/notifications', 'Notifications'], ['/settings', 'Settings'], ['/mcp-tools', 'MCP tools'],
+  ['/', 'Dashboard'], ['/garden', 'Garden'], ['/plants', 'Plant'], ['/beds', 'Bed'], ['/reservoirs', 'Reservoir'],
+  ['/sensors', 'Sensors'], ['/devices', 'Devices'], ['/reports', 'Reports'], ['/logs', 'Logs'],
+  ['/automation', 'Automation'], ['/safety', 'Safety'], ['/assistant', 'Whole garden'],
+  ['/approvals', 'Approvals'], ['/notifications', 'Notifications'], ['/settings', 'Settings'], ['/mcp-tools', 'MCP tools'],
 ]
 
 const suggestions = ['How is the garden doing?', 'Is anything too dry?', 'Water the tomatoes every morning', 'Show me the tomato bed camera']
@@ -57,7 +59,7 @@ function ApprovalQueue({ items, activeId, onSelect, onDecided }: { items: Propos
   const index = Math.max(0, items.findIndex((p) => p.id === activeId))
   const active = items[index]
   return (
-    <Paper withBorder radius="md" p="xs" mt={6} style={{ borderColor: 'var(--mantine-color-violet-4)' }}>
+    <Paper className="sg-queue" withBorder radius="md" p="xs" mt={6}>
       <Group justify="space-between" mb={6} wrap="nowrap">
         <Text size="xs" fw={600}>{items.length === 1 ? '1 approval waiting' : `${items.length} approvals waiting`}</Text>
         <Group gap={2} wrap="nowrap">
@@ -195,25 +197,23 @@ export function ChatView({ conversationId, onConversationCreated, compact }: { c
       <ScrollArea style={{ flex: 1 }} viewportRef={viewport} onScrollPositionChange={onScroll} px={compact ? 'sm' : 'md'} py="md">
         <Stack gap="md">
           {visible.length === 0 && !busy && (
-            <Stack gap="xs" align="center" py="xl">
-              <Avatar color="violet" radius="xl" size="lg"><IconRobot /></Avatar>
-              <Text fw={600}>Hi {user?.displayName?.split(' ')[0]}, I'm your garden assistant.</Text>
-              <Text size="sm" c="dimmed" ta="center" maw={360}>I can read every sensor, tune plant targets, run valves and pumps, and set up schedules. Any change I suggest waits for your approval.</Text>
-              <Group gap={6} justify="center" mt="xs">
+            <Stack gap="sm" py="md">
+              <Text className="sg-serif" fz={22} fw={560}>Ask about what you're looking at.</Text>
+              <Text size="sm" c="dimmed">Hi {user?.displayName?.split(' ')[0]}. I can read sensors, change targets, run valves and pumps, and set schedules. A change waits until you approve or reject it.</Text>
+              <Stack gap={6}>
                 {suggestions.map((s) => (
-                  <Badge key={s} variant="light" color="violet" size="lg" style={{ cursor: 'pointer', textTransform: 'none', fontWeight: 500 }} onClick={() => send(s)}>{s}</Badge>
+                  <UnstyledButton key={s} className="sg-suggest" onClick={() => send(s)}>{s}</UnstyledButton>
                 ))}
-              </Group>
+              </Stack>
             </Stack>
           )}
           {visible.map((m) => {
             if (m.role === 'user')
               return (
                 <Group key={m.id} justify="flex-end" align="flex-start" gap="xs" wrap="nowrap">
-                  <Paper bg="green.7" c="white" px="md" py={8} radius="lg" maw="85%" style={{ borderBottomRightRadius: 4 }}>
+                  <Paper className="sg-you" px="md" py={8} radius="lg" maw="85%">
                     <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{m.content}</Text>
                   </Paper>
-                  {!compact && <Avatar size="sm" radius="xl" color="green"><IconUser size={16} /></Avatar>}
                 </Group>
               )
             if (m.role === 'tool') {
@@ -225,9 +225,8 @@ export function ChatView({ conversationId, onConversationCreated, compact }: { c
                     <UnstyledButton onClick={() => setActiveQueued(p.id)} w="100%">
                       <Paper withBorder radius="md" px="sm" py={6}>
                         <Group gap={6} wrap="nowrap">
-                          <IconSparkles size={14} color="var(--mantine-color-violet-6)" style={{ flex: '0 0 auto' }} />
                           <Text size="sm" truncate style={{ flex: 1, minWidth: 0 }}>{p.title}</Text>
-                          <Badge size="xs" variant="light" color="violet" style={{ flex: '0 0 auto' }}>waiting below</Badge>
+                          <Badge size="xs" variant="light" color="red" style={{ flex: '0 0 auto' }}>waiting below</Badge>
                         </Group>
                       </Paper>
                     </UnstyledButton>
@@ -243,20 +242,14 @@ export function ChatView({ conversationId, onConversationCreated, compact }: { c
                 </Group>
               )
             return (
-              <Group key={m.id} align="flex-start" gap="xs" wrap="nowrap">
-                {!compact && <Avatar size="sm" radius="xl" color="violet"><IconRobot size={16} /></Avatar>}
-                <Box style={{ flex: 1, minWidth: 0 }}>
-                  {m.content && <Markdown>{m.content}</Markdown>}
-                  {m.error && m.error !== 'not_configured' && <Text size="xs" c="red">{m.error}</Text>}
-                </Box>
-              </Group>
+              <Box key={m.id} style={{ minWidth: 0 }}>
+                {m.content && <Markdown>{m.content}</Markdown>}
+                {m.error && m.error !== 'not_configured' && <Text size="xs" c="red">{m.error}</Text>}
+              </Box>
             )
           })}
           {Object.entries(streams).map(([id, text]) => (
-            <Group key={id} align="flex-start" gap="xs" wrap="nowrap">
-              {!compact && <Avatar size="sm" radius="xl" color="violet"><IconRobot size={16} /></Avatar>}
-              <Box style={{ flex: 1, minWidth: 0 }}><Markdown>{text}</Markdown></Box>
-            </Group>
+            <Box key={id} style={{ minWidth: 0 }}><Markdown>{text}</Markdown></Box>
           ))}
           {busy && Object.keys(streams).length === 0 && (
             <Group gap="xs" pl={compact ? 0 : 40}>
@@ -268,8 +261,8 @@ export function ChatView({ conversationId, onConversationCreated, compact }: { c
       </ScrollArea>
       <Box p="sm" style={{ borderTop: '1px solid var(--mantine-color-default-border)' }}>
         <Group gap={6} mb={6}>
-          <Tooltip label="The assistant uses the page you're on as default context">
-            <Badge size="xs" variant="dot" color="violet" style={{ textTransform: 'none' }}>Context: {contextLabel}</Badge>
+          <Tooltip label="The assistant uses the page you're on as default context, and can still reach the rest of the garden">
+            <Text className="sg-context">Looking at {contextLabel}</Text>
           </Tooltip>
         </Group>
         <Group align="flex-end" gap="xs" wrap="nowrap">
@@ -289,7 +282,7 @@ export function ChatView({ conversationId, onConversationCreated, compact }: { c
               }
             }}
           />
-          <ActionIcon size={36} radius="xl" color="violet" onClick={() => send()} disabled={!input.trim() || busy} aria-label="Send">
+          <ActionIcon className="sg-send" size={36} radius="xl" variant="filled" onClick={() => send()} disabled={!input.trim() || busy} aria-label="Send">
             <IconArrowUp size={18} />
           </ActionIcon>
         </Group>

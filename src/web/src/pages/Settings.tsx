@@ -66,24 +66,24 @@ function ProviderForm({ existing, onDone }: { existing?: AiSettings['providers']
     } else notifications.show({ color: 'red', title: 'Connection failed', message: r.error })
   }
   return (
-    <Stack>
-      <Group gap="xs">{presets.map((p) => <Button key={p.label} size="xs" variant="light" onClick={() => { setName(p.label); setBaseUrl(p.baseUrl); if (p.model) setModel(p.model) }}>{p.label}</Button>)}</Group>
+    <div className="sg-form">
+      <div className="sg-form-actions" style={{ justifyContent: 'flex-start', paddingTop: 0 }}>
+        {presets.map((p) => <Button key={p.label} size="xs" variant="light" onClick={() => { setName(p.label); setBaseUrl(p.baseUrl); if (p.model) setModel(p.model) }}>{p.label}</Button>)}
+      </div>
       <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-      <TextInput label="Base URL (OpenAI-compatible)" value={baseUrl} onChange={(e) => setBaseUrl(e.currentTarget.value)} description="…/v1 — the server calls {base}/chat/completions" />
-      <PasswordInput label="API key" placeholder={existing?.hasApiKey ? '•••••••• (stored encrypted; leave empty to keep)' : 'sk-… (leave empty for local servers)'} value={apiKey} onChange={(e) => setApiKey(e.currentTarget.value)} />
-      <Group align="flex-end">
-        {models.length > 0 ? <Select style={{ flex: 1 }} label="Default model" searchable data={models} value={model} onChange={(v) => setModel(v ?? '')} /> : <TextInput style={{ flex: 1 }} label="Default model" value={model} onChange={(e) => setModel(e.currentTarget.value)} />}
-        <Button variant="light" loading={testing} onClick={test}>Test & list models</Button>
-      </Group>
-      <Group justify="flex-end">
+      <TextInput label="Base URL" description="OpenAI-compatible, ending in /v1" value={baseUrl} onChange={(e) => setBaseUrl(e.currentTarget.value)} />
+      <PasswordInput label="API key" placeholder={existing?.hasApiKey ? 'Stored encrypted. Leave empty to keep it.' : 'Leave empty for a local server'} value={apiKey} onChange={(e) => setApiKey(e.currentTarget.value)} />
+      {models.length > 0 ? <Select label="Default model" searchable data={models} value={model} onChange={(v) => setModel(v ?? '')} /> : <TextInput label="Default model" value={model} onChange={(e) => setModel(e.currentTarget.value)} />}
+      <div className="sg-form-actions">
+        <Button variant="light" loading={testing} onClick={test}>Test connection</Button>
         <Button onClick={async () => {
           const body = { name, baseUrl, apiKey: apiKey || null, defaultModel: model }
           await act(() => (existing ? api.put(`/api/settings/ai/providers/${existing.id}`, body) : api.post('/api/settings/ai/providers', body)))
           onDone()
           modals.closeAll()
         }}>Save provider</Button>
-      </Group>
-    </Stack>
+      </div>
+    </div>
   )
 }
 
@@ -105,24 +105,24 @@ function AiTab() {
           </div>
           {isAdmin && <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => modals.open({ title: 'Add AI provider', size: 'lg', children: <ProviderForm onDone={refresh} /> })}>Add provider</Button>}
         </Group>
-        <Table>
-          <Table.Tbody>
+        <div className="sg-stack">
             {data.providers.map((p) => (
-              <Table.Tr key={p.id}>
-                <Table.Td fw={600}>{p.name}</Table.Td>
-                <Table.Td ff="monospace" fz="xs">{p.baseUrl}</Table.Td>
-                <Table.Td>{p.defaultModel}</Table.Td>
-                <Table.Td>{p.hasApiKey ? <Badge color="green" variant="light">key stored</Badge> : <Badge color="gray" variant="light">no key</Badge>}</Table.Td>
-                <Table.Td>{isAdmin && (
+              <div key={p.id} className="sg-record sg-record-wide">
+                <div>
+                  <Text fw={650}>{p.name}</Text>
+                  <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>{p.baseUrl}</Text>
+                  <Text size="sm">{p.defaultModel || 'No default model'}</Text>
+                </div>
+                <div>{p.hasApiKey ? <Badge color="green" variant="light">key stored</Badge> : <Badge color="gray" variant="light">no key</Badge>}</div>
+                <div>{isAdmin && (
                   <Group gap={4} justify="flex-end">
                     <Button size="xs" variant="subtle" onClick={() => modals.open({ title: `Edit ${p.name}`, size: 'lg', children: <ProviderForm existing={p} onDone={refresh} /> })}>Edit</Button>
                     <Button size="xs" variant="subtle" color="red" onClick={async () => { await act(() => api.del(`/api/settings/ai/providers/${p.id}`), 'Removed'); refresh() }}>Remove</Button>
                   </Group>
-                )}</Table.Td>
-              </Table.Tr>
+                )}</div>
+              </div>
             ))}
-          </Table.Tbody>
-        </Table>
+        </div>
         {data.providers.length === 0 && <Alert mt="sm">No provider yet. Add one and enter your API key to start chatting.</Alert>}
       </Card>
       <Card>
@@ -218,10 +218,10 @@ function AssignmentRow({ a, providers, onSaved, disabled }: { a: AiSettings['ass
   const [ctx, setCtx] = useState<number | string>(a.contextMessageLimit)
   return (
     <Table.Tr>
-      <Table.Td>{jobLabels[a.job] ?? a.job}</Table.Td>
-      <Table.Td><Select size="xs" data={providers.map((p) => ({ value: p.id, label: p.name }))} value={providerId} onChange={setProviderId} disabled={disabled} /></Table.Td>
-      <Table.Td><TextInput size="xs" value={model} onChange={(e) => setModel(e.currentTarget.value)} disabled={disabled} /></Table.Td>
-      <Table.Td><NumberInput size="xs" w={80} value={ctx} onChange={setCtx} min={4} max={200} disabled={disabled} /></Table.Td>
+      <Table.Td data-label="Job">{jobLabels[a.job] ?? a.job}</Table.Td>
+      <Table.Td data-label="Provider"><Select size="xs" data={providers.map((p) => ({ value: p.id, label: p.name }))} value={providerId} onChange={setProviderId} disabled={disabled} /></Table.Td>
+      <Table.Td data-label="Model"><TextInput size="xs" value={model} onChange={(e) => setModel(e.currentTarget.value)} disabled={disabled} /></Table.Td>
+      <Table.Td data-label="Context messages"><NumberInput size="xs" w={80} value={ctx} onChange={setCtx} min={4} max={200} disabled={disabled} /></Table.Td>
       <Table.Td>{!disabled && <Button size="xs" variant="light" disabled={!providerId || !model} onClick={async () => { await act(() => api.put(`/api/settings/ai/assignments/${a.job}`, { providerId, model, contextMessageLimit: Number(ctx) })); onSaved() }}>Save</Button>}</Table.Td>
     </Table.Tr>
   )
@@ -365,13 +365,15 @@ function AccountTab() {
   const [cur, setCur] = useState('')
   const [next, setNext] = useState('')
   return (
-    <Card maw={420}>
-      <Text fw={650} mb="xs">Change password</Text>
-      <Stack>
-        <PasswordInput label="Current password" value={cur} onChange={(e) => setCur(e.currentTarget.value)} />
-        <PasswordInput label="New password" value={next} onChange={(e) => setNext(e.currentTarget.value)} description="At least 8 characters" />
-        <Button onClick={async () => { await act(() => api.post('/api/users/me/password', { currentPassword: cur, newPassword: next }), 'Password changed'); setCur(''); setNext('') }}>Change password</Button>
-      </Stack>
+    <Card maw={640}>
+      <Text className="sg-serif" fz={22} fw={560}>Change password</Text>
+      <div className="sg-form">
+        <PasswordInput label="Current" value={cur} onChange={(e) => setCur(e.currentTarget.value)} />
+        <PasswordInput label="New" description="At least 8 characters" value={next} onChange={(e) => setNext(e.currentTarget.value)} />
+        <div className="sg-form-actions">
+          <Button onClick={async () => { await act(() => api.post('/api/users/me/password', { currentPassword: cur, newPassword: next }), 'Password changed'); setCur(''); setNext('') }}>Change password</Button>
+        </div>
+      </div>
     </Card>
   )
 }
@@ -400,19 +402,19 @@ function ServerTab() {
       <Card>
         <Text fw={650} mb={4}>PostgreSQL connection</Text>
         <Text size="xs" c="dimmed" mb="sm">Local, LAN or remote database. Saved to <Code>{data.overridesFile}</Code>; restart the server to apply.</Text>
-        <SimpleGrid cols={{ base: 1, sm: 3 }}>
+        <div className="sg-form">
           <TextInput label="Host" value={v.host as string} onChange={(e) => set('host')(e.currentTarget.value)} />
           <NumberInput label="Port" value={v.port as number} onChange={set('port')} />
           <TextInput label="Database" value={v.database as string} onChange={(e) => set('database')(e.currentTarget.value)} />
           <TextInput label="Username" value={v.username as string} onChange={(e) => set('username')(e.currentTarget.value)} />
-          <PasswordInput label="Password" placeholder={data.database.hasPassword ? 'unchanged' : ''} value={v.password as string} onChange={(e) => set('password')(e.currentTarget.value)} />
-          <Select label="SSL mode" data={['Disable', 'Prefer', 'Require', 'VerifyCA', 'VerifyFull']} value={v.sslMode as string} onChange={set('sslMode')} />
-        </SimpleGrid>
-        <TextInput mt="sm" label="Extra parameters" placeholder="Pooling=true;Timeout=30" value={(v.extra as string) ?? ''} onChange={(e) => set('extra')(e.currentTarget.value)} />
-        <Group justify="flex-end" mt="sm">
+          <PasswordInput label="Password" placeholder={data.database.hasPassword ? 'Leave blank to keep the saved password' : ''} value={v.password as string} onChange={(e) => set('password')(e.currentTarget.value)} />
+          <Select label="SSL" data={['Disable', 'Prefer', 'Require', 'VerifyCA', 'VerifyFull']} value={v.sslMode as string} onChange={set('sslMode')} />
+          <TextInput label="Extra" placeholder="Pooling=true;Timeout=30" value={(v.extra as string) ?? ''} onChange={(e) => set('extra')(e.currentTarget.value)} />
+          <div className="sg-form-actions">
           <Button variant="light" onClick={async () => { const r = await api.post<{ ok: boolean; version?: string; error?: string }>('/api/settings/server/database/test', v); notifications.show({ color: r.ok ? 'green' : 'red', title: r.ok ? 'Connected' : 'Connection failed', message: r.ok ? r.version : r.error }) }}>Test connection</Button>
           <Button onClick={() => act(() => api.put('/api/settings/server/database', v), 'Saved — restart the server to apply')}>Save</Button>
-        </Group>
+          </div>
+        </div>
       </Card>
     </Stack>
   )

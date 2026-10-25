@@ -70,10 +70,10 @@ export function McpDocsPage() {
                       <Text size="xs" c="dimmed" lineClamp={2}>{t.description}</Text>
                     </div>
                     <Group gap={4} wrap="wrap" justify="flex-end">
-                      <Badge size="xs" color={t.effect === 'read' ? 'blue' : 'orange'} variant="light">{t.effect}</Badge>
-                      {t.effect === 'mutate' && !t.noApprovalNeeded && <Badge size="xs" color="violet" variant="light">approval</Badge>}
+                      <Badge size="xs" color="gray" variant="light">{t.effect}</Badge>
+                      {t.effect === 'mutate' && !t.noApprovalNeeded && <Badge size="xs" color="gray" variant="outline">needs approval</Badge>}
                       {t.noApprovalNeeded && <Badge size="xs" color="red" variant="light">immediate</Badge>}
-                      {t.routine && <Badge size="xs" color="teal" variant="light">routine</Badge>}
+                      {t.routine && <Badge size="xs" color="gray" variant="outline">routine</Badge>}
                       {!t.aiAllowed && <Badge size="xs" color="gray">humans only</Badge>}
                       <Badge size="xs" color="gray" variant="outline">{t.minRole}</Badge>
                     </Group>

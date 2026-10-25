@@ -1,4 +1,4 @@
-import { Anchor, SegmentedControl, SimpleGrid, Stack, Text } from '@mantine/core'
+import { Anchor, SegmentedControl, SimpleGrid, Stack } from '@mantine/core'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -15,8 +15,8 @@ export function ApprovalsPage() {
       <PageTitle
         title="Approvals"
         subtitle="Every change the AI (or an MCP client with a propose-scoped token) wants to make. Each states what and why."
-        right={<SegmentedControl value={status} onChange={setStatus} data={[{ value: 'pending', label: 'Pending' }, { value: 'executed', label: 'Applied' }, { value: 'rejected', label: 'Rejected' }, { value: 'all', label: 'All' }]} />}
       />
+      <SegmentedControl value={status} onChange={setStatus} data={[{ value: 'pending', label: 'Pending' }, { value: 'executed', label: 'Applied' }, { value: 'rejected', label: 'Rejected' }, { value: 'all', label: 'All' }]} />
       <SimpleGrid cols={{ base: 1, lg: 2 }}>
         {(data ?? []).map((p) => (
           <Stack key={p.id} gap={2}>
@@ -25,7 +25,7 @@ export function ApprovalsPage() {
           </Stack>
         ))}
       </SimpleGrid>
-      {data?.length === 0 && <Text c="dimmed">{status === 'pending' ? 'No pending approvals.' : status === 'executed' ? 'No applied approvals.' : status === 'rejected' ? 'No rejected approvals.' : 'No approvals yet.'}</Text>}
+      {data?.length === 0 && <div className="sg-empty">{status === 'pending' ? 'Nothing is waiting. The assistant will leave proposals here.' : status === 'executed' ? 'No applied approvals.' : status === 'rejected' ? 'No rejected approvals.' : 'No approvals yet.'}</div>}
     </Stack>
   )
 }

@@ -1,22 +1,24 @@
-import { Badge, Box, Group, NumberInput, Paper, Select, Stack, Switch, Text, TextInput, Tooltip } from '@mantine/core'
-import { IconCameraOff, IconSparkles } from '@tabler/icons-react'
+import { Badge, Box, Card, Group, NumberInput, Paper, Select, Stack, Switch, Text, TextInput, Tooltip } from '@mantine/core'
+import { IconCameraOff } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useLiveEvent } from '../api/live'
 import type { Bed, CareRange, JsonSchema, LatestReading, Plant, ReservoirStatus } from '../api/types'
-import { ago, fmtValue, metricLabel, readingTone, toneColor } from '../format'
+import { ago, fmtValue, metricLabel, readingTone } from '../format'
 
 /** Live MJPEG feed. Width is the pixel budget for this view: small in a dashboard grid, large on a single plant. */
 export function CameraImage({ cameraId, width = 480, alt, style }: { cameraId: string; width?: number; alt?: string; style?: React.CSSProperties }) {
   const [mode, setMode] = useState<'stream' | 'snapshot'>('stream')
   const [tick, setTick] = useState(() => Date.now())
   const [failed, setFailed] = useState(false)
+  const [ready, setReady] = useState(false)
   const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1
   const pixels = Math.round(width * dpr)
   useLiveEvent('cameraFrame', (e: { cameraId: string }) => {
     if (e.cameraId === cameraId && mode === 'snapshot') {
       setFailed(false)
+      setReady(false)
       setTick(Date.now())
     }
   })
@@ -29,13 +31,18 @@ export function CameraImage({ cameraId, width = 480, alt, style }: { cameraId: s
     return (
       <Box className="sg-camera" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', ...style }}>
         <Stack gap={4} align="center">
-          <IconCameraOff color="var(--mantine-color-gray-5)" />
-          <Text size="xs" c="gray.5">No frame yet</Text>
+          <IconCameraOff color="#8ea196" />
+          <Text size="xs" c="gray.4">No frame yet</Text>
         </Stack>
       </Box>
     )
   const src = mode === 'stream' ? `/api/cameras/${cameraId}/stream?width=${pixels}` : `/api/cameras/${cameraId}/snapshot?width=${pixels}&t=${tick}`
-  return <img className="sg-camera" style={style} src={src} alt={alt ?? 'camera'} onError={() => (mode === 'stream' ? setMode('snapshot') : setFailed(true))} />
+  return (
+    <div className="sg-camera-well" style={style}>
+      {!ready && <div className="sg-camera-wait">Waiting for a frame</div>}
+      <img className={ready ? 'sg-camera is-ready' : 'sg-camera'} src={src} alt={alt ?? 'camera'} onLoad={() => setReady(true)} onError={() => (mode === 'stream' ? setMode('snapshot') : setFailed(true))} />
+    </div>
+  )
 }
 
 export function ReadingPill({ r, target }: { r: LatestReading; target?: CareRange }) {
@@ -43,10 +50,10 @@ export function ReadingPill({ r, target }: { r: LatestReading; target?: CareRang
   const stale = r.at ? Date.now() - new Date(r.at).getTime() > 10 * 60_000 : true
   return (
     <Tooltip label={`${r.sensorName} · ${ago(r.at)}${target ? ` · target ${target.min ?? '…'}–${target.max ?? '…'} (${target.source})` : ''}`}>
-      <Paper withBorder px={8} py={4} radius="md" style={{ opacity: stale ? 0.6 : 1, flexShrink: 0 }}>
+      <Paper withBorder px={8} py={4} radius="md" className={`sg-reading sg-reading-${tone}`} style={{ opacity: stale ? 0.6 : 1, flexShrink: 0 }}>
         <Text size="10px" c="dimmed" tt="uppercase" fw={600} lh={1.2}>{metricLabel(r.metric)}</Text>
         <Group gap={4} wrap="nowrap">
-          <span className="sg-dot" style={{ background: `var(--mantine-color-${toneColor[tone]}-6)` }} />
+          <span className="sg-dot" />
           <Text size="sm" fw={700}>{fmtValue(r.value, r.unit)}</Text>
         </Group>
       </Paper>
@@ -54,12 +61,13 @@ export function ReadingPill({ r, target }: { r: LatestReading; target?: CareRang
   )
 }
 
-export function AiBadge({ active, label = 'AI acting' }: { active: boolean; label?: string }) {
+export function AiBadge({ active, label = 'Acting' }: { active: boolean; label?: string }) {
   if (!active) return null
   return (
-    <Badge color="violet" variant="filled" leftSection={<IconSparkles size={12} />} size="sm">
+    <span className="sg-acting-label">
+      <span className="sg-live-dot" />
       {label}
-    </Badge>
+    </span>
   )
 }
 
@@ -85,7 +93,7 @@ export function SchemaForm({ schema, value, onChange }: { schema?: JsonSchema; v
   if (keys.length === 0) return <Text size="xs" c="dimmed">This plugin has no settings.</Text>
   const set = (k: string, v: unknown) => onChange({ ...value, [k]: v })
   return (
-    <Stack gap="xs">
+    <div className="sg-form">
       {keys.map((k) => {
         const p = props[k]
         const type = Array.isArray(p.type) ? p.type.find((t) => t !== 'null') : p.type
@@ -97,7 +105,7 @@ export function SchemaForm({ schema, value, onChange }: { schema?: JsonSchema; v
           return <NumberInput key={k} label={label} description={p.description} value={(value[k] as number) ?? (p.default as number) ?? ''} onChange={(v) => set(k, v === '' ? undefined : Number(v))} />
         return <TextInput key={k} label={label} description={p.description} value={(value[k] as string) ?? ''} placeholder={p.default !== undefined ? String(p.default) : undefined} onChange={(e) => set(k, e.currentTarget.value)} />
       })}
-    </Stack>
+    </div>
   )
 }
 
@@ -144,12 +152,32 @@ export function TargetPicker({ value, onChange }: { value: TargetValue; onChange
 
 export function PageTitle({ title, subtitle, right }: { title: string; subtitle?: React.ReactNode; right?: React.ReactNode }) {
   return (
-    <Group justify="space-between" mb="lg" align="flex-end" wrap="wrap">
-      <div>
-        <Text component="h1" fz={26} fw={750} m={0}>{title}</Text>
-        {subtitle && <Text c="dimmed" size="sm">{subtitle}</Text>}
+    <header className="sg-page-head">
+      <div style={{ minWidth: 0 }}>
+        <Text component="h1" className="sg-serif sg-page-title" fz={32} fw={560} lh={1.1} m={0}>{title}</Text>
+        {subtitle && <Text c="dimmed" size="sm" mt={4} maw={640}>{subtitle}</Text>}
       </div>
-      {right && <Group gap="xs">{right}</Group>}
-    </Group>
+      {right && <div className="sg-page-actions">{right}</div>}
+    </header>
   )
+}
+
+/** A paper section: title, a plain-language hint, and the controls that belong with it. */
+export function Section({ title, hint, action, children }: { title: string; hint?: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <Card className="sg-section">
+      <div className="sg-section-head">
+        <div>
+          <Text className="sg-serif" fz={22} fw={560} lh={1.15}>{title}</Text>
+          {hint && <Text size="sm" c="dimmed" mt={2}>{hint}</Text>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </Card>
+  )
+}
+
+export function Empty({ children }: { children: React.ReactNode }) {
+  return <div className="sg-empty">{children}</div>
 }
