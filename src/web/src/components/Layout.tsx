@@ -230,7 +230,7 @@ function LayoutShell({ children }: { children: ReactNode }) {
       </AppShell.Main>
 
       <AppShell.Aside p={0}>
-        {showAside && <ChatDrawer onClose={() => { chat.close(); dismiss() }} />}
+        {showAside && <ChatDrawer onClose={() => { chat.close(); setDismissedPath(location.pathname) }} />}
       </AppShell.Aside>
 
       <nav className="sg-tabbar" aria-label="Garden">
