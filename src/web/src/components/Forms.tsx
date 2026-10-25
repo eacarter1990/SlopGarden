@@ -1,4 +1,4 @@
-import { Button, Group, NumberInput, SegmentedControl, Select, SimpleGrid, Stack, Text, TextInput, Textarea } from '@mantine/core'
+import { Button, NumberInput, SegmentedControl, Select, TextInput, Textarea } from '@mantine/core'
 import { modals } from '@mantine/modals'
 import { notifications } from '@mantine/notifications'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -52,15 +52,14 @@ function BedForm({ bed, gardenId, gardenDefault }: { bed?: Bed; gardenId: string
     modals.closeAll()
   }
   return (
-    <Stack>
+    <div className="sg-form">
       <TextInput label="Name" value={(v.name as string) ?? ''} onChange={(e) => set('name')(e.currentTarget.value)} required data-autofocus />
-      <div>
-        <Text size="sm" fw={500} mb={4}>Growing medium</Text>
+      <div className="sg-choice">
+        <span className="sg-choice-label">Medium</span>
         <SegmentedControl
-          fullWidth
           value={v.growingMedium as string}
           onChange={set('growingMedium')}
-          data={[{ value: 'default', label: `Garden default (${mediumLabel(gardenDefault)})` }, { value: 'soil', label: 'Soil' }, { value: 'soilless', label: 'Soilless (coco…)' }, { value: 'hydroponic', label: 'Hydroponic' }]}
+          data={[{ value: 'default', label: `Default (${mediumLabel(gardenDefault)})` }, { value: 'soil', label: 'Soil' }, { value: 'soilless', label: 'Soilless' }, { value: 'hydroponic', label: 'Hydro' }]}
         />
       </div>
       {hydro && (
@@ -82,20 +81,16 @@ function BedForm({ bed, gardenId, gardenDefault }: { bed?: Bed; gardenId: string
           description="Create reservoirs on the Garden page. EC, pH, water temperature and flow are tracked on the reservoir."
         />
       )}
-      <SimpleGrid cols={3}>
-        <Select label="Kind" data={opts(bedKinds)} value={v.kind as string} onChange={set('kind')} />
-        {!hydro && <Select label="Irrigation" data={opts(irrigation)} value={v.irrigationType as string} onChange={set('irrigationType')} />}
-        <Select label="Sun" data={opts(sun)} value={v.sunExposure as string} onChange={set('sunExposure')} />
-      </SimpleGrid>
-      <SimpleGrid cols={3}>
-        <NumberInput label="Width (cm)" value={(v.widthCm as number) ?? ''} onChange={set('widthCm')} />
-        <NumberInput label="Length (cm)" value={(v.lengthCm as number) ?? ''} onChange={set('lengthCm')} />
-        <NumberInput label="Depth (cm)" value={(v.depthCm as number) ?? ''} onChange={set('depthCm')} />
-      </SimpleGrid>
+      <Select label="Kind" data={opts(bedKinds)} value={v.kind as string} onChange={set('kind')} />
+      {!hydro && <Select label="Irrigation" data={opts(irrigation)} value={v.irrigationType as string} onChange={set('irrigationType')} />}
+      <Select label="Sun" data={opts(sun)} value={v.sunExposure as string} onChange={set('sunExposure')} />
+      <NumberInput label="Width" description="Centimetres" value={(v.widthCm as number) ?? ''} onChange={set('widthCm')} />
+      <NumberInput label="Length" description="Centimetres" value={(v.lengthCm as number) ?? ''} onChange={set('lengthCm')} />
+      <NumberInput label="Depth" description="Centimetres" value={(v.depthCm as number) ?? ''} onChange={set('depthCm')} />
       {!hydro && <TextInput label={medium === 'soilless' ? 'Substrate' : 'Soil'} value={(v.soilType as string) ?? ''} onChange={(e) => set('soilType')(e.currentTarget.value)} />}
-      <Textarea label="Notes for the AI" description="Anything the AI should know about this bed" autosize minRows={2} value={(v.aiContext as string) ?? ''} onChange={(e) => set('aiContext')(e.currentTarget.value)} />
-      <Group justify="flex-end"><Button onClick={submit}>{bed ? 'Save bed' : 'Create bed'}</Button></Group>
-    </Stack>
+      <Textarea label="Notes" description="Anything the assistant should know about this bed" autosize minRows={2} value={(v.aiContext as string) ?? ''} onChange={(e) => set('aiContext')(e.currentTarget.value)} />
+      <div className="sg-form-actions"><Button onClick={submit}>{bed ? 'Save bed' : 'Create bed'}</Button></div>
+    </div>
   )
 }
 
@@ -115,24 +110,18 @@ function PlantForm({ plant, bedId }: { plant?: Plant; bedId: string }) {
     modals.closeAll()
   }
   return (
-    <Stack>
-      <SimpleGrid cols={2}>
-        <TextInput label="Name" value={(v.name as string) ?? ''} onChange={(e) => set('name')(e.currentTarget.value)} required data-autofocus />
-        <Select label="Crop profile" searchable data={(profiles ?? []).map((p) => ({ value: p.id, label: p.commonName }))} value={(v.profile as string) ?? null} onChange={set('profile')} />
-      </SimpleGrid>
-      <SimpleGrid cols={3}>
-        <TextInput label="Variety" value={(v.variety as string) ?? ''} onChange={(e) => set('variety')(e.currentTarget.value)} />
-        <NumberInput label="Quantity" min={1} value={(v.quantity as number) ?? 1} onChange={set('quantity')} />
-        <Select label="Stage" data={opts(stages)} value={v.stage as string} onChange={set('stage')} />
-      </SimpleGrid>
-      <SimpleGrid cols={3}>
-        <Select label="Started from" data={opts(['seed', 'transplant', 'cutting', 'unknown'])} value={v.startedFrom as string} onChange={set('startedFrom')} />
-        <TextInput type="date" label="Planted" value={(v.plantedAt as string) ?? ''} onChange={(e) => set('plantedAt')(e.currentTarget.value)} />
-        <TextInput type="date" label="Harvest from" value={(v.expectedHarvestStart as string) ?? ''} onChange={(e) => set('expectedHarvestStart')(e.currentTarget.value)} />
-      </SimpleGrid>
-      <Textarea label="Notes for the AI" autosize minRows={2} value={(v.aiContext as string) ?? ''} onChange={(e) => set('aiContext')(e.currentTarget.value)} />
-      <Group justify="flex-end"><Button onClick={submit}>{plant ? 'Save plant' : 'Add plant'}</Button></Group>
-    </Stack>
+    <div className="sg-form">
+      <TextInput label="Name" value={(v.name as string) ?? ''} onChange={(e) => set('name')(e.currentTarget.value)} required data-autofocus />
+      <Select label="Crop" searchable data={(profiles ?? []).map((p) => ({ value: p.id, label: p.commonName }))} value={(v.profile as string) ?? null} onChange={set('profile')} />
+      <TextInput label="Variety" value={(v.variety as string) ?? ''} onChange={(e) => set('variety')(e.currentTarget.value)} />
+      <NumberInput label="Quantity" min={1} value={(v.quantity as number) ?? 1} onChange={set('quantity')} />
+      <Select label="Stage" data={opts(stages)} value={v.stage as string} onChange={set('stage')} />
+      <Select label="Started from" data={opts(['seed', 'transplant', 'cutting', 'unknown'])} value={v.startedFrom as string} onChange={set('startedFrom')} />
+      <TextInput type="date" label="Planted" value={(v.plantedAt as string) ?? ''} onChange={(e) => set('plantedAt')(e.currentTarget.value)} />
+      <TextInput type="date" label="Harvest from" value={(v.expectedHarvestStart as string) ?? ''} onChange={(e) => set('expectedHarvestStart')(e.currentTarget.value)} />
+      <Textarea label="Notes" description="Anything the assistant should know about this plant" autosize minRows={2} value={(v.aiContext as string) ?? ''} onChange={(e) => set('aiContext')(e.currentTarget.value)} />
+      <div className="sg-form-actions"><Button onClick={submit}>{plant ? 'Save plant' : 'Add plant'}</Button></div>
+    </div>
   )
 }
 

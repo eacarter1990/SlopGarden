@@ -29,51 +29,49 @@ function GardenSettings({ garden }: { garden: Garden }) {
     }, 'Garden saved')
   return (
     <Card>
-      <Text fw={650} mb="sm">Garden settings</Text>
-      <Stack gap="sm">
-        <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <TextInput label="Name" value={g.name} onChange={(e) => set('name')(e.currentTarget.value)} disabled={!canWrite} />
-          <Select label="Environment" data={opts(environments)} value={g.environment} onChange={set('environment')} disabled={!canWrite} />
-          <Select
-            label="Default growing medium"
-            description="Beds use this unless they set their own"
-            data={[{ value: 'soil', label: 'Soil' }, { value: 'soilless', label: 'Soilless (coco, perlite, rockwool)' }, { value: 'hydroponic', label: 'Hydroponic' }]}
-            value={g.defaultGrowingMedium}
-            onChange={set('defaultGrowingMedium')}
-            disabled={!canWrite}
-          />
-        </SimpleGrid>
-        <div>
-          <Text size="sm" fw={500} mb={4}>Location & time</Text>
-          <SegmentedControl size="xs" disabled={!canWrite} value={g.locationSource} onChange={(v) => { set('locationSource')(v); set('timezoneSource')(v) }} data={[{ value: 'device', label: 'Inherit from device' }, { value: 'manual', label: 'Set manually' }]} />
-        </div>
-        <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <NumberInput label="Latitude" decimalScale={4} value={g.latitude ?? ''} onChange={(v) => set('latitude')(v === '' ? null : Number(v))} disabled={!canWrite || g.locationSource !== 'manual'} />
-          <NumberInput label="Longitude" decimalScale={4} value={g.longitude ?? ''} onChange={(v) => set('longitude')(v === '' ? null : Number(v))} disabled={!canWrite || g.locationSource !== 'manual'} />
-          <Select
-            label="Time zone"
-            searchable
-            nothingFoundMessage="No matching time zone"
-            data={(timeZones ?? [{ id: g.timezoneId, label: g.timezoneId }]).map((z) => ({ value: z.id, label: z.label }))}
-            value={g.timezoneId}
-            onChange={(v) => v && set('timezoneId')(v)}
-            disabled={!canWrite || g.timezoneSource !== 'manual'}
-          />
-          <TextInput label="Hardiness zone" value={g.hardinessZone ?? ''} onChange={(e) => set('hardinessZone')(e.currentTarget.value)} disabled={!canWrite} />
-        </SimpleGrid>
-        <Textarea label="Notes for the AI" description="Context the AI must respect for the whole garden" autosize minRows={2} value={g.aiContext} onChange={(e) => set('aiContext')(e.currentTarget.value)} disabled={!canWrite} />
+      <Text className="sg-serif" fz={22} fw={560}>Garden settings</Text>
+      <div className="sg-form">
+        <p className="sg-form-legend">Place</p>
+        <TextInput label="Name" value={g.name} onChange={(e) => set('name')(e.currentTarget.value)} disabled={!canWrite} />
+        <Select label="Environment" data={opts(environments)} value={g.environment} onChange={set('environment')} disabled={!canWrite} />
         <Select
-          label="AI autonomy"
+          label="Growing medium"
+          description="Beds use this unless they set their own"
+          data={[{ value: 'soil', label: 'Soil' }, { value: 'soilless', label: 'Soilless (coco, perlite, rockwool)' }, { value: 'hydroponic', label: 'Hydroponic' }]}
+          value={g.defaultGrowingMedium}
+          onChange={set('defaultGrowingMedium')}
+          disabled={!canWrite}
+        />
+        <div className="sg-choice">
+          <span className="sg-choice-label">Clock and place</span>
+          <SegmentedControl disabled={!canWrite} value={g.locationSource} onChange={(v) => { set('locationSource')(v); set('timezoneSource')(v) }} data={[{ value: 'device', label: 'From the device' }, { value: 'manual', label: 'Set here' }]} />
+        </div>
+        <NumberInput label="Latitude" decimalScale={4} value={g.latitude ?? ''} onChange={(v) => set('latitude')(v === '' ? null : Number(v))} disabled={!canWrite || g.locationSource !== 'manual'} />
+        <NumberInput label="Longitude" decimalScale={4} value={g.longitude ?? ''} onChange={(v) => set('longitude')(v === '' ? null : Number(v))} disabled={!canWrite || g.locationSource !== 'manual'} />
+        <Select
+          label="Time zone"
+          searchable
+          nothingFoundMessage="No matching time zone"
+          data={(timeZones ?? [{ id: g.timezoneId, label: g.timezoneId }]).map((z) => ({ value: z.id, label: z.label }))}
+          value={g.timezoneId}
+          onChange={(v) => v && set('timezoneId')(v)}
+          disabled={!canWrite || g.timezoneSource !== 'manual'}
+        />
+        <TextInput label="Hardiness zone" value={g.hardinessZone ?? ''} onChange={(e) => set('hardinessZone')(e.currentTarget.value)} disabled={!canWrite} />
+        <p className="sg-form-legend">For the assistant</p>
+        <Textarea label="Notes" description="Context the assistant must respect for the whole garden" autosize minRows={2} value={g.aiContext} onChange={(e) => set('aiContext')(e.currentTarget.value)} disabled={!canWrite} />
+        <Select
+          label="Autonomy"
           disabled={!canWrite}
           value={g.aiAutonomy}
           onChange={set('aiAutonomy')}
           data={[
-            { value: 'standing_approvals', label: 'Ask first; routine actions I marked "always allow" may repeat on their own' },
+            { value: 'standing_approvals', label: 'Ask first; routine actions marked “always allow” may repeat' },
             { value: 'propose_all', label: 'Always ask before every change' },
           ]}
         />
-        {canWrite && <Group justify="flex-end"><Button onClick={submit}>Save garden</Button></Group>}
-      </Stack>
+        {canWrite && <div className="sg-form-actions"><Button onClick={submit}>Save garden</Button></div>}
+      </div>
     </Card>
   )
 }

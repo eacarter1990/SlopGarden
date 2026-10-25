@@ -585,10 +585,146 @@ body {
 }
 
 .mantine-Input-input,
-.mantine-Textarea-input {
+.mantine-Textarea-input,
+.mantine-PasswordInput-innerInput {
   background: #faf6ef;
   border-color: var(--sg-line);
   color: var(--sg-ink);
+}
+
+.mantine-Input-input:focus,
+.mantine-Input-input:focus-within,
+.mantine-Textarea-input:focus {
+  border-color: var(--sg-ink);
+}
+
+/* A form is a logbook: the name of the field, then the value, one rule between lines. */
+.sg-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.sg-form-legend {
+  font-family: var(--sg-serif);
+  font-size: 1.2rem;
+  font-weight: 560;
+  letter-spacing: -0.02em;
+  margin: 18px 0 2px;
+}
+
+.sg-form .mantine-InputWrapper-root,
+.sg-form .sg-choice {
+  display: grid;
+  grid-template-columns: minmax(9.5rem, 13rem) minmax(0, 1fr);
+  column-gap: 18px;
+  row-gap: 2px;
+  align-items: center;
+  padding: 11px 2px;
+  margin: 0;
+  border-bottom: 1px solid var(--sg-line);
+}
+
+.sg-form .mantine-InputWrapper-label,
+.sg-form .sg-choice-label {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: center;
+  margin: 0;
+  font-family: var(--sg-serif);
+  font-weight: 560;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  color: var(--sg-ink);
+}
+
+.sg-form .mantine-Input-wrapper {
+  grid-column: 2;
+  grid-row: 1;
+  width: 100%;
+  min-height: 40px;
+  background: #fffdf8;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--sg-line);
+}
+
+.sg-form .mantine-Input-wrapper:focus-within {
+  box-shadow: inset 0 0 0 1px var(--sg-ink), inset 0 -2px 0 var(--sg-ink);
+}
+
+.sg-form .mantine-InputWrapper-description,
+.sg-form .mantine-InputWrapper-error {
+  grid-column: 2;
+  grid-row: 2;
+  margin-top: 2px;
+}
+
+.sg-form .mantine-PasswordInput-innerInput {
+  background: transparent;
+  border: 0;
+  width: 100%;
+  height: 100%;
+  color: var(--sg-ink);
+}
+
+.sg-form .mantine-Input-input,
+.sg-form .mantine-Textarea-input,
+.sg-form .mantine-PasswordInput-innerInput {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  width: 100%;
+  min-height: 38px;
+  padding-left: 12px;
+  color: var(--sg-ink);
+}
+
+.sg-form-stack .mantine-InputWrapper-root,
+.sg-form-stack .sg-choice {
+  grid-template-columns: 1fr;
+}
+
+.sg-form-stack .mantine-InputWrapper-label,
+.sg-form-stack .sg-choice-label,
+.sg-form-stack .mantine-Input-wrapper,
+.sg-form-stack .mantine-InputWrapper-description,
+.sg-form-stack .mantine-InputWrapper-error {
+  grid-column: 1;
+  grid-row: auto;
+}
+
+.sg-form .mantine-Textarea-root,
+.sg-form .mantine-InputWrapper-root:has(textarea) {
+  align-items: start;
+}
+
+.sg-form .mantine-Textarea-root .mantine-InputWrapper-label {
+  padding-top: 8px;
+}
+
+.sg-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 14px;
+}
+
+@media (max-width: 47.99em) {
+  .sg-form .mantine-InputWrapper-root,
+  .sg-form .sg-choice {
+    grid-template-columns: 1fr;
+    row-gap: 4px;
+    padding: 12px 0;
+  }
+
+  .sg-form .mantine-InputWrapper-label,
+  .sg-form .sg-choice-label,
+  .sg-form .mantine-Input-wrapper,
+  .sg-form .mantine-InputWrapper-description,
+  .sg-form .mantine-InputWrapper-error {
+    grid-column: 1;
+    grid-row: auto;
+  }
 }
 
 .mantine-Alert-root[data-variant='filled'] {

@@ -1,4 +1,4 @@
-import { Alert, Anchor, Badge, Button, Card, Group, NumberInput, PasswordInput, Select, SimpleGrid, Stack, Switch, Text, Textarea, TextInput } from '@mantine/core'
+import { Alert, Anchor, Badge, Button, Card, Group, NumberInput, PasswordInput, Select, Stack, Switch, Text, Textarea, TextInput } from '@mantine/core'
 import { modals } from '@mantine/modals'
 import { notifications } from '@mantine/notifications'
 import { IconAlertTriangle, IconCheck, IconWifi, IconX } from '@tabler/icons-react'
@@ -191,15 +191,14 @@ export function DevicesPage() {
           <Text size="xs" c="dimmed" mb="xs">
             Installs only the client on that machine and points it at this server. You choose a display name, then confirm the host key. The login is forgotten after the install, and the device stays pending until you approve it. The AI cannot see this login.
           </Text>
-          <TextInput label="Display name" placeholder="Greenhouse Pi" value={sshName} onChange={(e) => setSshName(e.currentTarget.value)} maw={360} />
-          <SimpleGrid cols={{ base: 1, sm: 3 }} mt="xs">
-            <TextInput label="Host" placeholder="192.168.1.50" value={sshHost} onChange={(e) => setSshHost(e.currentTarget.value)} />
-            <NumberInput label="Port" value={sshPort} onChange={setSshPort} min={1} max={65535} />
-            <TextInput label="Username" placeholder="pi" value={sshUser} onChange={(e) => setSshUser(e.currentTarget.value)} />
-          </SimpleGrid>
-          <PasswordInput label="Password" mt="xs" value={sshPassword} onChange={(e) => setSshPassword(e.currentTarget.value)} />
-          <Textarea label="Private key" placeholder="Optional. Paste a PEM key instead of a password." minRows={2} mt="xs" value={sshKey} onChange={(e) => setSshKey(e.currentTarget.value)} />
-          <Group mt="sm">
+          <div className="sg-form">
+          <TextInput label="Display name" placeholder="Greenhouse Pi" value={sshName} onChange={(e) => setSshName(e.currentTarget.value)} />
+          <TextInput label="Host" placeholder="192.168.1.50" value={sshHost} onChange={(e) => setSshHost(e.currentTarget.value)} />
+          <NumberInput label="Port" value={sshPort} onChange={setSshPort} min={1} max={65535} />
+          <TextInput label="Username" placeholder="pi" value={sshUser} onChange={(e) => setSshUser(e.currentTarget.value)} />
+          <PasswordInput label="Password" value={sshPassword} onChange={(e) => setSshPassword(e.currentTarget.value)} />
+          <Textarea label="Private key" description="Optional. Paste a PEM key instead of a password." minRows={2} value={sshKey} onChange={(e) => setSshKey(e.currentTarget.value)} />
+          <div className="sg-form-actions">
             <Button loading={sshBusy} disabled={!sshHost || !sshUser || (!sshPassword && !sshKey)} onClick={async () => {
               setSshBusy(true)
               setProbe(null)
@@ -225,7 +224,8 @@ export function DevicesPage() {
               } catch (e) { notifications.show({ color: 'red', message: (e as Error).message }) }
               finally { setSshBusy(false) }
             }}>Install client</Button>
-          </Group>
+          </div>
+          </div>
           {probe && (
             <Alert mt="sm" color={probe.dockerInstalled ? 'green' : 'orange'} title={probe.fingerprint}>
               {probe.detail} This client will be named {sshName || '…'} and will register with {probe.serverUrl}. Confirm this host key, then install.

@@ -45,7 +45,7 @@ export function LoginPage({ needsSetup }: { needsSetup: boolean }) {
     <div className="sg-login">
       <div className="sg-login-card">
         <form onSubmit={submit}>
-          <Stack>
+          <Stack className="sg-form sg-form-stack" gap={0}>
             <Stack gap={4}>
               <img src="/favicon.svg" width={40} height={40} alt="" />
               <Title order={2} className="sg-serif" fw={560}>SlopGarden</Title>
@@ -61,7 +61,7 @@ export function LoginPage({ needsSetup }: { needsSetup: boolean }) {
                   {showDb ? 'Hide database settings' : 'Use a different PostgreSQL database'}
                 </Button>
                 <Collapse expanded={showDb}>
-                  <Stack gap="xs">
+                  <div className="sg-form">
                     <Text size="xs" c="dimmed">Currently {db?.host ?? 'localhost'}:{db?.port ?? 5432}/{db?.database ?? 'slopgarden'}. A remote database is saved, then the server restarts and this page comes back so you can create the Admin. No demo account is created.</Text>
                     <TextInput label="Host" value={host} onChange={(e) => setHost(e.currentTarget.value)} />
                     <NumberInput label="Port" value={port} onChange={setPort} min={1} max={65535} />
@@ -82,7 +82,7 @@ export function LoginPage({ needsSetup }: { needsSetup: boolean }) {
                         setRestarting(false)
                       }
                     }}>Save database and restart</Button>
-                  </Stack>
+                  </div>
                 </Collapse>
               </Stack>
             )}

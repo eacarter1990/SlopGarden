@@ -93,7 +93,7 @@ export function SchemaForm({ schema, value, onChange }: { schema?: JsonSchema; v
   if (keys.length === 0) return <Text size="xs" c="dimmed">This plugin has no settings.</Text>
   const set = (k: string, v: unknown) => onChange({ ...value, [k]: v })
   return (
-    <Stack gap="xs">
+    <div className="sg-form">
       {keys.map((k) => {
         const p = props[k]
         const type = Array.isArray(p.type) ? p.type.find((t) => t !== 'null') : p.type
@@ -105,7 +105,7 @@ export function SchemaForm({ schema, value, onChange }: { schema?: JsonSchema; v
           return <NumberInput key={k} label={label} description={p.description} value={(value[k] as number) ?? (p.default as number) ?? ''} onChange={(v) => set(k, v === '' ? undefined : Number(v))} />
         return <TextInput key={k} label={label} description={p.description} value={(value[k] as string) ?? ''} placeholder={p.default !== undefined ? String(p.default) : undefined} onChange={(e) => set(k, e.currentTarget.value)} />
       })}
-    </Stack>
+    </div>
   )
 }
 

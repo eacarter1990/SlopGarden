@@ -34,7 +34,7 @@ function ScheduleForm() {
   const [duration, setDuration] = useState<number | string>(60)
   const [prompt, setPrompt] = useState('Check soil moisture against each plant’s target and water if needed.')
   return (
-    <Stack>
+    <div className="sg-form">
       <Select label="Kind" value={kind} onChange={setKind} allowDeselect={false} data={[
         { value: 'actuator', label: 'Run an actuator (runs on the device, works offline)' },
         { value: 'ai_review', label: 'AI review — how often garden data is sent to the model' },
@@ -42,24 +42,22 @@ function ScheduleForm() {
         { value: 'report', label: 'AI garden report (sent as a notification)' },
       ]} />
       <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} required />
-      <Group grow>
-        <Select label="When" data={presets} value={presets.some((p) => p.value === cron) ? cron : null} onChange={(v) => v && setCron(v)} placeholder="Custom" />
-        <TextInput label="Cron (garden timezone)" value={cron} onChange={(e) => setCron(e.currentTarget.value)} ff="monospace" />
-      </Group>
+      <Select label="When" data={presets} value={presets.some((p) => p.value === cron) ? cron : null} onChange={(v) => v && setCron(v)} placeholder="Custom" />
+      <TextInput label="Cron" description="In the garden's time zone" value={cron} onChange={(e) => setCron(e.currentTarget.value)} ff="monospace" />
       {kind === 'actuator' && (
-        <Group grow>
+        <>
           <Select label="Actuator" data={(actuators ?? []).map((a) => ({ value: a.id, label: `${a.name} (${a.kind})` }))} value={actuatorId} onChange={setActuatorId} searchable />
-          <NumberInput label="Run for (seconds)" min={1} value={duration} onChange={setDuration} />
-        </Group>
+          <NumberInput label="Run for" description="Seconds" min={1} value={duration} onChange={setDuration} />
+        </>
       )}
-      {(kind === 'ai_review' || kind === 'report') && <Textarea label="Instruction for the AI" autosize minRows={2} value={prompt} onChange={(e) => setPrompt(e.currentTarget.value)} />}
-      <Group justify="flex-end">
+      {(kind === 'ai_review' || kind === 'report') && <Textarea label="Instruction" autosize minRows={2} value={prompt} onChange={(e) => setPrompt(e.currentTarget.value)} />}
+      <div className="sg-form-actions">
         <Button disabled={!name} onClick={async () => {
           await save('create_schedule', { name, kind, cron, actuatorId, durationSec: kind === 'actuator' ? Number(duration) : undefined, payload: kind === 'ai_review' || kind === 'report' ? { prompt } : undefined }, 'Schedule created')
           modals.closeAll()
         }}>Create</Button>
-      </Group>
-    </Stack>
+      </div>
+    </div>
   )
 }
 

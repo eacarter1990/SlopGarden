@@ -51,25 +51,21 @@ function LimitForm({ gardenId }: { gardenId: string }) {
   const scopeOptions = scopeType === 'bed' ? beds?.map((b) => ({ value: b.id, label: b.name })) : scopeType === 'plant' ? plants?.map((p) => ({ value: p.id, label: p.name }))
     : scopeType === 'actuator' ? actuators?.map((a) => ({ value: a.id, label: a.name })) : scopeType === 'reservoir' ? reservoirs?.map((r) => ({ value: r.id, label: r.name })) : undefined
   return (
-    <Stack>
+    <div className="sg-form">
       <Select label="Limit" data={Object.entries(limitTypes).map(([value, l]) => ({ value, label: l.label }))} value={limitType} onChange={setLimitType} allowDeselect={false} />
-      <Group grow>
-        <Select label="Applies to" data={['global', 'garden', 'bed', 'plant', 'reservoir', 'actuator'].map((v) => ({ value: v, label: titleCase(v) }))} value={scopeType} onChange={(v) => { setScopeType(v); setScopeId(v === 'garden' ? gardenId : null) }} allowDeselect={false} />
-        {scopeOptions && <Select label={titleCase(scopeType ?? '')} data={scopeOptions} value={scopeId} onChange={setScopeId} searchable />}
-      </Group>
-      <Group grow>
-        <NumberInput label={`Value (${limitTypes[limitType ?? '']?.unit})`} value={value} onChange={setValue} />
-        <Select label="Only actuator kind (optional)" clearable data={['pump', 'valve', 'light', 'heater', 'fan', 'fertilizer_doser', 'mister']} value={kind} onChange={setKind} />
-      </Group>
+      <Select label="Applies to" data={['global', 'garden', 'bed', 'plant', 'reservoir', 'actuator'].map((v) => ({ value: v, label: titleCase(v) }))} value={scopeType} onChange={(v) => { setScopeType(v); setScopeId(v === 'garden' ? gardenId : null) }} allowDeselect={false} />
+      {scopeOptions && <Select label={titleCase(scopeType ?? '')} data={scopeOptions} value={scopeId} onChange={setScopeId} searchable />}
+      <NumberInput label="Value" description={limitTypes[limitType ?? '']?.unit} value={value} onChange={setValue} />
+      <Select label="Actuator kind" description="Optional. Leave empty to apply to every kind." clearable data={['pump', 'valve', 'light', 'heater', 'fan', 'fertilizer_doser', 'mister']} value={kind} onChange={setKind} />
       {limitTypes[limitType ?? '']?.interlock && <Select label="Watch sensor channel" data={channels} value={channelId} onChange={setChannelId} searchable required />}
       <TextInput label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
-      <Group justify="flex-end">
+      <div className="sg-form-actions">
         <Button onClick={async () => {
           await save('set_safety_limit', { scopeType, scopeId, limitType, value: Number(value), channelId, actuatorKind: kind, notes }, 'Safety limit saved')
           modals.closeAll()
         }}>Save limit</Button>
-      </Group>
-    </Stack>
+      </div>
+    </div>
   )
 }
 
