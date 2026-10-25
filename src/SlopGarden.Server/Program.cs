@@ -126,6 +126,9 @@ builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<INotificationSender, BrowserNotificationSender>();
 builder.Services.AddScoped<INotificationSender, DiscordNotificationSender>();
 builder.Services.AddScoped<Seeder>();
+// Migrations run after the process has answered the Service Control Manager. Doing this
+// before app.Run() kept Windows waiting until it declared the service unresponsive.
+builder.Services.AddHostedService<DatabaseStartup>();
 builder.Services.AddHostedService<ConfigPushWorker>();
 builder.Services.AddHostedService<UdpDiscoveryService>();
 builder.Services.AddHostedService<ServerScheduler>();
@@ -143,11 +146,6 @@ builder.Services.AddHostedService<MdnsDiscoveryService>();
 builder.Logging.AddProvider(new FileLogProvider(Path.Combine(dataDir, "logs", "server.log")));
 
 var app = builder.Build();
-
-using (var scope = app.Services.CreateScope())
-{
-    await scope.ServiceProvider.GetRequiredService<Seeder>().RunAsync(CancellationToken.None);
-}
 
 app.Use(async (ctx, next) =>
 {
