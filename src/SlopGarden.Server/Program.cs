@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Hosting.WindowsServices;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +14,10 @@ using SlopGarden.Server.Infrastructure;
 using SlopGarden.Server.Mcp;
 using SlopGarden.Server.Services;
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = OperatingSystem.IsWindows() && WindowsServiceHelpers.IsWindowsService()
+    ? WebApplication.CreateBuilder(new WebApplicationOptions { Args = args, ContentRootPath = AppContext.BaseDirectory })
+    : WebApplication.CreateBuilder(args);
+MachineHost.Configure(builder.Host);
 
 var dataDir = ServerOptions.ResolveDataDirectory(builder.Configuration);
 Directory.CreateDirectory(dataDir);

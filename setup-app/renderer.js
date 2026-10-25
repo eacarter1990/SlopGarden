@@ -6,7 +6,21 @@ function showError(error) {
 }
 
 function actions(primary) {
-  return `<div class="actions"><button class="quiet" id="back" type="button">Back</button><button class="primary" id="go" type="button">${primary}</button></div><div id="out"></div>`
+  return `<div class="actions"><button class="quiet" id="back" type="button">Back</button><button class="quiet" id="remove" type="button">Remove service</button><button class="primary" id="go" type="button">${primary}</button></div><div id="out"></div>`
+}
+
+function removeService(role, directory) {
+  const button = document.getElementById('remove')
+  const out = document.getElementById('out')
+  button.disabled = true
+  out.textContent = ''
+  window.setup.remove({ role, directory }).then((body) => {
+    out.innerHTML = `<div class="ok">${body.log || 'Service removed.'}</div>`
+    button.disabled = false
+  }).catch((error) => {
+    out.innerHTML = showError(error)
+    button.disabled = false
+  })
 }
 
 async function run(button, work) {
@@ -32,12 +46,12 @@ const home = () => {
       <button class="choice" id="server" type="button">
         <span class="choice-kicker">This machine</span>
         <span class="choice-title">Server</span>
-        <span class="choice-body">The one garden server on this LAN. Starts PostgreSQL and the web app.</span>
+        <span class="choice-body">The one garden server on this LAN. It starts when this machine boots.</span>
       </button>
       <button class="choice" id="client" type="button">
         <span class="choice-kicker">This machine</span>
         <span class="choice-title">Client</span>
-        <span class="choice-body">A Pi or computer with sensors and relays. Does not run the server.</span>
+        <span class="choice-body">A Pi or computer with sensors and relays. It starts when this machine boots and does not run the server.</span>
       </button>
     </div>`
   document.getElementById('server').onclick = serverForm
@@ -51,17 +65,19 @@ function serverForm() {
       <div class="row"><label for="dir">Install folder</label><input id="dir" placeholder="~/slopgarden" /></div>
       <div class="row"><label for="url">Address</label><input id="url" placeholder="http://192.168.1.20:5080" /></div>
       <div class="row"><label for="pw">Database password</label><input id="pw" type="password" placeholder="Leave blank to generate one" /></div>
-      <p class="note">The address is what other machines on this network will use. After it starts, open the web app and create the Admin account. No demo user is created.</p>
+      <p class="note">This registers the server service and starts it at boot. PostgreSQL needs to be running already. The address is what other machines use. Then open the web app and create the Admin account. No demo user is created.</p>
       ${actions('Start the server')}
     </div>`
   document.getElementById('back').onclick = home
+  document.getElementById('remove').onclick = () => removeService('server', document.getElementById('dir').value)
   document.getElementById('go').onclick = () => run(document.getElementById('go'), async (out) => {
     const body = await window.setup.server({
       directory: document.getElementById('dir').value,
       publicUrl: document.getElementById('url').value,
       postgresPassword: document.getElementById('pw').value,
     })
-    out.innerHTML = `<div class="ok">Server is starting. Create the Admin at http://127.0.0.1:5080.<pre>${body.log || ''}</pre></div>`
+    const password = body.databasePassword ? ` Database password: ${body.databasePassword}` : ''
+    out.innerHTML = `<div class="ok">${body.log || 'Server service started.'} Create the Admin at http://127.0.0.1:5080.${password}</div>`
   })
 }
 
@@ -96,6 +112,7 @@ async function clientForm() {
     note.textContent = 'mDNS and UDP did not find a server. Enter its address. This machine will not run the server, and it stays pending until an Admin approves it.'
   }
   document.getElementById('back').onclick = home
+  document.getElementById('remove').onclick = () => removeService('client', document.getElementById('dir').value)
   document.getElementById('go').onclick = () => run(document.getElementById('go'), async (out) => {
     const typed = document.getElementById('url')
     const body = await window.setup.client({
@@ -103,7 +120,7 @@ async function clientForm() {
       directory: document.getElementById('dir').value,
       serverUrl: detected || (typed ? typed.value : ''),
     })
-    out.innerHTML = `<div class="ok">Client started. Approve it on the server under Devices.<pre>${body.log || ''}</pre></div>`
+    out.innerHTML = `<div class="ok">${body.log || 'Client service started.'} Approve it on the server under Devices.</div>`
   })
 }
 

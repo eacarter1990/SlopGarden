@@ -49,6 +49,7 @@ ipcMain.handle('client', (_event, body) => run([
   ...arg('--directory', body.directory),
   ...arg('--server-url', body.serverUrl),
 ]))
+ipcMain.handle('remove', (_event, body) => run(['remove', body.role, ...arg('--directory', body.directory)]))
 
 function createWindow() {
   const window = new BrowserWindow({

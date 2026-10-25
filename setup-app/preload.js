@@ -5,4 +5,5 @@ contextBridge.exposeInMainWorld('setup', {
   discover: () => ipcRenderer.invoke('discover'),
   server: (body) => ipcRenderer.invoke('server', body),
   client: (body) => ipcRenderer.invoke('client', body),
+  remove: (body) => ipcRenderer.invoke('remove', body),
 })
