@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import type { AiActivity, BedOverview, GardenOverview } from '../api/types'
-import { ActuatorControl } from '../components/ActuatorControl'
+import { ActuatorStatus } from '../components/ActuatorControl'
 import { useOverview } from '../components/Layout'
 import { AiBadge, CameraImage, ReadingPill } from '../components/Widgets'
 import { ago, mediumLabels, titleCase } from '../format'
@@ -74,7 +74,7 @@ function BedCard({ b, o }: { b: BedOverview; o: GardenOverview }) {
         </Stack>
         {actuators.length > 0 && (
           <Stack gap={6} mt="sm" pt="sm" style={{ borderTop: '1px solid var(--sg-line)' }}>
-            {actuators.map((a) => <ActuatorControl key={a.id} a={a} />)}
+            {actuators.map((a) => <ActuatorStatus key={a.id} a={a} />)}
           </Stack>
         )}
       </div>
@@ -137,7 +137,7 @@ export function DashboardPage() {
           <Group gap="xs">{o.gardenReadings.map((r) => <ReadingPill key={r.channelId} r={r} />)}</Group>
           {gardenActuators.length > 0 && (
             <Stack gap="xs" mt="md">
-              {gardenActuators.map((a) => <ActuatorControl key={a.id} a={a} />)}
+              {gardenActuators.map((a) => <ActuatorStatus key={a.id} a={a} />)}
             </Stack>
           )}
         </Card>

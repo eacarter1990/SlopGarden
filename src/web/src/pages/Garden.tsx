@@ -8,6 +8,7 @@ import type { Bed, Garden, Plant, PlantProfile } from '../api/types'
 import { useAuth } from '../auth'
 import { environments, openBedForm, openPlantForm, opts, useSave } from '../components/Forms'
 import { useOverview } from '../components/Layout'
+import { ActuatorControl } from '../components/ActuatorControl'
 import { PageTitle } from '../components/Widgets'
 import { ReservoirActions, ReservoirCard, openReservoirForm, useHydroSystems, useReservoirs } from '../components/Reservoir'
 import { mediumLabels, titleCase } from '../format'
@@ -119,6 +120,13 @@ export function GardenPage() {
           </Card>
         ))}
       </SimpleGrid>
+      {(o.actuators ?? []).some((a) => !a.bedId && !a.plantId && !a.reservoirId) && (
+        <Card>
+          <Text className="sg-serif" fz={22} fw={560}>Garden equipment</Text>
+          <Text size="sm" c="dimmed" mb="xs">Pumps and dosers that serve the whole garden. Valves on a bed or plant are controlled on that page.</Text>
+          {(o.actuators ?? []).filter((a) => !a.bedId && !a.plantId && !a.reservoirId).map((a) => <ActuatorControl key={a.id} a={a} />)}
+        </Card>
+      )}
       <GardenSettings garden={o.garden} />
       <Card>
         <Group justify="space-between" mb="xs">

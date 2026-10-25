@@ -81,7 +81,7 @@ export function ReservoirCard({ r, compact }: { r: ReservoirStatus; compact?: bo
       {pumps.length > 0 && (
         <Group gap={6} mt={6}>
           {pumps.map((p) => (
-            <Badge key={p.id} size="sm" variant={p.isOn ? 'filled' : 'light'} color={p.isOn ? 'blue' : 'red'}>{p.name}: {p.isOn ? 'running' : 'OFF'}</Badge>
+            <Badge key={p.id} size="sm" variant="light" color={p.isOn ? 'green' : 'gray'}>{p.name} · {p.isOn ? 'on' : 'off'}</Badge>
           ))}
         </Group>
       )}
