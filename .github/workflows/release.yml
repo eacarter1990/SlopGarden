@@ -87,16 +87,14 @@ jobs:
           node-version: "22"
       - name: Publish the server
         run: dotnet publish src/SlopGarden.Server/SlopGarden.Server.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o publish -p:DebugType=none -p:DebugSymbols=false
-      - name: Install WiX
-        shell: pwsh
-        run: |
-          dotnet tool install --global wix --version 5.0.2
-          Add-Content $env:GITHUB_PATH "$env:USERPROFILE\.dotnet\tools"
       - name: Pack one MSI
         shell: bash
         run: |
+          # Install into this step's PATH. A later bash step does not see `wix` from a PowerShell global tool install.
+          dotnet tool install wix --version 5.0.2 --tool-path "$RUNNER_TEMP/wix"
+          export WIX="$RUNNER_TEMP/wix/wix.exe"
           version="0.2.${GITHUB_RUN_NUMBER}"
-          scripts/pack-server-msi.sh publish "SlopGardenServer-${version}-${{ matrix.rid }}.msi" "$version"
+          scripts/pack-server-msi.sh publish "SlopGardenServer-${version}-${{ matrix.rid }}.msi" "$version" "${{ matrix.rid }}"
       - uses: actions/upload-artifact@v7
         with:
           name: server-${{ matrix.rid }}
