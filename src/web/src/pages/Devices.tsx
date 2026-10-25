@@ -1,4 +1,4 @@
-import { Alert, Anchor, Badge, Button, Card, Group, NumberInput, PasswordInput, Select, Stack, Switch, Text, Textarea, TextInput } from '@mantine/core'
+import { Alert, Anchor, Badge, Button, Card, Group, NumberInput, PasswordInput, Select, Stack, Switch, Table, Text, Textarea, TextInput } from '@mantine/core'
 import { modals } from '@mantine/modals'
 import { notifications } from '@mantine/notifications'
 import { IconAlertTriangle, IconCheck, IconWifi, IconX } from '@tabler/icons-react'
@@ -11,6 +11,13 @@ import { useAuth } from '../auth'
 import { useSave } from '../components/Forms'
 import { PageTitle } from '../components/Widgets'
 import { ago } from '../format'
+
+function splitImage(image: string) {
+  const at = image.lastIndexOf(':')
+  const slash = image.lastIndexOf('/')
+  if (at <= slash) return { repo: image, version: '—' }
+  return { repo: image.slice(0, at), version: image.slice(at + 1) }
+}
 
 export function DevicesPage() {
   const { isAdmin } = useAuth()
@@ -139,7 +146,7 @@ export function DevicesPage() {
           <Text fw={650} mb={4}>Release</Text>
           <Text size="xs" c="dimmed" mb="xs">
             Updates install the server and client images from a GitHub release. Latest follows the newest release. Pick a version to stay on that one.
-            This server is running {releases?.running || '—'}. Auto-update does not change safety limits or AI approvals.
+            Auto-update does not change safety limits or AI approvals.
           </Text>
           <Group align="flex-end">
             <Select
@@ -175,10 +182,32 @@ export function DevicesPage() {
             }}>Update server</Button>
           </Group>
           {releases?.version ? (
-            <>
-              <Text size="xs" c="dimmed" mt="xs" style={{ overflowWrap: 'anywhere' }}>{releases.serverImage}</Text>
-              <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>{releases.clientImage}</Text>
-            </>
+            <Table mt="sm" fz="sm" verticalSpacing={6} horizontalSpacing="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Part</Table.Th>
+                  <Table.Th>Running</Table.Th>
+                  <Table.Th>Release</Table.Th>
+                  <Table.Th>Image</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {([
+                  ['Server', releases.running || '—', releases.serverImage],
+                  ['Client', [...new Set((devices ?? []).map((d) => d.clientVersion).filter(Boolean))].join(', ') || '—', releases.clientImage],
+                ] as const).map(([part, running, image]) => {
+                  const { repo, version } = splitImage(image)
+                  return (
+                    <Table.Tr key={part}>
+                      <Table.Td data-label="Part" fw={650}>{part}</Table.Td>
+                      <Table.Td data-label="Running">{running}</Table.Td>
+                      <Table.Td data-label="Release" fw={650}>{version}</Table.Td>
+                      <Table.Td data-label="Image" ff="monospace" fz="xs" style={{ overflowWrap: 'anywhere' }}>{repo}</Table.Td>
+                    </Table.Tr>
+                  )
+                })}
+              </Table.Tbody>
+            </Table>
           ) : (
             <Text size="xs" c={releases?.error ? 'orange' : 'dimmed'} mt="xs">{releases?.error || 'No GitHub releases published yet.'}</Text>
           )}
