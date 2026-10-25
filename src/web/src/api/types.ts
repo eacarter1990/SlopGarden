@@ -377,6 +377,7 @@ export interface Device {
   architecture: string
   clientVersion: string
   autoUpdate?: boolean
+  canSelfUpdate?: boolean | null
   updateStatus?: string | null
   updateError?: string | null
   updateAvailable?: boolean

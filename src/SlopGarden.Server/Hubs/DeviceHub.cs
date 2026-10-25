@@ -67,6 +67,7 @@ public sealed class DeviceHub(
         device.Hostname = hello.Hostname;
         device.AppliedConfigVersion = hello.AppliedConfigVersion;
         device.BufferedReadings = hello.BufferedReadings;
+        if (hello.CanSelfUpdate is { } can) device.CanSelfUpdate = can;
         DeviceRegistry.ApplyEnvironment(device, hello.Environment);
         if (device.GardenId is { } gid && await db.Gardens.FirstOrDefaultAsync(g => g.Id == gid) is { } garden)
             DeviceRegistry.InheritEnvironment(garden, device);

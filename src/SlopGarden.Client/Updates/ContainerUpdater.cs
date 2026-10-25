@@ -18,7 +18,7 @@ public sealed class ContainerUpdater(IServerLink link, ILogger<ContainerUpdater>
     {
         if (!DockerEngine.CanUpdate)
         {
-            const string message = "This client cannot update itself. Mount /var/run/docker.sock and set SLOPGARDEN_CONTAINER to the container name (see the README).";
+            const string message = "This device is running as a program, not a container, so the device list cannot install an image on it. A machine set up with Docker can update when /var/run/docker.sock is mounted and SLOPGARDEN_CONTAINER is the container name.";
             logger.LogWarning(message);
             await ReportAsync(command.Version, "failed", message, ct);
             return;

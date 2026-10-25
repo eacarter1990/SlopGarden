@@ -290,6 +290,8 @@ public class Device : ITimestamped
     public int BufferedReadings { get; set; }
     /// <summary>When true, an outdated client image is applied without a per-update click. Safety limits and AI approvals are unchanged.</summary>
     public bool AutoUpdate { get; set; }
+    /// <summary>False when the client reported it is not a container that can replace itself. Null until a client says.</summary>
+    public bool? CanSelfUpdate { get; set; }
     public string? UpdateStatus { get; set; }
     public string? UpdateError { get; set; }
     /// <summary>Latest release version we already notified about, so a device is not announced twice.</summary>
