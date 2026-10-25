@@ -148,6 +148,9 @@ public class MachineSetupTests
         var builder = WebApplication.CreateBuilder();
         MachineHost.Configure(builder.Host);
         using var host = builder.Build();
+        var source = File.ReadAllText(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "SlopGarden.Server", "Infrastructure", "ServiceLifetime.cs")));
+        Assert.Contains("ServerWindowsName", source);
+        Assert.DoesNotContain("ServerHostName", source);
     }
 
     [Fact]

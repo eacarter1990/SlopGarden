@@ -13,7 +13,9 @@ public static class MachineHost
 {
     public static void Configure(IHostBuilder host)
     {
-        host.UseWindowsService(o => o.ServiceName = MachineServices.ServerHostName);
+        // Must be the Service Control Manager name (SlopGardenServer), not the display name.
+        // A mismatch makes Windows report that the service did not respond in time.
+        host.UseWindowsService(o => o.ServiceName = MachineServices.ServerWindowsName);
         host.UseSystemd();
     }
 }

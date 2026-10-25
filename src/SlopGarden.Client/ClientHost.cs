@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using SlopGarden.Contracts;
 using SlopGarden.Client.Actuators;
 using SlopGarden.Client.Cameras;
 using SlopGarden.Client.Identity;
@@ -16,7 +17,7 @@ namespace SlopGarden.Client;
 public static class ClientHost
 {
     public const string EnvironmentPrefix = "SLOPGARDEN_";
-    public const string ServiceName = "SlopGarden Client";
+    public const string ServiceName = MachineServices.ClientWindowsName;
 
     public static HostApplicationBuilder CreateBuilder(string[] args, Action<HostApplicationBuilder>? configure = null)
     {
