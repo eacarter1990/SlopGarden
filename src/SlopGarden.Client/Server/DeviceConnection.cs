@@ -289,7 +289,7 @@ public sealed class DeviceConnection(
         try
         {
             var hello = new DeviceHello(ClientInfo.Version, ClientInfo.Os, ClientInfo.Architecture, ClientInfo.Hostname(o), runtime.AppliedVersion,
-                ClientInfo.DescribeEnvironment(o, time), plugins.Describe(), (int)Math.Min(int.MaxValue, outbox.ReadingCount));
+                ClientInfo.DescribeEnvironment(o, time), plugins.Describe(), (int)Math.Min(int.MaxValue, outbox.ReadingCount), DockerEngine.CanUpdate);
             await hub.InvokeAsync(DeviceHubMethods.Hello, hello, ct);
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)

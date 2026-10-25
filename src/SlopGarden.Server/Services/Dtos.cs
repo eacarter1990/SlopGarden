@@ -38,12 +38,12 @@ public sealed record DeviceDto(
     string Os, string Architecture, string ClientVersion, Guid? GardenId, DateTimeOffset? ApprovedAt, string? ReportedTimezoneId,
     double? ReportedLatitude, double? ReportedLongitude, string? ReportedLocationLabel, int DesiredConfigVersion, int? AppliedConfigVersion,
     JsonArray ConfigErrors, DateTimeOffset? LastSeenAt, bool IsOnline, int BufferedReadings, DateTimeOffset CreatedAt,
-    int UnsignedPlugins, int InvalidPlugins, bool AutoUpdate, string? UpdateStatus, string? UpdateError, bool UpdateAvailable, string? LatestClientVersion)
+    int UnsignedPlugins, int InvalidPlugins, bool AutoUpdate, bool? CanSelfUpdate, string? UpdateStatus, string? UpdateError, bool UpdateAvailable, string? LatestClientVersion)
 {
     public static DeviceDto From(Device d, int unsigned = 0, int invalid = 0, string? latestVersion = null) => new(d.Id, d.Name, d.HardwareId, d.Hostname, d.Status, d.DiscoveredVia,
         d.IpAddress, d.LocalEndpoint, d.Os, d.Architecture, d.ClientVersion, d.GardenId, d.ApprovedAt, d.ReportedTimezoneId, d.ReportedLatitude,
         d.ReportedLongitude, d.ReportedLocationLabel, d.DesiredConfigVersion, d.AppliedConfigVersion, d.ConfigErrors, d.LastSeenAt, d.IsOnline,
-        d.BufferedReadings, d.CreatedAt, unsigned, invalid, d.AutoUpdate, d.UpdateStatus, d.UpdateError,
+        d.BufferedReadings, d.CreatedAt, unsigned, invalid, d.AutoUpdate, d.CanSelfUpdate, d.UpdateStatus, d.UpdateError,
         ClientVersions.IsOutdated(d.ClientVersion, latestVersion), latestVersion);
 }
 

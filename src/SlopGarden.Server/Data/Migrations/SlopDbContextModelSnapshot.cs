@@ -1168,6 +1168,10 @@ namespace SlopGarden.Server.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("buffered_readings");
 
+                    b.Property<bool?>("CanSelfUpdate")
+                        .HasColumnType("boolean")
+                        .HasColumnName("can_self_update");
+
                     b.Property<string>("ClientVersion")
                         .IsRequired()
                         .HasColumnType("text")

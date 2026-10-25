@@ -96,12 +96,13 @@ export function DevicesPage() {
                 <Badge color={d.isOnline ? 'green' : 'gray'} variant={d.isOnline ? 'filled' : 'light'}>{d.isOnline ? 'online' : 'offline'}</Badge>
                 {d.status !== 'approved' && <Badge color="red" variant="light">{d.status}</Badge>}
                 <Badge variant="light" color={d.appliedConfigVersion === d.desiredConfigVersion ? 'green' : 'yellow'}>config v{d.appliedConfigVersion ?? '–'} / v{d.desiredConfigVersion}</Badge>
-                {d.updateAvailable ? <Badge color="yellow">update available</Badge> : <Badge color="gray" variant="light">{d.updateStatus || 'current'}</Badge>}
+                {d.canSelfUpdate === false ? <Badge color="gray" variant="light">not a container</Badge> : d.updateAvailable ? <Badge color="yellow">update available</Badge> : <Badge color="gray" variant="light">{d.updateStatus || 'current'}</Badge>}
                 {d.configErrors.length > 0 && <Text size="xs" c="red">{d.configErrors.length} error(s)</Text>}
-                {d.updateError && <Text size="xs" c="red">{d.updateError}</Text>}
+                {d.canSelfUpdate !== false && d.updateError && <Text size="xs" c="red">{d.updateError}</Text>}
               </Group>
               <Stack gap={6}>
-                {isAdmin && d.status === 'approved' && (
+                {d.canSelfUpdate === false && <Text size="xs" c="dimmed">This device is a program on its machine, not a container, so an image cannot be installed from here.</Text>}
+                {isAdmin && d.status === 'approved' && d.canSelfUpdate !== false && (
                   <Group gap="xs">
                     <Button size="xs" variant="light" disabled={!d.updateAvailable && !releases?.version} onClick={async () => {
                       try {
