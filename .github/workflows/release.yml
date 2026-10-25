@@ -81,7 +81,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: setup-${{ matrix.rid }}
-          path: setup-app/dist/*
+          # electron-builder also writes unpacked app directories. Those are not release files.
+          path: |
+            setup-app/dist/*.zip
+            setup-app/dist/*.tar.gz
           if-no-files-found: error
 
   release:
@@ -106,6 +109,12 @@ jobs:
           SlopGarden Setup is the desktop app in the files below (Windows x64 and ARM, macOS Intel and Apple silicon, Linux x64 and ARM64). The macOS builds are not notarized: right-click the app and choose Open the first time.
           EOF
           )
-          gh release create "v${version}" setup-dist/* \
+          shopt -s nullglob
+          files=(setup-dist/*.zip setup-dist/*.tar.gz)
+          if (( ${#files[@]} == 0 )); then
+            echo "No setup archives in setup-dist (refusing to upload directories)." >&2
+            exit 1
+          fi
+          gh release create "v${version}" "${files[@]}" \
             --title "SlopGarden ${version}" \
             --notes "${notes}"
