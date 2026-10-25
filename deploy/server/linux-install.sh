@@ -1,7 +1,6 @@
 #!/bin/sh
 # Installs the SlopGarden server as a systemd service that starts at boot.
 # A packed release is this logic with the published server appended after the payload marker.
-# The Electron setup app is not used.
 #
 #   sudo ./SlopGardenServer-linux-x64.sh --public-url http://192.168.1.20:5080
 #   sudo ./SlopGardenServer-linux-x64.sh --uninstall

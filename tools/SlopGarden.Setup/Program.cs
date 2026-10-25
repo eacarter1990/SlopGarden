@@ -2,7 +2,7 @@ using System.Text.Json;
 using SlopGarden.Contracts;
 using SlopGarden.Setup;
 
-// JSON helper used by the SlopGarden Setup desktop app. People download that app; this process stays behind it.
+// Command-line installer helper. The downloadable server installers are the MSI, DMG, and shell script.
 var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 var command = args.FirstOrDefault()?.ToLowerInvariant() ?? "help";
 try

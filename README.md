@@ -31,7 +31,7 @@ Open <http://localhost:5080>.
 
 1. **First run.** The page asks for the Admin username and password (at least 8 characters). That is the only account created. There is no demo user and no demo password.
 2. **Database.** Compose starts PostgreSQL next to the server and the server applies the latest schema on startup. To use a database you already run, open **Use a different PostgreSQL database** on that first page, enter the host, port, database, username, and password, and save. The server restarts onto that database, then you create the Admin. You can also set `POSTGRES_PASSWORD` before `docker compose up` if you only want a different password for the bundled database.
-3. **Approve a client.** Start a client (below), or from the server open **Devices → Set up a machine by SSH**, enter the host, and confirm the host key. The login is not kept and is not visible to the AI. The machine still shows up as pending. An Admin clicks **Approve**. Until then it cannot read or change the garden. That machine needs Docker and an SSH login. A machine without SSH can run the setup app itself and choose Client.
+3. **Approve a client.** Start a client (below), or from the server open **Devices → Set up a machine by SSH**, enter the host, and confirm the host key. The login is not kept and is not visible to the AI. The machine still shows up as pending. An Admin clicks **Approve**. Until then it cannot read or change the garden. That machine needs Docker and an SSH login.
 4. **OpenAI key.** **Settings → AI models.** Add a provider, base URL `https://api.openai.com/v1`, and paste the API key. The key is stored encrypted. The same form is where LM Studio, Ollama, and other OpenAI-compatible servers go. Leave the key empty for a local server that does not need one.
 5. **Discord.** **Settings → Notification channels.** Add a Discord webhook URL. Browser notifications are already on.
 6. **Search.** **Settings → AI models**, in **Web search for the AI**. On `api.openai.com` the assistant uses OpenAI's own web search with the key from step 4. For anything else, pick SearXNG, Tavily, or Brave and enter that provider's key in the same form. Keys are not built into the server.
@@ -102,10 +102,7 @@ The assistant cannot approve or revoke devices, manage users or personal access 
 ```bash
 dotnet run --project src/SlopGarden.Server
 dotnet test
-cd setup-app && npm install && npm start
 ```
-
-`npm start` opens the setup window and uses the .NET helper from source. The downloadable apps are produced by the release workflow.
 
 The first visit still creates the Admin. `scripts/run-demo.sh` is a local demo with a seeded garden and a scripted model. It sets `SlopGarden__SeedDemo=true` and is not part of the install above.
 

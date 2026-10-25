@@ -81,10 +81,10 @@ public static class ServiceInstaller
     {
         if (platform == ServicePlatform.Windows)
         {
-            if (!IsWindowsAdmin()) throw new InvalidOperationException("Run SlopGarden Setup as Administrator to register the Windows service.");
+            if (!IsWindowsAdmin()) throw new InvalidOperationException("Run the installer as Administrator to register the Windows service.");
             return;
         }
-        if (geteuid() != 0) throw new InvalidOperationException("Run SlopGarden Setup as root to register the service.");
+        if (geteuid() != 0) throw new InvalidOperationException("Run the installer as root to register the service.");
     }
 
     private static bool IsWindowsAdmin()

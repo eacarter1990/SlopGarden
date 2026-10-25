@@ -24,7 +24,7 @@ static class Docker
 
     public static void Require()
     {
-        if (!Available()) throw new InvalidOperationException("Docker is not installed or not running. Install Docker, then open SlopGarden Setup again.");
+        if (!Available()) throw new InvalidOperationException("Docker is not installed or not running.");
     }
 
     public static async Task<string> ComposeUpAsync(string directory, CancellationToken ct)

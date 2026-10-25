@@ -37,7 +37,7 @@ public sealed class RemoteSetupService(ServerUrlProvider urls)
         if (!string.Equals(pending.Fingerprint, confirmedFingerprint.Trim(), StringComparison.Ordinal))
             throw AppException.Bad("The confirmation did not match the host key. Nothing was installed.");
         if (!pending.DockerInstalled)
-            throw AppException.Bad("Docker is not installed on that machine. Install Docker, or run slopgarden-setup there.");
+            throw AppException.Bad("Docker is not installed on that machine. Install Docker, then try again.");
         string script;
         try { script = MachineSetup.ClientDockerScript(urls.Get(), clientName, image); }
         catch (ArgumentException ex) { throw AppException.Bad(ex.Message); }
