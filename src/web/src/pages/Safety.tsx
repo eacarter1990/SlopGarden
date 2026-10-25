@@ -120,22 +120,22 @@ export function SafetyPage() {
       <Card>
         <Text fw={650} mb="xs">Hard safety limits</Text>
         <Alert variant="light" mb="sm">The most restrictive limit wins for each actuator (global → garden → bed → plant → device → actuator).</Alert>
-        <Table>
-          <Table.Thead><Table.Tr><Table.Th>Limit</Table.Th><Table.Th>Value</Table.Th><Table.Th>Scope</Table.Th><Table.Th>Watches</Table.Th><Table.Th>Source</Table.Th><Table.Th>On</Table.Th><Table.Th /></Table.Tr></Table.Thead>
-          <Table.Tbody>
-            {(limits ?? []).map((l) => (
-              <Table.Tr key={l.id}>
-                <Table.Td data-label="Limit"><Text size="sm" fw={600}>{limitTypes[l.limitType]?.label ?? l.limitType}</Text>{l.notes && <Text size="xs" c="dimmed">{l.notes}</Text>}</Table.Td>
-                <Table.Td data-label="Value" fw={700}>{l.operator === 'gt' ? '> ' : l.operator === 'lt' ? '< ' : ''}{l.value} {limitTypes[l.limitType]?.unit}</Table.Td>
-                <Table.Td data-label="Scope">{titleCase(l.scopeType)} {l.scopeId && `· ${name(l.scopeType, l.scopeId)}`}{l.actuatorKind && <Badge size="xs" ml={4} variant="light">{l.actuatorKind}</Badge>}</Table.Td>
-                <Table.Td data-label="Watches" fz="xs">{channelName(l.channelId) ?? '—'}</Table.Td>
-                <Table.Td data-label="Source"><Badge size="xs" variant="light" color="gray">{l.createdByType}</Badge></Table.Td>
-                <Table.Td data-label="On"><Switch size="xs" checked={l.enabled} disabled={!canWrite} onChange={(e) => save('set_safety_limit', { limitId: l.id, enabled: e.currentTarget.checked })} /></Table.Td>
-                <Table.Td>{canWrite && <ActionIcon variant="subtle" color="red" onClick={() => save('delete_safety_limit', { limitId: l.id }, 'Removed')}><IconTrash size={16} /></ActionIcon>}</Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
+        <div className="sg-stack">
+          {(limits ?? []).map((l) => (
+            <div key={l.id} className="sg-record sg-record-wide">
+              <div>
+                <Text fw={650}>{limitTypes[l.limitType]?.label ?? l.limitType}</Text>
+                <Text size="sm" c="dimmed">{titleCase(l.scopeType)}{l.scopeId ? ` · ${name(l.scopeType, l.scopeId)}` : ''}{l.actuatorKind ? ` · ${l.actuatorKind}` : ''}</Text>
+                <Text size="xs" c="dimmed">{channelName(l.channelId) ? `Watches ${channelName(l.channelId)}` : 'No sensor watch'} · {l.createdByType}{l.notes ? ` · ${l.notes}` : ''}</Text>
+              </div>
+              <Text className="sg-serif" fz={26} fw={560}>{l.operator === 'gt' ? '> ' : l.operator === 'lt' ? '< ' : ''}{l.value} <Text span fz="sm" c="dimmed">{limitTypes[l.limitType]?.unit}</Text></Text>
+              <Group gap="xs" wrap="nowrap">
+                <Switch size="sm" checked={l.enabled} disabled={!canWrite} aria-label={`Enable ${limitTypes[l.limitType]?.label ?? l.limitType}`} onChange={(e) => save('set_safety_limit', { limitId: l.id, enabled: e.currentTarget.checked })} />
+                {canWrite && <ActionIcon variant="subtle" color="red" aria-label="Remove limit" onClick={() => save('delete_safety_limit', { limitId: l.id }, 'Removed')}><IconTrash size={16} /></ActionIcon>}
+              </Group>
+            </div>
+          ))}
+        </div>
       </Card>
       <Card>
         <Text fw={650} mb="xs">Standing approvals ("always allow")</Text>

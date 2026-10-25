@@ -89,6 +89,7 @@ function LayoutShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
   const { connected } = useLive()
   const { data: overview } = useOverview()
+  const phone = useMediaQuery('(max-width: 47.99em)', false, { getInitialValueInEffect: false })
   const desktop = useMediaQuery('(min-width: 62em)', false, { getInitialValueInEffect: false })
   const wide = useMediaQuery('(min-width: 1400px)', false, { getInitialValueInEffect: false })
   const onAssistantPage = location.pathname.startsWith('/assistant')
@@ -111,6 +112,7 @@ function LayoutShell({ children }: { children: ReactNode }) {
       header={{ height: { base: 108, sm: 64 } }}
       navbar={{ width: 232, breakpoint: 'sm', collapsed: { mobile: !opened } }}
       aside={{ width: wide ? 420 : 380, breakpoint: 'md', collapsed: { desktop: !showAside, mobile: true } }}
+      footer={{ height: 64, collapsed: !phone }}
       padding={{ base: 'sm', sm: 'lg' }}
     >
       <AppShell.Header>
@@ -233,12 +235,14 @@ function LayoutShell({ children }: { children: ReactNode }) {
         {showAside && <ChatDrawer onClose={() => { chat.close(); setDismissedPath(location.pathname) }} />}
       </AppShell.Aside>
 
-      <nav className="sg-tabbar" aria-label="Garden">
-        <Link to="/" data-active={tabActive('/') && location.pathname === '/'} onClick={close}>Overview</Link>
-        <Link to="/garden" data-active={location.pathname.startsWith('/garden') || location.pathname.startsWith('/beds') || location.pathname.startsWith('/plants')} onClick={close}>Beds</Link>
-        <Link to="/assistant" data-active={onAssistantPage} onClick={close}>Assistant</Link>
-        <button type="button" data-active={opened} onClick={toggle}>More</button>
-      </nav>
+      <AppShell.Footer p={0} className="sg-foot">
+        <nav className="sg-tabbar" aria-label="Garden">
+          <Link to="/" data-active={tabActive('/') && location.pathname === '/'} onClick={close}>Overview</Link>
+          <Link to="/garden" data-active={location.pathname.startsWith('/garden') || location.pathname.startsWith('/beds') || location.pathname.startsWith('/plants')} onClick={close}>Beds</Link>
+          <Link to="/assistant" data-active={onAssistantPage} onClick={close}>Assistant</Link>
+          <button type="button" data-active={opened} onClick={toggle}>More</button>
+        </nav>
+      </AppShell.Footer>
     </AppShell>
   )
 }

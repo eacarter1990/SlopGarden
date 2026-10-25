@@ -86,7 +86,7 @@ function CareTargets({ d }: { d: PlantDetail }) {
         </Table.Tbody>
       </Table>
       {canWrite && (
-        <Group mt="sm" align="flex-end" gap="xs">
+        <Group mt="sm" align="flex-end" gap="xs" wrap="wrap">
           <Select size="xs" w={170} data={targetMetrics.map((m) => ({ value: m, label: metricLabel(m) }))} value={metric} onChange={setMetric} />
           <NumberInput size="xs" w={80} placeholder="min" value={min} onChange={setMin} />
           <NumberInput size="xs" w={80} placeholder="max" value={max} onChange={setMax} />
@@ -107,7 +107,7 @@ function Journal({ d }: { d: PlantDetail }) {
     <Card>
       <Text fw={650} mb="xs">Journal</Text>
       {canWrite && (
-        <Group gap="xs" align="flex-end" mb="sm">
+        <Group gap="xs" align="flex-end" mb="sm" wrap="wrap">
           <Select size="xs" w={140} data={['observation', 'note', 'harvest', 'fertilized', 'pruned', 'pest', 'disease', 'watered']} value={kind} onChange={setKind} />
           {kind === 'harvest' && <NumberInput size="xs" w={90} placeholder="grams" value={qty} onChange={setQty} />}
           <TextInput size="xs" style={{ flex: 1 }} placeholder="What happened?" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />

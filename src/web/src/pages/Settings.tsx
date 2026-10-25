@@ -105,24 +105,24 @@ function AiTab() {
           </div>
           {isAdmin && <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => modals.open({ title: 'Add AI provider', size: 'lg', children: <ProviderForm onDone={refresh} /> })}>Add provider</Button>}
         </Group>
-        <Table>
-          <Table.Tbody>
+        <div className="sg-stack">
             {data.providers.map((p) => (
-              <Table.Tr key={p.id}>
-                <Table.Td fw={600}>{p.name}</Table.Td>
-                <Table.Td ff="monospace" fz="xs">{p.baseUrl}</Table.Td>
-                <Table.Td>{p.defaultModel}</Table.Td>
-                <Table.Td>{p.hasApiKey ? <Badge color="green" variant="light">key stored</Badge> : <Badge color="gray" variant="light">no key</Badge>}</Table.Td>
-                <Table.Td>{isAdmin && (
+              <div key={p.id} className="sg-record sg-record-wide">
+                <div>
+                  <Text fw={650}>{p.name}</Text>
+                  <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>{p.baseUrl}</Text>
+                  <Text size="sm">{p.defaultModel || 'No default model'}</Text>
+                </div>
+                <div>{p.hasApiKey ? <Badge color="green" variant="light">key stored</Badge> : <Badge color="gray" variant="light">no key</Badge>}</div>
+                <div>{isAdmin && (
                   <Group gap={4} justify="flex-end">
                     <Button size="xs" variant="subtle" onClick={() => modals.open({ title: `Edit ${p.name}`, size: 'lg', children: <ProviderForm existing={p} onDone={refresh} /> })}>Edit</Button>
                     <Button size="xs" variant="subtle" color="red" onClick={async () => { await act(() => api.del(`/api/settings/ai/providers/${p.id}`), 'Removed'); refresh() }}>Remove</Button>
                   </Group>
-                )}</Table.Td>
-              </Table.Tr>
+                )}</div>
+              </div>
             ))}
-          </Table.Tbody>
-        </Table>
+        </div>
         {data.providers.length === 0 && <Alert mt="sm">No provider yet. Add one and enter your API key to start chatting.</Alert>}
       </Card>
       <Card>

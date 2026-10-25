@@ -14,7 +14,7 @@ export function AssistantPage() {
   const { data: conversations } = useQuery({ queryKey: ['conversations'], queryFn: () => api.get<Conversation[]>('/api/chat/conversations') })
 
   return (
-    <Grid gap="md" style={{ height: 'calc(100vh - 100px)' }}>
+    <Grid className="sg-assistant-page" gap="md">
       <Grid.Col span={{ base: 12, md: 3 }} h="100%">
         <Card h="100%" padding="xs">
           <Stack h="100%" gap="xs">

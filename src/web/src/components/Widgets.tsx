@@ -1,4 +1,4 @@
-import { Badge, Box, Group, NumberInput, Paper, Select, Stack, Switch, Text, TextInput, Tooltip } from '@mantine/core'
+import { Badge, Box, Card, Group, NumberInput, Paper, Select, Stack, Switch, Text, TextInput, Tooltip } from '@mantine/core'
 import { IconCameraOff } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
@@ -152,12 +152,32 @@ export function TargetPicker({ value, onChange }: { value: TargetValue; onChange
 
 export function PageTitle({ title, subtitle, right }: { title: string; subtitle?: React.ReactNode; right?: React.ReactNode }) {
   return (
-    <Group justify="space-between" mb="lg" align="flex-end" wrap="wrap" gap="sm">
+    <header className="sg-page-head">
       <div style={{ minWidth: 0 }}>
-        <Text component="h1" className="sg-serif" fz={32} fw={560} lh={1.1} m={0} style={{ letterSpacing: '-0.03em' }}>{title}</Text>
-        {subtitle && <Text c="dimmed" size="sm" mt={4}>{subtitle}</Text>}
+        <Text component="h1" className="sg-serif sg-page-title" fz={32} fw={560} lh={1.1} m={0}>{title}</Text>
+        {subtitle && <Text c="dimmed" size="sm" mt={4} maw={640}>{subtitle}</Text>}
       </div>
-      {right && <Group gap="xs">{right}</Group>}
-    </Group>
+      {right && <div className="sg-page-actions">{right}</div>}
+    </header>
   )
+}
+
+/** A paper section: title, a plain-language hint, and the controls that belong with it. */
+export function Section({ title, hint, action, children }: { title: string; hint?: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <Card className="sg-section">
+      <div className="sg-section-head">
+        <div>
+          <Text className="sg-serif" fz={22} fw={560} lh={1.15}>{title}</Text>
+          {hint && <Text size="sm" c="dimmed" mt={2}>{hint}</Text>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </Card>
+  )
+}
+
+export function Empty({ children }: { children: React.ReactNode }) {
+  return <div className="sg-empty">{children}</div>
 }

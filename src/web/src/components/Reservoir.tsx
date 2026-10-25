@@ -62,10 +62,10 @@ export function reservoirReadings(r: ReservoirStatus): LatestReading[] {
 export function ReservoirCard({ r, compact }: { r: ReservoirStatus; compact?: boolean }) {
   const pumps = r.actuators.filter((a) => a.role === 'circulation_pump' || a.role === 'air_pump')
   return (
-    <Card padding={compact ? 'xs' : 'md'} radius="md" className={r.aiActive ? 'sg-ai-active' : undefined} bg={compact ? 'var(--mantine-color-blue-light)' : undefined}>
+    <Card padding={compact ? 'xs' : 'md'} radius="md" className={r.aiActive ? 'sg-ai-active' : undefined}>
       <Group justify="space-between" wrap="nowrap">
         <Group gap={6} wrap="nowrap">
-          <IconDroplets size={16} color="var(--mantine-color-blue-6)" />
+          <IconDroplets size={16} color="var(--sg-moss)" />
           <Anchor component={Link} to={`/reservoirs/${r.id}`} size="sm" fw={650} c="inherit">{r.name}</Anchor>
           {r.volumeLiters ? <Text size="xs" c="dimmed">{r.volumeLiters} L</Text> : null}
         </Group>

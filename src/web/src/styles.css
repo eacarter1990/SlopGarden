@@ -337,6 +337,10 @@ body {
   border-color: rgba(210, 74, 36, 0.65);
 }
 
+.sg-assistant-page { min-height: calc(100dvh - 190px); }
+.sg-assistant-page .mantine-Grid-inner,
+.sg-assistant-page .mantine-Grid-col { min-height: 420px; }
+
 .sg-walk-assistant { margin-top: 8px; }
 
 .sg-walk-assistant-frame {
@@ -352,7 +356,143 @@ body {
   border-bottom: 1px solid var(--sg-line);
 }
 
-.sg-tabbar { display: none; }
+.sg-page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px 20px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.sg-page-title { letter-spacing: -0.03em; }
+
+.sg-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.sg-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.sg-empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--sg-ink-soft);
+  border: 1px dashed var(--sg-line);
+  border-radius: 12px;
+  background: transparent;
+}
+
+.sg-record,
+.sg-line {
+  background: #faf6ef;
+  border: 1px solid var(--sg-line);
+  border-radius: 12px;
+}
+
+.sg-record {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.sg-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  align-items: center;
+  padding: 8px 10px;
+}
+
+.sg-stack { display: grid; gap: 8px; }
+
+@media (min-width: 62em) {
+  .sg-record.sg-record-wide {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+    align-items: center;
+  }
+}
+
+.sg-foot {
+  background: var(--sg-dusk);
+  border-top: 1px solid #2a3830;
+}
+
+.sg-tabbar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  height: 100%;
+  align-items: center;
+  padding: 0 6px;
+}
+
+.sg-tabbar a,
+.sg-tabbar button {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: #c9d4cc;
+  font: 600 12px/1.2 var(--sg-sans);
+  text-align: center;
+  text-decoration: none;
+  padding: 10px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.sg-tabbar [data-active='true'] {
+  color: var(--sg-paper);
+  background: var(--sg-dusk-3);
+}
+
+.mantine-InputWrapper-label {
+  font-weight: 650;
+  font-size: 13px;
+}
+
+.mantine-Tabs-list {
+  flex-wrap: wrap;
+  gap: 6px;
+  border-bottom: 0;
+  margin-bottom: 4px;
+}
+
+.mantine-Tabs-tab {
+  border: 1px solid var(--sg-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sg-ink);
+}
+
+.mantine-Tabs-tab[data-active] {
+  background: var(--sg-dusk);
+  color: var(--sg-paper);
+  border-color: var(--sg-dusk);
+}
+
+.mantine-Tabs-tab:hover { background: var(--sg-paper-3); }
+.mantine-Tabs-tab[data-active]:hover { background: var(--sg-dusk-2); color: var(--sg-paper); }
+
+.mantine-SegmentedControl-root { background: var(--sg-paper-3); }
+
+.mantine-Table-th {
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-weight: 650;
+  color: var(--sg-ink-soft);
+}
+
+.mantine-Switch-track { cursor: pointer; }
 
 .sg-login {
   min-height: 100vh;
@@ -459,43 +599,11 @@ body {
 @media (max-width: 47.99em) {
   .sg-account-name { display: none; }
 
-  .sg-shell .mantine-AppShell-main { padding-bottom: 88px; }
-
-  .sg-shell .mantine-AppShell-navbar { padding-bottom: 76px; }
-
-  .sg-tabbar {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    position: fixed;
-    z-index: 200;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: var(--sg-dusk);
-    border-top: 1px solid #2a3830;
-    padding: 6px 6px calc(8px + env(safe-area-inset-bottom));
-  }
-
-  .sg-tabbar a,
-  .sg-tabbar button {
-    appearance: none;
-    background: transparent;
-    border: 0;
-    color: #c9d4cc;
-    font: 600 12px/1.2 var(--sg-sans);
-    text-align: center;
-    text-decoration: none;
-    padding: 10px 4px;
-    border-radius: 8px;
-    cursor: pointer;
-  }
-
-  .sg-tabbar [data-active='true'] {
-    color: var(--sg-paper);
-    background: var(--sg-dusk-3);
-  }
+  .sg-shell .mantine-AppShell-navbar { padding-bottom: 12px; }
 
   .sg-assistant-toggle { display: none; }
+
+  .sg-page-title { font-size: 28px; }
 
   .mantine-AppShell-main .mantine-Table-table,
   .mantine-Modal-content .mantine-Table-table {

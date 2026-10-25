@@ -1,4 +1,4 @@
-import { ActionIcon, Anchor, Badge, Button, Card, Group, NumberInput, SegmentedControl, Select, SimpleGrid, Stack, Table, Text, TextInput, Textarea } from '@mantine/core'
+import { ActionIcon, Anchor, Badge, Button, Card, Group, NumberInput, SegmentedControl, Select, SimpleGrid, Stack, Text, TextInput, Textarea } from '@mantine/core'
 import { IconPencil, IconPlus } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
@@ -47,7 +47,7 @@ function GardenSettings({ garden }: { garden: Garden }) {
           <Text size="sm" fw={500} mb={4}>Location & time</Text>
           <SegmentedControl size="xs" disabled={!canWrite} value={g.locationSource} onChange={(v) => { set('locationSource')(v); set('timezoneSource')(v) }} data={[{ value: 'device', label: 'Inherit from device' }, { value: 'manual', label: 'Set manually' }]} />
         </div>
-        <SimpleGrid cols={{ base: 1, sm: 4 }}>
+        <SimpleGrid cols={{ base: 1, sm: 2 }}>
           <NumberInput label="Latitude" decimalScale={4} value={g.latitude ?? ''} onChange={(v) => set('latitude')(v === '' ? null : Number(v))} disabled={!canWrite || g.locationSource !== 'manual'} />
           <NumberInput label="Longitude" decimalScale={4} value={g.longitude ?? ''} onChange={(v) => set('longitude')(v === '' ? null : Number(v))} disabled={!canWrite || g.locationSource !== 'manual'} />
           <Select
@@ -91,7 +91,6 @@ export function GardenPage() {
   return (
     <Stack gap="lg">
       <PageTitle title="Garden" subtitle="Beds, plants and the context the AI works with" right={canWrite && <Button leftSection={<IconPlus size={16} />} onClick={() => openBedForm(o.garden.id, undefined, o.garden.defaultGrowingMedium)}>New bed</Button>} />
-      <GardenSettings garden={o.garden} />
       <SimpleGrid cols={{ base: 1, lg: 2 }}>
         {(beds ?? []).map((b) => (
           <Card key={b.id}>
@@ -108,22 +107,21 @@ export function GardenPage() {
               </Group>
             </Group>
             {b.aiContext && <Text size="xs" c="dimmed" mt={4}>AI note: {b.aiContext}</Text>}
-            <Table mt="sm" fz="sm" verticalSpacing={4}>
-              <Table.Tbody>
-                {(plants ?? []).filter((p) => p.bedId === b.id).map((p) => (
-                  <Table.Tr key={p.id}>
-                    <Table.Td><Anchor component={Link} to={`/plants/${p.id}`}>{p.name}</Anchor>{p.quantity > 1 && <Text span c="dimmed"> ×{p.quantity}</Text>}</Table.Td>
-                    <Table.Td c="dimmed">{p.profileName ?? '—'}</Table.Td>
-                    <Table.Td><Badge size="xs" variant="outline">{p.stage}</Badge></Table.Td>
-                    <Table.Td w={30}>{canWrite && <ActionIcon size="sm" variant="subtle" onClick={() => openPlantForm(b.id, p)}><IconPencil size={14} /></ActionIcon>}</Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
+            <div className="sg-stack" style={{ marginTop: 10 }}>
+              {(plants ?? []).filter((p) => p.bedId === b.id).map((p) => (
+                <div key={p.id} className="sg-line">
+                  <Anchor component={Link} to={`/plants/${p.id}`} fw={600} c="inherit">{p.name}{p.quantity > 1 ? ` ×${p.quantity}` : ''}</Anchor>
+                  <Text size="sm" c="dimmed">{p.profileName ?? 'No profile'}</Text>
+                  <Badge size="xs" variant="outline">{p.stage}</Badge>
+                  {canWrite && <ActionIcon size="sm" variant="subtle" aria-label={`Edit ${p.name}`} onClick={() => openPlantForm(b.id, p)}><IconPencil size={14} /></ActionIcon>}
+                </div>
+              ))}
+            </div>
             {canWrite && <Button mt="xs" size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => openPlantForm(b.id)}>Add plant</Button>}
           </Card>
         ))}
       </SimpleGrid>
+      <GardenSettings garden={o.garden} />
       <Card>
         <Group justify="space-between" mb="xs">
           <div>
@@ -146,26 +144,21 @@ export function GardenPage() {
       <Card>
         <Text fw={650} mb="xs">Crop profiles ({profiles?.length ?? 0})</Text>
         <Text size="sm" c="dimmed" mb="sm">Water, light and temperature needs the AI uses. The AI can research and tweak these (with your approval).</Text>
-        <Table striped fz="xs">
-          <Table.Thead>
-            <Table.Tr><Table.Th>Crop</Table.Th><Table.Th>Water</Table.Th><Table.Th>Soil moisture</Table.Th><Table.Th>Light h</Table.Th><Table.Th>Air °C</Table.Th><Table.Th>pH</Table.Th><Table.Th>Hydro EC</Table.Th><Table.Th>Days</Table.Th><Table.Th>Source</Table.Th></Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {(profiles ?? []).map((p) => (
-              <Table.Tr key={p.id}>
-                <Table.Td><Text size="xs" fw={600}>{p.commonName}</Text><Text size="xs" c="dimmed" fs="italic">{p.scientificName}</Text></Table.Td>
-                <Table.Td>{p.waterNeed}</Table.Td>
-                <Table.Td>{p.soilMoistureMinPct}–{p.soilMoistureMaxPct} %</Table.Td>
-                <Table.Td>{p.lightHoursMin}–{p.lightHoursMax}</Table.Td>
-                <Table.Td>{p.airTempMinC}–{p.airTempMaxC}</Table.Td>
-                <Table.Td>{p.phMin}–{p.phMax}</Table.Td>
-                <Table.Td>{p.ecMin != null ? `${p.ecMin}–${p.ecMax}` : '–'}</Table.Td>
-                <Table.Td>{p.daysToMaturityMin}–{p.daysToMaturityMax}</Table.Td>
-                <Table.Td data-label="Source"><Badge size="xs" variant="light" color="gray">{p.isBuiltin ? 'built-in' : p.createdByType}</Badge></Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
+        <SimpleGrid cols={{ base: 1, sm: 2, xl: 3 }}>
+          {(profiles ?? []).map((p) => (
+            <div key={p.id} className="sg-record">
+              <Group justify="space-between" align="flex-start">
+                <div>
+                  <Text fw={650}>{p.commonName}</Text>
+                  <Text size="xs" c="dimmed" fs="italic">{p.scientificName}</Text>
+                </div>
+                <Badge size="xs" variant="light" color="gray">{p.isBuiltin ? 'built-in' : p.createdByType}</Badge>
+              </Group>
+              <Text size="sm">Water {p.waterNeed} · moisture {p.soilMoistureMinPct}–{p.soilMoistureMaxPct}% · light {p.lightHoursMin}–{p.lightHoursMax} h</Text>
+              <Text size="sm" c="dimmed">Air {p.airTempMinC}–{p.airTempMaxC} °C · pH {p.phMin}–{p.phMax}{p.ecMin != null ? ` · EC ${p.ecMin}–${p.ecMax}` : ''} · {p.daysToMaturityMin}–{p.daysToMaturityMax} days</Text>
+            </div>
+          ))}
+        </SimpleGrid>
       </Card>
     </Stack>
   )

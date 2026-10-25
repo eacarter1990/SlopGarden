@@ -1,4 +1,4 @@
-import { Card, Code, Select, Stack, Text } from '@mantine/core'
+import { Card, Code, SegmentedControl, Select, Stack, Text } from '@mantine/core'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../api/client'
@@ -12,11 +12,11 @@ interface Scopes {
 }
 
 const scopes = [
-  { value: 'server', label: 'Server application' },
-  { value: 'garden', label: 'Garden activity' },
-  { value: 'bed', label: 'Bed activity' },
-  { value: 'plant', label: 'Plant activity' },
-  { value: 'client', label: 'Client application' },
+  { value: 'server', label: 'Server' },
+  { value: 'garden', label: 'Garden' },
+  { value: 'bed', label: 'Bed' },
+  { value: 'plant', label: 'Plant' },
+  { value: 'client', label: 'Device' },
 ]
 
 export function LogsPage() {
@@ -37,10 +37,10 @@ export function LogsPage() {
       <PageTitle title="Logs" subtitle="Activity logs for each garden, bed and plant, plus the server log and one client log per device. Files stay on the server's data volume." />
       <Card>
         <Stack>
-          <Select label="Log" data={scopes} value={scope} onChange={(v) => { setScope(v ?? 'server'); setId(null) }} allowDeselect={false} />
+          <SegmentedControl fullWidth value={scope} onChange={(v) => { setScope(v); setId(null) }} data={scopes} />
           {scope !== 'server' && (
             <Select
-              label={scope}
+              label="Which one"
               placeholder="Choose one"
               data={(choices ?? []).map((c) => ({ value: c.id, label: c.name }))}
               value={id}

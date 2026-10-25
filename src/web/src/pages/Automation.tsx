@@ -1,4 +1,4 @@
-import { ActionIcon, Badge, Button, Card, Group, NumberInput, Select, Stack, Switch, Table, Text, TextInput, Textarea } from '@mantine/core'
+import { ActionIcon, Badge, Button, Group, NumberInput, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core'
 import { modals } from '@mantine/modals'
 import { IconPlus, IconTrash } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
@@ -74,26 +74,27 @@ export function AutomationPage() {
         subtitle="Schedules. Actuator schedules are pushed to the device and keep running while it's offline, always within safety limits."
         right={canWrite && <Button leftSection={<IconPlus size={16} />} onClick={() => modals.open({ title: 'New schedule', size: 'lg', children: <ScheduleForm /> })}>New schedule</Button>}
       />
-      <Card>
-        <Table>
-          <Table.Thead><Table.Tr><Table.Th>Name</Table.Th><Table.Th>Kind</Table.Th><Table.Th>When</Table.Th><Table.Th>What</Table.Th><Table.Th>Next run</Table.Th><Table.Th>By</Table.Th><Table.Th>On</Table.Th><Table.Th /></Table.Tr></Table.Thead>
-          <Table.Tbody>
-            {(data ?? []).map(({ schedule: s, actuatorName, nextRuns }) => (
-              <Table.Tr key={s.id}>
-                <Table.Td data-label="Name" fw={600}>{s.name}</Table.Td>
-                <Table.Td data-label="Kind"><Badge variant="light" color="gray">{s.kind === 'ai_review' ? 'AI review' : s.kind.replaceAll('_', ' ')}</Badge></Table.Td>
-                <Table.Td data-label="When" ff="monospace" fz="xs">{s.cron}<Text size="xs" c="dimmed">{s.timezoneId}</Text></Table.Td>
-                <Table.Td data-label="What" fz="sm">{s.kind === 'actuator' ? `${actuatorName} for ${s.durationSec}s` : String(s.payload?.prompt ?? '').slice(0, 80)}</Table.Td>
-                <Table.Td data-label="Next run" fz="sm">{s.enabled ? when(nextRuns[0]) : '—'}</Table.Td>
-                <Table.Td data-label="By"><Badge size="xs" variant="light" color="gray">{s.createdByType}</Badge></Table.Td>
-                <Table.Td data-label="On"><Switch size="xs" checked={s.enabled} disabled={!canWrite} onChange={(e) => save('update_schedule', { scheduleId: s.id, enabled: e.currentTarget.checked })} /></Table.Td>
-                <Table.Td>{canWrite && <ActionIcon variant="subtle" color="red" onClick={() => save('delete_schedule', { scheduleId: s.id }, 'Deleted')}><IconTrash size={16} /></ActionIcon>}</Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-        {data?.length === 0 && <Text c="dimmed" size="sm" mt="sm">No schedules yet. Create one, or ask the assistant (e.g. "water the tomatoes every morning").</Text>}
-      </Card>
+      <div className="sg-stack">
+        {(data ?? []).map(({ schedule: s, actuatorName, nextRuns }) => (
+          <div key={s.id} className="sg-record sg-record-wide">
+            <div>
+              <Group gap={8}>
+                <Text fw={650}>{s.name}</Text>
+                <Badge variant="light" color="gray">{s.kind === 'ai_review' ? 'AI review' : s.kind.replaceAll('_', ' ')}</Badge>
+                <Badge size="xs" variant="outline" color="gray">{s.createdByType}</Badge>
+              </Group>
+              <Text size="sm" mt={4}>{s.kind === 'actuator' ? `${actuatorName} for ${s.durationSec}s` : String(s.payload?.prompt ?? '')}</Text>
+              <Text size="xs" c="dimmed" mt={2}>{s.cron} · {s.timezoneId}</Text>
+            </div>
+            <Text size="sm">{s.enabled ? `Next ${when(nextRuns[0])}` : 'Paused'}</Text>
+            <Group gap="xs" wrap="nowrap">
+              <Switch size="sm" checked={s.enabled} disabled={!canWrite} aria-label={`Enable ${s.name}`} onChange={(e) => save('update_schedule', { scheduleId: s.id, enabled: e.currentTarget.checked })} />
+              {canWrite && <ActionIcon variant="subtle" color="red" aria-label={`Delete ${s.name}`} onClick={() => save('delete_schedule', { scheduleId: s.id }, 'Deleted')}><IconTrash size={16} /></ActionIcon>}
+            </Group>
+          </div>
+        ))}
+        {data?.length === 0 && <div className="sg-empty">No schedules yet. Create one, or ask the assistant (for example, “water the tomatoes every morning”).</div>}
+      </div>
     </Stack>
   )
 }
