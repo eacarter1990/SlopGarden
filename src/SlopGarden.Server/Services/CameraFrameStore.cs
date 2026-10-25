@@ -24,6 +24,12 @@ public sealed class CameraFrameStore
 
     public StoredFrame? Latest(Guid cameraId) => _latest.TryGetValue(cameraId, out var f) ? f : null;
 
+    public void Drop(Guid cameraId)
+    {
+        _latest.TryRemove(cameraId, out _);
+        foreach (var key in _scaled.Keys.Where(k => k.Item1 == cameraId).ToList()) _scaled.TryRemove(key, out _);
+    }
+
     /// <summary>Returns the latest frame scaled to <paramref name="width"/> (never upscaled), cached until the next frame.</summary>
     public StoredFrame? Scaled(Guid cameraId, int? width)
     {

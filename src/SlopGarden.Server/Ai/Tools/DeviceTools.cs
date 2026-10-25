@@ -306,6 +306,12 @@ public static class DeviceTools
             (ctx, i) => Task.FromResult(new ProposalPreview($"Revoke device {i.DeviceId}", "device", i.DeviceId, null, "high", [])),
             minRole: Roles.Admin, aiAllowed: false);
 
+        r.Mutate<DeviceIdInput, DeviceRemoved>("remove_device", Category,
+            "Delete a device and its sensors, cameras, actuators, readings and frames (Admin). Plants and beds stay. A client that is still running shows up again as pending.",
+            async (ctx, i) => await ctx.Get<DeviceRegistry>().RemoveAsync(i.DeviceId, ctx.Actor, ctx.Ct),
+            (ctx, i) => Task.FromResult(new ProposalPreview($"Remove device {i.DeviceId} and everything configured on it", "device", i.DeviceId, null, "high", [])),
+            minRole: Roles.Admin, aiAllowed: false);
+
         r.Mutate<UpdateDeviceInput, DeviceDto>("update_device", Category, "Rename a device or change its default garden.",
             async (ctx, i) =>
             {
