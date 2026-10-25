@@ -34,7 +34,13 @@ const theme = createTheme({
   components: {
     Card: { defaultProps: { withBorder: true, radius: 12, padding: 'md', shadow: 'none' } },
     Paper: { defaultProps: { radius: 12, shadow: 'none' } },
-    Button: { defaultProps: { radius: 'sm' } },
+    Button: { defaultProps: { radius: 10 } },
+    ActionIcon: { defaultProps: { radius: 10 } },
+    TextInput: { defaultProps: { radius: 10 } },
+    PasswordInput: { defaultProps: { radius: 10 } },
+    NumberInput: { defaultProps: { radius: 10 } },
+    Select: { defaultProps: { radius: 10 } },
+    Textarea: { defaultProps: { radius: 10 } },
     Modal: { defaultProps: { radius: 12, overlayProps: { backgroundOpacity: 0.45, color: '#0c1410' } } },
   },
 })

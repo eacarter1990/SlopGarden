@@ -215,9 +215,6 @@ function LayoutShell({ children }: { children: ReactNode }) {
             </div>
           ))}
         </AppShell.Section>
-        <AppShell.Section>
-          <div className="sg-footer">On this network</div>
-        </AppShell.Section>
       </AppShell.Navbar>
 
       <AppShell.Main>

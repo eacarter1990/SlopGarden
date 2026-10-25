@@ -102,11 +102,20 @@ body {
   color: inherit;
 }
 
-.sg-footer {
-  color: #8ea196;
-  text-align: center;
-  font-size: 12px;
-  padding: 8px;
+.sg-shell .mantine-AppShell-header .mantine-Input-input {
+  background: var(--sg-dusk-3);
+  color: var(--sg-paper);
+  border-color: #3a4d43;
+}
+
+.sg-shell .mantine-AppShell-header .mantine-Input-input:focus,
+.sg-shell .mantine-AppShell-header .mantine-Input-input:focus-within {
+  border-color: var(--sg-paper);
+}
+
+.sg-shell .mantine-AppShell-header .mantine-Input-section,
+.sg-shell .mantine-AppShell-header .mantine-Select-input {
+  color: #d7e0d8;
 }
 
 .sg-stop {
@@ -642,6 +651,28 @@ body {
 
 .mantine-Card-root { background: var(--sg-paper-2); }
 
+.mantine-Modal-content,
+.mantine-Notification-root {
+  background: var(--sg-paper-2);
+  color: var(--sg-ink);
+}
+
+.mantine-Notification-root { border: 1px solid var(--sg-line); }
+
+.mantine-Tooltip-tooltip {
+  background: var(--sg-dusk);
+  color: var(--sg-paper);
+}
+
+.mantine-Table-table {
+  --table-border-color: var(--sg-line);
+  --table-hover-color: var(--sg-paper-3);
+  --table-striped-color: transparent;
+}
+
+.mantine-Table-th,
+.mantine-Table-td { border-color: var(--sg-line); }
+
 .mantine-Button-root:not([data-variant]):not([data-disabled]),
 .mantine-Button-root[data-variant='filled']:not([data-disabled]) {
   --button-bg: var(--sg-accent) !important;
@@ -726,6 +757,12 @@ body {
 .sg-form .mantine-Select-root .mantine-Input-wrapper,
 .sg-form .mantine-MultiSelect-root .mantine-Input-wrapper {
   background: #fff;
+}
+
+.sg-shell .mantine-AppShell-header .mantine-Select-input {
+  background: var(--sg-dusk-3);
+  color: var(--sg-paper);
+  border-color: #3a4d43;
 }
 
 .mantine-Combobox-dropdown,

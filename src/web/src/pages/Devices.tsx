@@ -98,6 +98,7 @@ export function DevicesPage() {
                 <Anchor component={Link} to={`/devices/${d.id}`} fw={650} c="inherit">{d.name}</Anchor>
                 <Text size="xs" c="dimmed">{d.ipAddress} · {d.os} {d.architecture} · v{d.clientVersion}</Text>
                 <Text size="xs" c="dimmed">Last seen {ago(d.lastSeenAt)}{d.bufferedReadings > 0 ? ` · ${d.bufferedReadings} buffered` : ''}</Text>
+                {d.canSelfUpdate === false && <Text size="xs" c="dimmed" mt={4}>This device is a program on its machine, not a container, so an image cannot be installed from here.</Text>}
               </div>
               <Group gap={6}>
                 <Badge color={d.isOnline ? 'green' : 'gray'} variant={d.isOnline ? 'filled' : 'light'}>{d.isOnline ? 'online' : 'offline'}</Badge>
@@ -108,7 +109,6 @@ export function DevicesPage() {
                 {d.canSelfUpdate !== false && d.updateError && <Text size="xs" c="red">{d.updateError}</Text>}
               </Group>
               <Stack gap={6}>
-                {d.canSelfUpdate === false && <Text size="xs" c="dimmed">This device is a program on its machine, not a container, so an image cannot be installed from here.</Text>}
                 {isAdmin && d.status === 'approved' && d.canSelfUpdate !== false && (
                   <Group gap="xs">
                     <Button size="xs" variant="light" disabled={!d.updateAvailable && !releases?.version} onClick={async () => {
