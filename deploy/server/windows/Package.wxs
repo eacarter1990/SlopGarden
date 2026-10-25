@@ -1,0 +1,59 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <Package
+    Name="SlopGarden Server"
+    Manufacturer="SlopGarden"
+    Version="$(Version)"
+    UpgradeCode="8f4e2c1a-6b7d-4e9a-9c3d-1a2b3c4d5e6f"
+    Scope="perMachine">
+    <SummaryInformation Description="Installs the SlopGarden server and starts it when Windows starts." />
+    <MajorUpgrade DowngradeErrorMessage="A newer SlopGarden server is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="SlopGardenServer" />
+    </StandardDirectory>
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="DataFolder" Name="SlopGarden">
+        <Directory Id="ServerData" Name="server" />
+      </Directory>
+    </StandardDirectory>
+
+    <ComponentGroup Id="ServerService" Directory="INSTALLFOLDER">
+      <Component Id="ServerExe" Guid="a1b2c3d4-e5f6-4789-a012-3456789abcde">
+        <File Id="ServerBinary" Source="$(PublishDir)/SlopGarden.Server.exe" KeyPath="yes" />
+        <ServiceInstall
+          Id="SlopGardenServerInstall"
+          Name="SlopGardenServer"
+          DisplayName="SlopGarden Server"
+          Description="SlopGarden garden server."
+          Type="ownProcess"
+          Start="auto"
+          ErrorControl="normal"
+          Arguments="--SlopGarden:DataDirectory=[CommonAppDataFolder]SlopGarden\\server" />
+        <ServiceControl
+          Id="SlopGardenServerControl"
+          Name="SlopGardenServer"
+          Start="install"
+          Stop="both"
+          Remove="uninstall"
+          Wait="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <ComponentGroup Id="ServerSettings" Directory="ServerData">
+      <Component Id="ServerSettingsFile" Guid="b2c3d4e5-f6a7-4890-b123-456789abcdef">
+        <File Id="SettingsJson" Source="$(SettingsFile)" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <ComponentGroup Id="Harvested" Directory="INSTALLFOLDER">
+      <Files Include="$(HarvestDir)/**" />
+    </ComponentGroup>
+
+    <Feature Id="Main" Title="SlopGarden Server">
+      <ComponentGroupRef Id="Harvested" />
+      <ComponentGroupRef Id="ServerService" />
+      <ComponentGroupRef Id="ServerSettings" />
+    </Feature>
+  </Package>
+</Wix>
