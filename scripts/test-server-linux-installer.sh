@@ -47,6 +47,11 @@ fi
 grep -q 'Start="auto"' "$root/deploy/server/windows/Package.wxs"
 grep -q 'Remove="uninstall"' "$root/deploy/server/windows/Package.wxs"
 grep -q 'Name="SlopGardenServer"' "$root/deploy/server/windows/Package.wxs"
+grep -q 'wix.exe' "$root/scripts/pack-server-msi.sh"
+if grep -q 'wix heat' "$root/scripts/pack-server-msi.sh"; then
+  echo "pack-server-msi.sh still calls wix heat, which WiX 5 removed" >&2
+  exit 1
+fi
 bash -n "$root/scripts/pack-server-dmg.sh"
 bash -n "$root/scripts/pack-server-msi.sh"
 echo "server installer ok"
