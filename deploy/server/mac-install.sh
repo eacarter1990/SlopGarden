@@ -71,6 +71,8 @@ write_plist() {
     <key>ProgramArguments</key>
     <array>
         <string>${prefix}/SlopGarden.Server</string>
+        <string>--urls</string>
+        <string>http://+:5080</string>
         <string>--SlopGarden:DataDirectory=/Library/Application Support/SlopGarden/server</string>
     </array>
     <key>WorkingDirectory</key>

@@ -69,7 +69,7 @@ public static class MachineServices
         var display = server ? ServerHostName : ClientHostName;
         var dataDir = server ? @"C:\ProgramData\SlopGarden\server" : @"C:\ProgramData\SlopGarden\client";
         var args = server
-            ? new[] { $"--SlopGarden:DataDirectory={dataDir}" }
+            ? new[] { "--urls", "http://+:5080", $"--SlopGarden:DataDirectory={dataDir}" }
             : new[] { "run" };
         var bin = "binPath= " + Quote(executable) + (args.Length == 0 ? "" : " " + string.Join(' ', args.Select(Quote)));
         var files = new List<ServiceFile>();
@@ -129,7 +129,7 @@ public static class MachineServices
         var data = server ? "/Library/Application Support/SlopGarden/server" : "/Library/Application Support/SlopGarden/client";
         var log = server ? "/Library/Logs/slopgarden-server.log" : "/Library/Logs/slopgarden-client.log";
         var args = server
-            ? new[] { executable, $"--SlopGarden:DataDirectory={data}" }
+            ? new[] { executable, "--urls", "http://+:5080", $"--SlopGarden:DataDirectory={data}" }
             : new[] { executable, "run", $"--Client:DataDirectory={data}" };
         var files = new List<ServiceFile>
         {
@@ -156,7 +156,9 @@ public static class MachineServices
             """;
         var config = server ? "" : "ConfigurationDirectory=slopgarden\n";
         var state = server ? "slopgarden-server" : "slopgarden";
-        var dataEnv = server ? $"Environment=SlopGarden__DataDirectory={stateDirectory}\n" : "Environment=DOTNET_BUNDLE_EXTRACT_BASE_DIR=/var/lib/slopgarden/.bundle\n";
+        var dataEnv = server
+            ? $"Environment=SlopGarden__DataDirectory={stateDirectory}\n            Environment=ASPNETCORE_URLS=http://+:5080\n"
+            : "Environment=DOTNET_BUNDLE_EXTRACT_BASE_DIR=/var/lib/slopgarden/.bundle\n";
         return $"""
             [Unit]
             Description={description}

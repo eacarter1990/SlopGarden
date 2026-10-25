@@ -29,7 +29,7 @@
           Type="ownProcess"
           Start="auto"
           ErrorControl="normal"
-          Arguments="--SlopGarden:DataDirectory=[CommonAppDataFolder]SlopGarden\\server" />
+          Arguments="--urls http://+:5080 --SlopGarden:DataDirectory=[CommonAppDataFolder]SlopGarden\\server" />
         <ServiceControl
           Id="SlopGardenServerControl"
           Name="SlopGardenServer"

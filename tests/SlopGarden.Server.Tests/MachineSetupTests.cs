@@ -45,7 +45,7 @@ public class MachineSetupTests
             @"C:\Program Files\SlopGarden\Server\SlopGarden.Server.exe", null, null, "http://192.168.1.20:5080", "s3cret");
         Assert.Equal("windows-service", server.Manager);
         Assert.Equal("SlopGardenServer", server.Name);
-        Assert.Contains(server.Activate, c => string.Join(' ', c.Arguments).Contains("start= auto") && c.Arguments.Contains("SlopGardenServer"));
+        Assert.Contains(server.Activate, c => string.Join(' ', c.Arguments).Contains("start= auto") && c.Arguments.Contains("SlopGardenServer") && string.Join(' ', c.Arguments).Contains("http://+:5080"));
         Assert.Contains(server.Activate, c => c.Arguments is ["sc.exe", "start", "SlopGardenServer"]);
         Assert.Contains(server.Stop, c => c.Arguments is ["sc.exe", "delete", "SlopGardenServer"]);
         Assert.Contains(server.Prepare, c => c.Arguments.Contains("SlopGardenClient") && c.IgnoreFailure);
