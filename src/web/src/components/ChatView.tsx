@@ -1,5 +1,5 @@
 import { ActionIcon, Avatar, Badge, Box, Code, Collapse, Group, Paper, ScrollArea, Stack, Text, Textarea, Tooltip, UnstyledButton } from '@mantine/core'
-import { IconArrowUp, IconChevronDown, IconChevronRight, IconInfoCircle, IconRobot, IconTool, IconUser } from '@tabler/icons-react'
+import { IconArrowUp, IconChevronDown, IconChevronLeft, IconChevronRight, IconInfoCircle, IconRobot, IconSparkles, IconTool, IconUser } from '@tabler/icons-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api/client'
@@ -52,7 +52,32 @@ function ToolChip({ m }: { m: ChatMessage }) {
   )
 }
 
-/** ChatGPT-style markdown chat with streaming, tool traces and inline approval prompts. */
+/** Pending approvals stacked under the prompt box, one at a time, so they can be decided without scrolling the chat. */
+function ApprovalQueue({ items, activeId, onSelect, onDecided }: { items: Proposal[]; activeId: string | null; onSelect: (id: string) => void; onDecided: (p: Proposal) => void }) {
+  const index = Math.max(0, items.findIndex((p) => p.id === activeId))
+  const active = items[index]
+  return (
+    <Paper withBorder radius="md" p="xs" mt={6} style={{ borderColor: 'var(--mantine-color-violet-4)' }}>
+      <Group justify="space-between" mb={6} wrap="nowrap">
+        <Text size="xs" fw={600}>{items.length === 1 ? '1 approval waiting' : `${items.length} approvals waiting`}</Text>
+        <Group gap={2} wrap="nowrap">
+          <ActionIcon size="sm" variant="subtle" color="gray" aria-label="Previous approval" disabled={index === 0} onClick={() => onSelect(items[index - 1].id)}>
+            <IconChevronLeft size={14} />
+          </ActionIcon>
+          <Text size="xs" c="dimmed">{index + 1} of {items.length}</Text>
+          <ActionIcon size="sm" variant="subtle" color="gray" aria-label="Next approval" disabled={index === items.length - 1} onClick={() => onSelect(items[index + 1].id)}>
+            <IconChevronRight size={14} />
+          </ActionIcon>
+        </Group>
+      </Group>
+      <ScrollArea.Autosize mah="40vh">
+        <ProposalCard key={active.id} proposal={active} onDecided={onDecided} />
+      </ScrollArea.Autosize>
+    </Paper>
+  )
+}
+
+/** ChatGPT-style markdown chat with streaming, tool traces and approval prompts (inline, or queued under the prompt when several wait). */
 export function ChatView({ conversationId, onConversationCreated, compact }: { conversationId?: string; onConversationCreated?: (id: string) => void; compact?: boolean }) {
   const qc = useQueryClient()
   const { page } = usePageContext()
@@ -63,6 +88,9 @@ export function ChatView({ conversationId, onConversationCreated, compact }: { c
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([])
   const [proposals, setProposals] = useState<Record<string, Proposal>>({})
   const viewport = useRef<HTMLDivElement>(null)
+  const atBottom = useRef(true)
+  const [queuedIds, setQueuedIds] = useState<Set<string>>(new Set())
+  const [activeQueued, setActiveQueued] = useState<string | null>(null)
   const [convId, setConvId] = useState(conversationId)
   useEffect(() => setConvId(conversationId), [conversationId])
 
@@ -83,6 +111,8 @@ export function ChatView({ conversationId, onConversationCreated, compact }: { c
       setLocalMessages([])
       setStreams({})
     }
+    setQueuedIds(new Set())
+    setActiveQueued(null)
   }, [convId])
 
   useLiveEvent('chat', (e: ChatEvent) => {
@@ -111,15 +141,33 @@ export function ChatView({ conversationId, onConversationCreated, compact }: { c
 
   const visible = useMemo(() => localMessages.filter((m) => !(m.role === 'assistant' && !m.content && !m.error)), [localMessages])
 
+  const pending = useMemo(
+    () => visible.flatMap((m) => (m.role === 'tool' && m.proposalId && proposals[m.proposalId]?.status === 'pending' ? [proposals[m.proposalId]] : [])),
+    [visible, proposals],
+  )
+  // Once several approvals queue up, the rest stay in the queue until decided instead of jumping back into the chat.
+  const queued = pending.length > 1 ? pending : pending.filter((p) => queuedIds.has(p.id))
+  const queuedKey = queued.map((p) => p.id).join(',')
   useEffect(() => {
-    viewport.current?.scrollTo({ top: viewport.current.scrollHeight, behavior: 'smooth' })
-  }, [visible.length, streams, busy])
+    if (queuedKey) setQueuedIds((s) => (queuedKey.split(',').every((id) => s.has(id)) ? s : new Set([...s, ...queuedKey.split(',')])))
+  }, [queuedKey])
+  const decided = (p: Proposal) => setProposals((x) => ({ ...x, [p.id]: p }))
+
+  useEffect(() => {
+    if (atBottom.current) viewport.current?.scrollTo({ top: viewport.current.scrollHeight })
+  }, [visible.length, streams, busy, queued.length])
+
+  const onScroll = () => {
+    const v = viewport.current
+    if (v) atBottom.current = v.scrollHeight - v.scrollTop - v.clientHeight < 80
+  }
 
   const send = async (text?: string) => {
     const content = (text ?? input).trim()
     if (!content || busy) return
     setInput('')
     setBusy(true)
+    atBottom.current = true
     try {
       let id = convId
       if (!id) {
@@ -144,7 +192,7 @@ export function ChatView({ conversationId, onConversationCreated, compact }: { c
 
   return (
     <Stack gap={0} h="100%" style={{ minHeight: 0 }}>
-      <ScrollArea style={{ flex: 1 }} viewportRef={viewport} px={compact ? 'sm' : 'md'} py="md">
+      <ScrollArea style={{ flex: 1 }} viewportRef={viewport} onScrollPositionChange={onScroll} px={compact ? 'sm' : 'md'} py="md">
         <Stack gap="md">
           {visible.length === 0 && !busy && (
             <Stack gap="xs" align="center" py="xl">
@@ -170,9 +218,20 @@ export function ChatView({ conversationId, onConversationCreated, compact }: { c
               )
             if (m.role === 'tool') {
               const p = m.proposalId ? proposals[m.proposalId] : undefined
+              const inQueue = !!p && queued.some((q) => q.id === p.id)
               return (
                 <Box key={m.id} pl={compact ? 0 : 40}>
-                  {p ? <ProposalCard proposal={p} onDecided={(np) => setProposals((x) => ({ ...x, [np.id]: np }))} /> : <ToolChip m={m} />}
+                  {inQueue ? (
+                    <UnstyledButton onClick={() => setActiveQueued(p.id)} w="100%">
+                      <Paper withBorder radius="md" px="sm" py={6}>
+                        <Group gap={6} wrap="nowrap">
+                          <IconSparkles size={14} color="var(--mantine-color-violet-6)" style={{ flex: '0 0 auto' }} />
+                          <Text size="sm" truncate style={{ flex: 1, minWidth: 0 }}>{p.title}</Text>
+                          <Badge size="xs" variant="light" color="violet" style={{ flex: '0 0 auto' }}>waiting below</Badge>
+                        </Group>
+                      </Paper>
+                    </UnstyledButton>
+                  ) : p ? <ProposalCard proposal={p} onDecided={decided} /> : <ToolChip m={m} />}
                 </Box>
               )
             }
@@ -234,6 +293,7 @@ export function ChatView({ conversationId, onConversationCreated, compact }: { c
             <IconArrowUp size={18} />
           </ActionIcon>
         </Group>
+        {queued.length > 0 && <ApprovalQueue items={queued} activeId={activeQueued} onSelect={setActiveQueued} onDecided={decided} />}
       </Box>
     </Stack>
   )

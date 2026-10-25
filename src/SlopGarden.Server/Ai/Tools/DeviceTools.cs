@@ -251,6 +251,36 @@ public static class DeviceTools
         return d;
     }
 
+    /// <summary>
+    /// Discovered hardware with <c>AdoptedComponentId</c> resolved against the device's configured components. Hardware set up with
+    /// create_sensor/create_actuator/create_camera (same plugin, same discovered settings) counts as adopted; an adopted item whose
+    /// component was deleted is offered again.
+    /// </summary>
+    private static async Task<List<DiscoveredHardware>> DiscoveredWithAdoptionAsync(ToolContext ctx, Guid deviceId)
+    {
+        var db = ctx.Db;
+        var discovered = await db.DiscoveredHardware.AsNoTracking().Where(x => x.DeviceId == deviceId).OrderBy(x => x.Kind).ThenBy(x => x.SuggestedName).ToListAsync(ctx.Ct);
+        var sensors = await db.Sensors.AsNoTracking().Where(x => x.DeviceId == deviceId).Select(x => new { x.Id, x.PluginId, x.Settings }).ToListAsync(ctx.Ct);
+        var actuators = await db.Actuators.AsNoTracking().Where(x => x.DeviceId == deviceId).Select(x => new { x.Id, x.PluginId, x.Settings }).ToListAsync(ctx.Ct);
+        var cameras = await db.Cameras.AsNoTracking().Where(x => x.DeviceId == deviceId).Select(x => new { x.Id, x.PluginId, x.Settings }).ToListAsync(ctx.Ct);
+        var components = sensors.Select(x => (Kind: PluginKinds.Sensor, x.Id, x.PluginId, x.Settings))
+            .Concat(actuators.Select(x => (Kind: PluginKinds.Actuator, x.Id, x.PluginId, x.Settings)))
+            .Concat(cameras.Select(x => (Kind: PluginKinds.Camera, x.Id, x.PluginId, x.Settings)))
+            .ToList();
+        foreach (var h in discovered)
+        {
+            var match = components.Where(c => c.Id == h.AdoptedComponentId)
+                .Concat(components.Where(c => c.Kind == h.Kind && c.PluginId == h.PluginId && SettingsMatch(h.SuggestedSettings, c.Settings)))
+                .Select(c => (Guid?)c.Id)
+                .FirstOrDefault();
+            h.AdoptedComponentId = match;
+        }
+        return discovered;
+    }
+
+    private static bool SettingsMatch(JsonObject discovered, JsonObject configured) =>
+        discovered.Count > 0 && discovered.All(kv => configured.TryGetPropertyValue(kv.Key, out var v) && JsonNode.DeepEquals(kv.Value, v));
+
     private static async Task<string> TargetLabelAsync(ToolContext ctx, Guid? bedId, Guid? plantId, Guid? reservoirId = null)
     {
         if (reservoirId is { } r) return "reservoir " + await ctx.Db.Reservoirs.Where(x => x.Id == r).Select(x => x.Name).FirstOrDefaultAsync(ctx.Ct);
@@ -281,7 +311,7 @@ public static class DeviceTools
                 var db = ctx.Db;
                 var d = Ensure.Found(await db.Devices.AsNoTracking().FirstOrDefaultAsync(x => x.Id == i.DeviceId, ctx.Ct), "Device");
                 var plugins = await db.DevicePlugins.AsNoTracking().Where(p => p.DeviceId == d.Id).OrderBy(p => p.PluginId).ToListAsync(ctx.Ct);
-                var discovered = await db.DiscoveredHardware.AsNoTracking().Where(x => x.DeviceId == d.Id).OrderBy(x => x.Kind).ThenBy(x => x.SuggestedName).ToListAsync(ctx.Ct);
+                var discovered = await DiscoveredWithAdoptionAsync(ctx, d.Id);
                 var sensors = await db.Sensors.AsNoTracking().Include(s => s.Channels).Where(s => s.DeviceId == d.Id).OrderBy(s => s.Name).ToListAsync(ctx.Ct);
                 var actuators = await db.Actuators.AsNoTracking().Where(a => a.DeviceId == d.Id).OrderBy(a => a.Name).ToListAsync(ctx.Ct);
                 var cameras = await db.Cameras.AsNoTracking().Where(c => c.DeviceId == d.Id).OrderBy(c => c.Name).ToListAsync(ctx.Ct);
@@ -357,7 +387,7 @@ public static class DeviceTools
             minRole: Roles.Admin, aiAllowed: false);
 
         r.Read<DeviceIdInput, List<DiscoveredHardware>>("list_discovered_hardware", Category, "Hardware a device found (I²C scan, 1-Wire probes, emulator inventory) that can be adopted as sensors/actuators/cameras.",
-            async (ctx, i) => await ctx.Db.DiscoveredHardware.AsNoTracking().Where(x => x.DeviceId == i.DeviceId).OrderBy(x => x.Kind).ThenBy(x => x.SuggestedName).ToListAsync(ctx.Ct));
+            async (ctx, i) => await DiscoveredWithAdoptionAsync(ctx, i.DeviceId));
 
         r.Mutate<AdoptHardwareInput, AdoptResult>("adopt_discovered_hardware", Category,
             "Turn a discovered hardware item into a configured sensor, actuator or camera targeting a garden, bed or plant.",
