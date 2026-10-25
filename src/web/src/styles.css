@@ -123,9 +123,8 @@ body {
 
 .sg-kicker {
   margin: 0;
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 13px;
+  letter-spacing: 0.01em;
   color: var(--sg-ink-soft);
 }
 
@@ -317,16 +316,16 @@ body {
 }
 
 .sg-send {
-  background: var(--sg-accent);
-  color: #fffaf6;
+  background: var(--sg-accent) !important;
+  color: #fffaf6 !important;
 }
 
-.sg-send:hover { background: #b83a18; }
+.sg-send:hover { background: #b83a18 !important; }
 
 .sg-send:disabled,
 .sg-send[data-disabled] {
-  background: #e4d9c8;
-  color: #8a8174;
+  background: #e4d9c8 !important;
+  color: #8a8174 !important;
 }
 
 .sg-queue {
@@ -431,10 +430,18 @@ body {
 
 .mantine-Card-root { background: var(--sg-paper-2); }
 
-.mantine-Button-root[data-variant='filled'] {
-  --button-bg: var(--sg-accent);
-  --button-hover: #b83a18;
-  --button-color: #fffaf6;
+.mantine-Button-root:not([data-variant]):not([data-disabled]),
+.mantine-Button-root[data-variant='filled']:not([data-disabled]) {
+  --button-bg: var(--sg-accent) !important;
+  --button-hover: #b83a18 !important;
+  --button-color: #fffaf6 !important;
+  background: var(--sg-accent) !important;
+  color: #fffaf6 !important;
+}
+
+.mantine-Button-root:not([data-variant]):not([data-disabled]):hover,
+.mantine-Button-root[data-variant='filled']:not([data-disabled]):hover {
+  background: #b83a18 !important;
 }
 
 .mantine-Input-input,

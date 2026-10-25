@@ -17,7 +17,7 @@ function gardenHour(localTime: string) {
 }
 
 function BedCard({ b, o }: { b: BedOverview; o: GardenOverview }) {
-  const actuators = o.actuators.filter((a) => a.bedId === b.bed.id || b.plants.some((p) => p.plant.id === a.plantId))
+  const actuators = o.actuators.filter((a) => a.bedId === b.bed.id || b.plants.some((p) => p.plant.id === a.plantId) || (!!b.reservoirId && a.reservoirId === b.reservoirId))
   const camera = o.cameras.find((c) => c.bedId === b.bed.id || b.plants.some((p) => p.plant.id === c.plantId))
   const hydro = b.medium === 'hydroponic'
   const reservoir = b.reservoirId ? o.reservoirs.find((r) => r.id === b.reservoirId) : undefined
@@ -25,10 +25,7 @@ function BedCard({ b, o }: { b: BedOverview; o: GardenOverview }) {
     <Card className={b.aiActive ? 'sg-bed sg-ai-active' : 'sg-bed'} padding={0}>
       <div className="sg-camera-well">
         {camera ? (
-          <>
-            <CameraImage cameraId={camera.id} width={720} alt={camera.name} />
-            <span className="sg-camera-caption">{camera.name}</span>
-          </>
+          <CameraImage cameraId={camera.id} width={720} alt={camera.name} />
         ) : (
           <div className="sg-camera" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Text size="sm" c="gray.4">No camera on this bed</Text>
@@ -96,7 +93,7 @@ export function DashboardPage() {
   const env = o.environment
   const hour = gardenHour(env.localTime)
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
-  const gardenActuators = o.actuators.filter((a) => !a.bedId && !a.plantId)
+  const gardenActuators = o.actuators.filter((a) => !a.bedId && !a.plantId && !a.reservoirId)
   const running = o.runningAiActivities
   const first = user?.displayName.split(' ')[0]
 
@@ -110,13 +107,13 @@ export function DashboardPage() {
       )}
 
       <header>
-        <p className="sg-kicker">{titleCase(env.season)} · {env.localTime}{env.locationLabel ? ` · ${env.locationLabel}` : ''}</p>
+        <p className="sg-kicker">{titleCase(env.season)} · {env.localTime.match(/(\d{2}:\d{2})/)?.[1] ?? env.localTime}{env.locationLabel ? ` · ${env.locationLabel}` : ''}</p>
         <h1 className="sg-garden-title">{o.garden.name}</h1>
         <p className="sg-lede">
           {greeting}{first ? `, ${first}` : ''}. {running.length ? `The assistant is acting on ${running.length === 1 ? 'one thing' : `${running.length} things`}.` : 'The assistant is idle.'}
         </p>
         <div className="sg-status-line">
-          <Anchor component={Link} to="/devices">{o.devices.online}/{o.devices.total} devices online{o.devices.pending ? ` · ${o.devices.pending} waiting` : ''}</Anchor>
+          <Anchor component={Link} to="/devices">{o.devices.online} of {o.devices.total} devices online{o.devices.pending ? ` · ${o.devices.pending} waiting` : ''}</Anchor>
           <Anchor component={Link} to="/approvals">{o.pendingProposals} waiting for approval</Anchor>
           <span>{env.daylightHours ? `${env.daylightHours.toFixed(1)} h of daylight` : 'Daylight unknown'}{env.sunrise ? ` · ${env.sunrise}–${env.sunset}` : ''}{env.isDaylight === true ? ' · day' : env.isDaylight === false ? ' · night' : ''}</span>
           <Button component={Link} to="/garden" variant="subtle" size="compact-sm">Garden settings</Button>
@@ -130,6 +127,10 @@ export function DashboardPage() {
         </div>
       )}
 
+      <div className="sg-beds">
+        {o.beds.map((b) => <BedCard key={b.bed.id} b={b} o={o} />)}
+      </div>
+
       {(o.gardenReadings.length > 0 || gardenActuators.length > 0) && (
         <Card>
           <Text fw={650} mb="xs">Garden conditions</Text>
@@ -141,10 +142,6 @@ export function DashboardPage() {
           )}
         </Card>
       )}
-
-      <div className="sg-beds">
-        {o.beds.map((b) => <BedCard key={b.bed.id} b={b} o={o} />)}
-      </div>
 
       <Card>
         <Group justify="space-between" mb="sm">
