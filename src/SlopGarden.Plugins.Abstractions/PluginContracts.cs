@@ -71,9 +71,16 @@ public sealed record DiscoveredDevice(
     IReadOnlyList<ChannelDescriptor> Channels,
     string? ActuatorKind = null);
 
-/// <summary>Optional: plugins that can enumerate attached hardware (I²C scan, 1-Wire bus, emulator inventory).</summary>
+/// <summary>
+/// A plugin that can recognize hardware it knows how to drive. The client loads every public parameterless
+/// implementation and asks again while it is connected, so a camera or probe plugged in later shows up on the device.
+/// Each <see cref="DiscoveredDevice.PluginId"/> must be a sensor, actuator, or camera component in the same load.
+/// Report only hardware the plugin can identify. A bare GPIO pin cannot be detected; the person chooses the pin.
+/// <see cref="DiscoveredDevice.Address"/> stays the same when the same part is still attached.
+/// </summary>
 public interface IHardwareDiscovery
 {
+    /// <summary>The discovery itself. Results point at component ids such as <c>v4l2-camera</c> or <c>ds18b20</c>.</summary>
     string PluginId { get; }
     ValueTask<IReadOnlyList<DiscoveredDevice>> DiscoverAsync(IServiceProvider services, CancellationToken cancellationToken);
 }

@@ -160,7 +160,8 @@ public sealed record DiscoveredHardwareItem(
     IReadOnlyList<DiscoveredChannel> Channels,
     string? ActuatorKind);
 
-public sealed record DiscoveredHardwareReport(IReadOnlyList<DiscoveredHardwareItem> Items);
+/// <param name="Complete">False when a plugin failed to scan. Missing hardware is then left in place. Null from an older client, which is treated as a full scan.</param>
+public sealed record DiscoveredHardwareReport(IReadOnlyList<DiscoveredHardwareItem> Items, bool? Complete = null);
 
 public sealed record ActuatorCommandMessage(
     Guid CommandId,

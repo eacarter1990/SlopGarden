@@ -261,7 +261,7 @@ public sealed class DeviceConnection(
         });
         hub.On(DeviceHubMethods.RequestDiscovery, () =>
         {
-            _ = Guard(DeviceHubMethods.RequestDiscovery, () => hardware.RunAndReportAsync(ct));
+            _ = Guard(DeviceHubMethods.RequestDiscovery, () => hardware.RunAndReportAsync(ct, force: true));
             return Task.CompletedTask;
         });
         hub.On<ApplyUpdateCommand>(DeviceHubMethods.ApplyUpdate, command =>
@@ -300,7 +300,7 @@ public sealed class DeviceConnection(
         link.State = ClientStates.Connected;
         foreach (var state in actuators.CurrentStates()) link.Post(DeviceHubMethods.ReportActuatorState, state);
         outbox.MessagesAvailable.Set();
-        _ = Guard(DeviceHubMethods.ReportDiscoveredHardware, () => hardware.RunAndReportAsync(ct));
+        _ = Guard(DeviceHubMethods.ReportDiscoveredHardware, () => hardware.RunAndReportAsync(ct, force: true));
     }
 
     /// <summary>Reconnects forever with capped backoff, except when the server rejects the token.</summary>

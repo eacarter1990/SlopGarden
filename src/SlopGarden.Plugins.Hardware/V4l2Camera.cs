@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json.Nodes;
+using SlopGarden.Contracts;
 using SlopGarden.Plugins.Abstractions;
 
 namespace SlopGarden.Plugins.Hardware;
@@ -87,6 +88,65 @@ public sealed class FfmpegGrabber : IFrameGrabber
             throw new IOException(string.IsNullOrWhiteSpace(err) ? $"No JPEG from {device}." : err.Trim());
         }
         return jpeg;
+    }
+}
+
+/// <summary>Lists USB UVC webcams. A camera often has a second video node for metadata; only the capture node (index 0, driver uvcvideo) is reported.</summary>
+public static class V4l2Devices
+{
+    public static IReadOnlyList<DiscoveredDevice> List(string sysfsRoot)
+    {
+        if (!Directory.Exists(sysfsRoot)) return [];
+        var found = new List<DiscoveredDevice>();
+        foreach (var dir in Directory.EnumerateDirectories(sysfsRoot).Order(StringComparer.Ordinal))
+        {
+            var node = Path.GetFileName(dir);
+            if (!node.StartsWith("video", StringComparison.Ordinal)) continue;
+            if (!string.Equals(DriverName(dir), "uvcvideo", StringComparison.Ordinal)) continue;
+            var indexPath = Path.Combine(dir, "index");
+            var index = File.Exists(indexPath) ? File.ReadAllText(indexPath).Trim() : "0";
+            if (index != "0") continue;
+            var device = "/dev/" + node;
+            var raw = File.Exists(Path.Combine(dir, "name")) ? File.ReadAllText(Path.Combine(dir, "name")) : "";
+            found.Add(new DiscoveredDevice(
+                V4l2CameraPlugin.Id, PluginKinds.Camera, device, Friendly(raw, node),
+                new JsonObject { ["device"] = device }, []));
+        }
+        return found;
+    }
+
+    private static string? DriverName(string nodeDir)
+    {
+        var info = new DirectoryInfo(Path.Combine(nodeDir, "device", "driver"));
+        var target = info.LinkTarget;
+        if (string.IsNullOrWhiteSpace(target) && info.Exists)
+            target = info.ResolveLinkTarget(returnFinalTarget: false)?.Name;
+        if (string.IsNullOrWhiteSpace(target)) return null;
+        return Path.GetFileName(target.TrimEnd('/', '\\'));
+    }
+
+    private static string Friendly(string raw, string node)
+    {
+        var text = raw.Trim();
+        var colon = text.IndexOf(':');
+        if (colon > 0)
+        {
+            var left = text[..colon].Trim();
+            var right = text[(colon + 1)..].Trim();
+            if (left.Length > 0 && string.Equals(left, right, StringComparison.OrdinalIgnoreCase)) return left;
+        }
+        return text.Length > 0 ? text : $"USB webcam {node}";
+    }
+}
+
+public sealed class V4l2Discovery : IHardwareDiscovery
+{
+    public string PluginId => V4l2CameraPlugin.Id;
+
+    public ValueTask<IReadOnlyList<DiscoveredDevice>> DiscoverAsync(IServiceProvider services, CancellationToken cancellationToken)
+    {
+        if (!OperatingSystem.IsLinux()) return ValueTask.FromResult<IReadOnlyList<DiscoveredDevice>>([]);
+        return ValueTask.FromResult(V4l2Devices.List("/sys/class/video4linux"));
     }
 }
 
