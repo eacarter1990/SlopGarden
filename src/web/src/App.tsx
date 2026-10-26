@@ -24,15 +24,15 @@ import { SensorsPage } from './pages/Sensors'
 import { SettingsPage } from './pages/Settings'
 
 export default function App() {
-  const { loading, user, status } = useAuth()
-  if (loading) {
+  const { phase, statusError } = useAuth()
+  if (phase === 'loading') {
     return (
       <Center h="100vh">
         <Loader />
       </Center>
     )
   }
-  if (!user) return <LoginPage needsSetup={status?.needsSetup ?? false} />
+  if (phase !== 'app') return <LoginPage phase={phase} statusError={statusError} />
 
   return (
     <LiveProvider>

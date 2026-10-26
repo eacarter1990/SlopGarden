@@ -135,11 +135,18 @@ public sealed class HousekeepingService(IServiceScopeFactory scopes, AiActivityT
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using (var scope = scopes.CreateScope())
+        try
         {
+            using var scope = scopes.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<SlopDbContext>();
             await db.Devices.Where(d => d.IsOnline).ExecuteUpdateAsync(s => s.SetProperty(d => d.IsOnline, false), stoppingToken);
             await db.AiActivities.Where(a => a.Status == "running").ExecuteUpdateAsync(s => s.SetProperty(a => a.Status, "failed"), stoppingToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // This runs at boot, often before local PostgreSQL is listening. An uncaught failure stops the host
+            // and the Windows service exits before the site can stay up and retry.
+            log.LogError(ex, "Housekeeping startup skipped because PostgreSQL is not reachable");
         }
 
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));

@@ -18,7 +18,7 @@ namespace SlopGarden.Server.Tests;
 /// Runs the real server against a throwaway PostgreSQL database (SLOPGARDEN_TEST_PG overrides the admin connection)
 /// plus an in-process scripted OpenAI-compatible model.
 /// </summary>
-public sealed class ServerFixture : WebApplicationFactory<Program>, IAsyncLifetime
+public class ServerFixture : WebApplicationFactory<Program>, IAsyncLifetime
 {
     public static readonly string AdminConnection =
         Environment.GetEnvironmentVariable("SLOPGARDEN_TEST_PG") ?? "Host=localhost;Username=slopgarden;Password=slopgarden;Database=postgres";
