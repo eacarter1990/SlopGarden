@@ -12,7 +12,7 @@ export function LoginPage({ needsSetup }: { needsSetup: boolean }) {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [showDb, setShowDb] = useState(false)
-  const [host, setHost] = useState(db?.host ?? 'db')
+  const [host, setHost] = useState(db?.host ?? 'localhost')
   const [port, setPort] = useState<number | string>(db?.port ?? 5432)
   const [database, setDatabase] = useState(db?.database ?? 'slopgarden')
   const [dbUser, setDbUser] = useState(db?.username ?? 'slopgarden')
