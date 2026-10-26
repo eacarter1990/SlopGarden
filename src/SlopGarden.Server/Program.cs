@@ -28,6 +28,12 @@ builder.Configuration.AddEnvironmentVariables();
 builder.Configuration.AddJsonFile(overridesPath, optional: true, reloadOnChange: false);
 builder.Configuration.AddCommandLine(args);
 
+// 0.0.0.0 is IPv4 only, so Windows localhost (::1) never connects. +:5080 is both.
+// Skip when a test or the environment already chose a URL.
+var listen = builder.Configuration["urls"] ?? builder.Configuration["Urls"];
+if (string.IsNullOrWhiteSpace(listen) || listen.Contains("0.0.0.0:5080", StringComparison.Ordinal))
+    builder.WebHost.UseUrls("http://+:5080");
+
 builder.Services.Configure<ServerOptions>(builder.Configuration.GetSection(ServerOptions.Section));
 builder.Services.PostConfigure<ServerOptions>(o => o.DataDirectory = dataDir);
 builder.Services.AddSingleton(new ServerOverridesFile(overridesPath));
@@ -146,6 +152,17 @@ builder.Services.AddHostedService<MdnsDiscoveryService>();
 builder.Logging.AddProvider(new FileLogProvider(Path.Combine(dataDir, "logs", "server.log")));
 
 var app = builder.Build();
+
+app.Use(async (ctx, next) =>
+{
+    if (ctx.Request.Path.StartsWithSegments("/api") && DatabaseStartup.LastError is { } dbError)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        await ctx.Response.WriteAsJsonAsync(new { error = "PostgreSQL is not reachable. " + dbError });
+        return;
+    }
+    await next();
+});
 
 app.Use(async (ctx, next) =>
 {
