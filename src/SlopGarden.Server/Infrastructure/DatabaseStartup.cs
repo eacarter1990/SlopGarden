@@ -1,3 +1,4 @@
+using System.Net.Sockets;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SlopGarden.Server.Data;
@@ -19,8 +20,10 @@ public sealed class DatabaseStartup(IServiceScopeFactory scopes, ILogger<Databas
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            LastError = ex.Message;
-            log.LogError(ex, "PostgreSQL is not reachable. The site will stay up on port 5080 so the database can be pointed at a running server.");
+            LastError = ex.InnerException is SocketException { SocketErrorCode: SocketError.ConnectionRefused }
+                ? "PostgreSQL is not running on 127.0.0.1:5432. Start the PostgreSQL service, then create database slopgarden owned by user slopgarden with password slopgarden."
+                : ex.Message;
+            log.LogError(ex, "PostgreSQL is not reachable. The site will stay up on port 5080. {Detail}", LastError);
         }
     }
 
