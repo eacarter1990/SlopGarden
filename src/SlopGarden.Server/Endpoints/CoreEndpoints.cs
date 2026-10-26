@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting.WindowsServices;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using SlopGarden.Contracts;
@@ -35,19 +36,48 @@ public static class CoreEndpoints
     {
         var g = app.MapGroup("/api/auth").WithTags("Auth");
 
-        g.MapGet("/status", async (SlopDbContext db, HttpContext http, IOptions<ServerOptions> opts) =>
+        g.MapGet("/status", async (SlopDbContext db, HttpContext http, IOptions<ServerOptions> opts, DatabaseStartup startup) =>
         {
-            var needsSetup = !await db.Users.AnyAsync();
-            UserDto? me = null;
-            if (http.User.Identity?.IsAuthenticated == true && Guid.TryParse(http.User.FindFirstValue(Claims.UserId), out var id))
-                me = await db.Users.AsNoTracking().Where(u => u.Id == id).Select(u => UserDto.From(u)).FirstOrDefaultAsync();
             var database = opts.Value.Database;
-            return Results.Ok(new
+            var info = new { database.Host, database.Port, database.Database, database.Username, database.SslMode };
+            if (!startup.Ready)
             {
-                needsSetup,
-                user = me,
-                database = new { database.Host, database.Port, database.Database, database.Username, database.SslMode },
-            });
+                return Results.Ok(new
+                {
+                    needsSetup = true,
+                    databaseReady = false,
+                    error = startup.LastError ?? "The database is still starting.",
+                    user = (UserDto?)null,
+                    database = info,
+                });
+            }
+            try
+            {
+                var needsSetup = !await db.Users.AnyAsync();
+                UserDto? me = null;
+                if (http.User.Identity?.IsAuthenticated == true && Guid.TryParse(http.User.FindFirstValue(Claims.UserId), out var id))
+                    me = await db.Users.AsNoTracking().Where(u => u.Id == id).Select(u => UserDto.From(u)).FirstOrDefaultAsync();
+                return Results.Ok(new
+                {
+                    needsSetup,
+                    databaseReady = true,
+                    error = (string?)null,
+                    user = me,
+                    database = info,
+                });
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                startup.MarkUnavailable(ex);
+                return Results.Ok(new
+                {
+                    needsSetup = true,
+                    databaseReady = false,
+                    error = startup.LastError,
+                    user = (UserDto?)null,
+                    database = info,
+                });
+            }
         }).AllowAnonymous();
 
         g.MapPost("/setup-database", async (DatabaseOptions req, SlopDbContext db, ServerOverridesFile overrides, IHostApplicationLifetime life, CancellationToken ct) =>
@@ -68,6 +98,9 @@ public static class CoreEndpoints
             _ = Task.Run(async () =>
             {
                 await Task.Delay(600);
+                // A clean exit leaves the Windows service stopped. Recovery restarts it only after a non-zero exit.
+                if (OperatingSystem.IsWindows() && WindowsServiceHelpers.IsWindowsService())
+                    Environment.ExitCode = 1;
                 life.StopApplication();
             });
             return Results.Ok(new { saved = true, restarting = true });
@@ -87,6 +120,8 @@ public static class CoreEndpoints
 
         g.MapPost("/login", async (LoginRequest req, SlopDbContext db, HttpContext http) =>
         {
+            if (!await db.Users.AnyAsync())
+                return Results.Json(new { error = "This server has no admin account yet. Create one to finish setup.", needsSetup = true }, statusCode: StatusCodes.Status409Conflict);
             var name = req.Username.Trim().ToLowerInvariant();
             var u = await db.Users.FirstOrDefaultAsync(x => x.Username == name);
             if (u is null || u.IsDisabled || !PasswordUtil.Verify(u, req.Password)) return Results.Json(new { error = "Invalid username or password" }, statusCode: 401);

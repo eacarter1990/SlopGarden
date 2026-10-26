@@ -132,9 +132,11 @@ builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<INotificationSender, BrowserNotificationSender>();
 builder.Services.AddScoped<INotificationSender, DiscordNotificationSender>();
 builder.Services.AddScoped<Seeder>();
-// Migrations run after the process has answered the Service Control Manager. Doing this
-// before app.Run() kept Windows waiting until it declared the service unresponsive.
-builder.Services.AddHostedService<DatabaseStartup>();
+// One instance: the middleware and /api/auth/status read the same ready flag the hosted service updates.
+// The first connection attempt finishes (or fails fast) before the service reports running. Retries do not
+// block the Service Control Manager, which is what made Windows report error 1053.
+builder.Services.AddSingleton<DatabaseStartup>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<DatabaseStartup>());
 builder.Services.AddHostedService<ConfigPushWorker>();
 builder.Services.AddHostedService<UdpDiscoveryService>();
 builder.Services.AddHostedService<ServerScheduler>();
@@ -155,10 +157,16 @@ var app = builder.Build();
 
 app.Use(async (ctx, next) =>
 {
-    if (ctx.Request.Path.StartsWithSegments("/api") && DatabaseStartup.LastError is { } dbError)
+    // /api/auth/status and /api/health stay open so the page can tell "still starting" from "sign in".
+    // A 503 on status used to be read as needsSetup false, which showed the login form on an empty database.
+    if (ctx.Request.Path.StartsWithSegments("/api")
+        && !ctx.Request.Path.StartsWithSegments("/api/health")
+        && !ctx.Request.Path.StartsWithSegments("/api/auth/status")
+        && ctx.RequestServices.GetRequiredService<DatabaseStartup>() is { Ready: false } startup)
     {
         ctx.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
-        await ctx.Response.WriteAsJsonAsync(new { error = "PostgreSQL is not reachable. " + dbError });
+        var detail = startup.LastError ?? "The database is still starting.";
+        await ctx.Response.WriteAsJsonAsync(new { error = "PostgreSQL is not reachable. " + detail, needsSetup = true });
         return;
     }
     await next();

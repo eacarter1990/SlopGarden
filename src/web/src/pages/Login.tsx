@@ -1,9 +1,10 @@
-import { Alert, Button, Collapse, NumberInput, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core'
+import { Alert, Button, Center, Collapse, Loader, NumberInput, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core'
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import { useAuth } from '../auth'
+import { useAuth, type AuthPhase } from '../auth'
 
-export function LoginPage({ needsSetup }: { needsSetup: boolean }) {
+export function LoginPage({ phase, statusError }: { phase: Extract<AuthPhase, 'setup' | 'login' | 'waiting'>; statusError?: string | null }) {
+  const needsSetup = phase === 'setup'
   const { refresh, status } = useAuth()
   const db = status?.database
   const [username, setUsername] = useState('')
@@ -39,6 +40,22 @@ export function LoginPage({ needsSetup }: { needsSetup: boolean }) {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (phase === 'waiting') {
+    return (
+      <div className="sg-login">
+        <div className="sg-login-card">
+          <Stack gap="md">
+            <img src="/favicon.svg" width={40} height={40} alt="" />
+            <Title order={2} className="sg-serif" fw={560}>SlopGarden</Title>
+            <Text c="dimmed" size="sm">The server is waiting for PostgreSQL. When it answers, this page opens the form to create the admin account.</Text>
+            {statusError && <Alert color="red">{statusError}</Alert>}
+            <Center><Loader size="sm" /></Center>
+          </Stack>
+        </div>
+      </div>
+    )
   }
 
   return (
